@@ -1,6 +1,7 @@
 import type { InventoryItem, Category } from "@/types";
 
 const BASE = process.env.INVENTORY_API_BASE || "http://localhost:7000";
+export const USING_MOCK_DATA = !process.env.INVENTORY_API_BASE || process.env.INVENTORY_API_BASE === "http://localhost:7000";
 
 // ── Mock data (shown when Pi API is unreachable) ──────────────────────────────
 
@@ -113,3 +114,6 @@ export async function getStoreCategories(): Promise<Category[]> {
     return MOCK_CATEGORIES;
   }
 }
+
+// Alias for use in client components that need a sync list
+export const categories = MOCK_CATEGORIES;

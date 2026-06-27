@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getStoreItem, getStoreCategories } from "@/lib/inventory";
-import { formatPrice, stockLabel, stockColor } from "@/lib/utils";
-import AddToCartButton from "@/components/shop/AddToCartButton";
 import type { Metadata } from "next";
+import { getStoreItem, getStoreItems } from "@/lib/inventory";
+import { formatPrice, stockLabel, stockColor } from "@/lib/utils";
+import AddToCartButton from "@/components/AddToCartButton";
+import { StockBadge } from "@/components/ui";
 
 export const revalidate = 60;
 interface Props { params: Promise<{ id: string }> }
@@ -13,132 +14,123 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   catch { return { title: "Product" }; }
 }
 
+const PLACEHOLDER = "https://placehold.co/720x540/1e3a5f/ffffff?text=Golden+Stone+Tools";
+
 export default async function ProductPage({ params }: Props) {
   const { id } = await params;
-  let item, categories;
-  try {
-    [item, categories] = await Promise.all([getStoreItem(id), getStoreCategories()]);
-  } catch { notFound(); }
+  let item, allItems;
+  try { [item, allItems] = await Promise.all([getStoreItem(id), getStoreItems()]); }
+  catch { notFound(); }
 
-  const img = item!.image_url || "/img/products/product-grey-1.jpg";
+  const related = allItems!.filter((i) => i!.category_name === item!.category_name && i.id !== item!.id).slice(0, 3);
+  const img = item!.image_url || PLACEHOLDER;
 
   return (
-    <div className="container py-4">
-      {/* Breadcrumb — same as original */}
-      <nav aria-label="breadcrumb" className="mb-4">
-        <ol className="breadcrumb">
-          <li className="breadcrumb-item"><Link href="/">Shop</Link></li>
-          {item!.category_name && (
-            <li className="breadcrumb-item">
-              <Link href={`/?cat=${encodeURIComponent(item!.category_name)}`}>{item!.category_name}</Link>
-            </li>
-          )}
-          <li className="breadcrumb-item active">{item!.name}</li>
-        </ol>
-      </nav>
-
-      <div className="row">
-        {/* Left sidebar — categories */}
-        <div className="col-lg-3 mb-4 mb-lg-0">
-          <aside className="sidebar">
-            <h5 className="font-weight-semi-bold pt-3">Categories</h5>
-            <ul className="nav nav-list flex-column">
-              {(categories ?? []).map(c => (
-                <li className="nav-item" key={c.id}>
-                  <Link className="nav-link" href={`/?cat=${encodeURIComponent(c.name)}`}>{c.name}</Link>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-4">
-              <Link href="/" className="btn btn-outline-dark btn-sm w-100">&larr; Back to Shop</Link>
-            </div>
-          </aside>
-        </div>
-
-        {/* Product detail — same row structure as original */}
-        <div className="col-lg-9">
-          <div className="row" id="gsw-product-detail">
-
-            {/* Image */}
-            <div className="col-lg-5 mb-4 mb-lg-0">
-              <div className="product-image-wrapper">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={img} className="img-fluid rounded" alt={item!.name}
-                  onError={undefined}
-                  style={{ width: "100%", maxHeight: 420, objectFit: "contain", background: "#f8f9fa", padding: 16 }} />
-              </div>
-            </div>
-
-            {/* Detail column */}
-            <div className="col-lg-7">
-              <div className="summary entry-summary">
-                <h1 className="mb-0 font-weight-bold text-7">{item!.name}</h1>
-                <div className="divider divider-small"><hr className="bg-color-grey-400" /></div>
-
-                <p className="price mb-3">
-                  <span className="sale text-color-dark text-7 font-weight-bold">{formatPrice(item!.store_price)}</span>
-                </p>
-
-                {item!.description && <p className="text-3-5 mb-3">{item!.description}</p>}
-
-                <ul className="list list-unstyled text-2 mb-3">
-                  <li className="mb-1">
-                    AVAILABILITY:{" "}
-                    <strong style={{ color: stockColor(item!.stock_status) }}>
-                      {stockLabel(item!.stock_status, item!.amount)}
-                    </strong>
-                  </li>
-                  {item!.sku && <li className="mb-1">SKU: <strong className="text-color-dark">{item!.sku}</strong></li>}
-                  {item!.brand && <li className="mb-1">BRAND: <strong className="text-color-dark">{item!.brand}</strong></li>}
-                  {item!.model_number && <li className="mb-1">MODEL: <strong className="text-color-dark">{item!.model_number}</strong></li>}
-                  {item!.category_name && <li className="mb-1">CATEGORY: <strong className="text-color-dark">{item!.category_name}</strong></li>}
-                </ul>
-
-                <hr />
-                <AddToCartButton item={item!} />
-                <hr />
-
-                <div className="p-3 rounded mt-3" style={{ background: "#f0f7ff", fontSize: "0.85rem" }}>
-                  <i className="fas fa-store text-primary me-2" />
-                  <strong>In-store pickup only.</strong> We will notify you when your order is ready for collection.
-                </div>
-              </div>
-            </div>
-
-            {/* Description tabs — same as original */}
-            <div className="col-12 mt-5">
-              <div id="description" className="tabs tabs-simple tabs-simple-full-width-line tabs-product tabs-dark mb-2">
-                <ul className="nav nav-tabs justify-content-start">
-                  <li className="nav-item">
-                    <a className="nav-link active font-weight-bold text-3 text-uppercase py-2 px-3" href="#productDescription" data-bs-toggle="tab">Description</a>
-                  </li>
-                  <li className="nav-item">
-                    <a className="nav-link font-weight-bold text-3 text-uppercase py-2 px-3" href="#productInfo" data-bs-toggle="tab">Additional Information</a>
-                  </li>
-                </ul>
-                <div className="tab-content p-0">
-                  <div className="tab-pane px-0 py-3 active" id="productDescription">
-                    {item!.description
-                      ? <p>{item!.description}</p>
-                      : <p className="text-muted">No description available.</p>}
-                  </div>
-                  <div className="tab-pane px-0 py-3" id="productInfo">
-                    <table className="table table-striped m-0">
-                      <tbody>
-                        {item!.brand && <tr><th className="border-top-0">Brand</th><td className="border-top-0">{item!.brand}</td></tr>}
-                        {item!.model_number && <tr><th>Model</th><td>{item!.model_number}</td></tr>}
-                        {item!.category_name && <tr><th>Category</th><td>{item!.category_name}</td></tr>}
-                        {item!.voltage && item!.voltage !== "N/A" && <tr><th>Voltage</th><td>{item!.voltage}</td></tr>}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <Link href="/" className="text-sm font-semibold text-slate-600 hover:text-slate-950">
+          ← Back to catalog
+        </Link>
+        <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{item!.category_name}</span>
       </div>
+
+      <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+        {/* Image */}
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={img} alt={item!.name} className="h-full w-full object-cover" />
+        </div>
+
+        {/* Detail */}
+        <div className="space-y-6">
+          <div className="space-y-3">
+            {item!.sku && <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">{item!.sku}</p>}
+            <h1 className="text-4xl font-black tracking-tight text-slate-950">{item!.name}</h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <StockBadge status={item!.stock_status} />
+              <span className="text-sm text-slate-500">In-store pickup only</span>
+            </div>
+          </div>
+
+          {item!.description && <p className="text-lg leading-8 text-slate-600">{item!.description}</p>}
+
+          <div className="rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+            <p className="font-semibold">In-store pickup only</p>
+            <p className="mt-1">Orders are prepared for pickup at the store counter. No delivery or shipping.</p>
+          </div>
+
+          <div className="flex items-end justify-between gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">Price</p>
+              <p className="mt-1 text-4xl font-black tracking-tight text-slate-950">{formatPrice(item!.store_price)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-slate-500">Available</p>
+              <p className="text-lg font-bold text-slate-950">{item!.amount}</p>
+            </div>
+          </div>
+
+          <AddToCartButton item={item!} />
+
+          {/* Specs */}
+          {(item!.brand || item!.model_number || item!.voltage) && (
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-950">Product Specs</h2>
+              <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+                {item!.brand && (
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Brand</dt>
+                    <dd className="mt-1 text-sm font-semibold text-slate-950">{item!.brand}</dd>
+                  </div>
+                )}
+                {item!.model_number && (
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Model</dt>
+                    <dd className="mt-1 text-sm font-semibold text-slate-950">{item!.model_number}</dd>
+                  </div>
+                )}
+                {item!.voltage && item!.voltage !== "N/A" && (
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Voltage</dt>
+                    <dd className="mt-1 text-sm font-semibold text-slate-950">{item!.voltage}</dd>
+                  </div>
+                )}
+                {item!.category_name && (
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Category</dt>
+                    <dd className="mt-1 text-sm font-semibold text-slate-950">{item!.category_name}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Related */}
+      {related.length > 0 && (
+        <section className="mt-12">
+          <div className="mb-5">
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Related items</p>
+            <h2 className="text-2xl font-bold tracking-tight text-slate-950">More in {item!.category_name}</h2>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {related.map((r) => (
+              <article key={r.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <Link href={`/shop/product/${r.id}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={r.image_url || PLACEHOLDER} alt={r.name} className="aspect-[4/3] w-full object-cover" />
+                </Link>
+                <div className="space-y-2 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{r.category_name}</p>
+                  <h3 className="text-lg font-bold text-slate-950">{r.name}</h3>
+                  <p className="text-sm text-slate-600">{formatPrice(r.store_price)}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

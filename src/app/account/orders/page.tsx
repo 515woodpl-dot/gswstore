@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getUserOrders, formatPrice, orderStatusLabel, orderStatusColor } from "@/lib/utils";
+import { getUserOrders, formatPrice } from "@/lib/utils";
+import { OrderStatusBadge } from "@/components/ui";
 import type { Order } from "@/types";
 
 interface Props { searchParams: Promise<{ placed?: string }> }
@@ -11,56 +12,67 @@ export default async function OrdersPage({ searchParams }: Props) {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) redirect("/auth/login?next=/account/orders");
   const { placed } = await searchParams;
-
   let orders: Order[] = [];
   try { orders = await getUserOrders(user.id); } catch {}
 
   return (
-    <div className="container py-4" style={{ maxWidth:800 }}>
-      <div className="d-flex align-items-center gap-3 mb-4">
-        <Link href="/account" className="text-color-dark text-decoration-none text-3">&larr; Account</Link>
-        <h1 className="font-weight-bold mb-0">My Orders</h1>
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mb-8 flex items-end justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Account</p>
+          <h1 className="text-3xl font-black tracking-tight text-slate-950">My Orders</h1>
+        </div>
+        <Link href="/" className="text-sm font-semibold text-slate-600 hover:text-slate-950">Back to Catalog</Link>
       </div>
 
       {placed && (
-        <div className="alert alert-success d-flex align-items-center gap-2 mb-4 text-3">
-          <i className="fas fa-check-circle" />
-          <div><strong>Order placed!</strong> Order <strong>{placed}</strong> received. We will notify you when it is ready for pickup.</div>
+        <div className="mb-8 rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-800">
+          Order <span className="font-bold">{placed}</span> has been received and added to your pickup history.
         </div>
       )}
 
       {orders.length === 0 ? (
-        <div className="text-center py-5">
-          <i className="fas fa-box-open mb-3" style={{ fontSize:"3rem", color:"#dee2e6" }} />
-          <p className="text-muted mb-3">No orders yet.</p>
-          <Link href="/" className="btn btn-dark btn-sm">Start Shopping</Link>
+        <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center">
+          <p className="text-lg font-semibold text-slate-950">No orders yet.</p>
+          <p className="mt-2 text-sm text-slate-600">Place an order to populate this account view.</p>
         </div>
       ) : (
-        <div className="d-flex flex-column gap-3">
-          {orders.map(order => (
-            <div key={order.id} className="p-4 rounded" style={{ border:"1px solid #e9ecef" }}>
-              <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div className="space-y-4">
+          {orders.map((order) => (
+            <article key={order.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="mb-0 font-weight-bold text-3">Order {order.order_number}</p>
-                  <p className="text-muted mb-0 text-2">{new Date(order.created_at).toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric" })}</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Order {order.order_number}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {new Date(order.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                  </p>
                 </div>
-                <div className="d-flex align-items-center gap-3">
-                  <span className="badge" style={{ background: orderStatusColor(order.status), fontSize:"0.75rem", padding:"5px 10px" }}>{orderStatusLabel(order.status)}</span>
-                  <strong>{formatPrice(order.total)}</strong>
+                <div className="flex items-center gap-3">
+                  <OrderStatusBadge status={order.status} />
+                  <p className="text-xl font-black tracking-tight text-slate-950">{formatPrice(order.total)}</p>
                 </div>
               </div>
-              {order.items.map(item => (
-                <div key={item.id} className="d-flex justify-content-between text-3">
-                  <span className="text-muted">{item.name} × {item.quantity}</span>
-                  <span>{formatPrice(item.unit_price * item.quantity)}</span>
-                </div>
-              ))}
-              {order.status === "ready" && (
-                <div className="mt-3 p-2 rounded text-3" style={{ background:"#d1fae5", color:"#065f46" }}>
-                  <i className="fas fa-store me-1" /> Your order is ready for pickup!
+              <div className="mt-4 space-y-3">
+                {order.items.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-4 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-950">{item.name} × {item.quantity}</p>
+                    </div>
+                    <p className="font-semibold text-slate-950">{formatPrice(item.unit_price * item.quantity)}</p>
+                  </div>
+                ))}
+              </div>
+              {order.notes && (
+                <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
+                  <span className="font-semibold text-slate-800">Notes:</span> {order.notes}
                 </div>
               )}
-            </div>
+              {order.status === "ready" && (
+                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+                  ✓ Your order is ready for pickup at the store counter.
+                </div>
+              )}
+            </article>
           ))}
         </div>
       )}

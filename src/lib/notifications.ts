@@ -8,7 +8,7 @@ export async function sendOrderConfirmationEmail(
   customerName: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM || "orders@gswtools.com";
+  const from = process.env.RESEND_FROM || "orders@goldenstonetools.com";
 
   if (!apiKey) {
     console.warn("[Resend] RESEND_API_KEY not set — skipping email");
@@ -128,7 +128,7 @@ export async function notifyInventoryApp(
   };
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000); // 5s timeout
+  const timer = setTimeout(() => controller.abort(), 10000); // 10s timeout — Tailscale can spike
 
   try {
     const res = await fetch(webhookUrl, {

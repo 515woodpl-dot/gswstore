@@ -21,26 +21,35 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="container py-5" style={{ maxWidth: 480 }}>
-      <h1 className="font-weight-bold mb-1" style={{ fontSize:"1.75rem" }}>Sign In</h1>
-      <p className="text-muted mb-4 text-3">Access your orders and cart</p>
-      <div className="p-4 rounded" style={{ border:"1px solid #e9ecef" }}>
-        <form onSubmit={handle}>
-          <div className="mb-3">
-            <label className="form-label font-weight-semibold text-3">Email</label>
-            <input type="email" className="form-control" value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="email" />
-          </div>
-          <div className="mb-3">
-            <label className="form-label font-weight-semibold text-3">Password</label>
-            <input type="password" className="form-control" value={password} onChange={e=>setPassword(e.target.value)} required />
-          </div>
-          {error && <div className="alert alert-danger py-2 mb-3 text-3">{error}</div>}
-          <button className="btn btn-dark w-100 btn-modern" type="submit" disabled={loading} style={{ padding:"11px" }}>
+    <div className="mx-auto flex min-h-[calc(100vh-140px)] max-w-2xl items-center px-4 py-12 sm:px-6 lg:px-8">
+      <div className="w-full rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="mb-8 space-y-3">
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Sign In</p>
+          <h1 className="text-3xl font-black tracking-tight text-slate-950">Access your account</h1>
+        </div>
+        <form onSubmit={handle} className="space-y-5">
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-800">Email</span>
+            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} autoComplete="email"
+              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-navy"
+              placeholder="name@company.com" />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-800">Password</span>
+            <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
+              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-navy"
+              placeholder="••••••••" />
+          </label>
+          {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
+          <button type="submit" disabled={loading}
+            className="inline-flex w-full items-center justify-center rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-70">
             {loading ? "Signing in…" : "Sign In"}
           </button>
         </form>
-        <hr />
-        <p className="text-center mb-0 text-3">No account? <Link href={`/auth/register?next=${next}`} className="text-color-dark font-weight-semibold">Create one</Link></p>
+        <div className="mt-6 flex items-center justify-between gap-4 text-sm">
+          <Link href="/" className="font-semibold text-slate-600 hover:text-slate-950">Back to Home</Link>
+          <Link href={`/auth/register?next=${next}`} className="font-semibold text-brand-navy hover:text-slate-800">Create account</Link>
+        </div>
       </div>
     </div>
   );

@@ -1,90 +1,112 @@
 "use client";
-import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { createOrder, formatPrice } from "@/lib/utils";
+import { OrderStatusBadge } from "@/components/ui";
 
 export default function CheckoutPage() {
   const { cart, total, refresh } = useCart();
   const { user } = useAuth();
   const router = useRouter();
   const [notes, setNotes] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
   const items = cart?.items ?? [];
+  const PLACEHOLDER = "https://placehold.co/64x64/1e3a5f/ffffff?text=GST";
 
   if (items.length === 0) return (
-    <div className="container py-5 text-center">
-      <p className="text-muted mb-3">Your cart is empty.</p>
-      <Link href="/" className="btn btn-dark">Browse Products</Link>
+    <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6 lg:px-8">
+      <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Checkout</p>
+      <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">Nothing to checkout yet.</h1>
+      <Link href="/" className="mt-8 inline-flex rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white">Browse Products</Link>
     </div>
   );
 
-  async function handleOrder() {
+  async function handlePlaceOrder() {
     if (!user || !cart) return;
-    setSubmitting(true); setError("");
+    setPlacing(true); setError("");
     try {
       const order = await createOrder(user.id, cart, notes);
       await refresh();
-      // Fire email + Pi notification server-side (non-blocking — don't await)
-      fetch("/api/orders/notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ order_id: order.id }),
-      }).catch(() => {}); // fire-and-forget
+      fetch("/api/orders/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order_id: order.id }) }).catch(() => {});
       router.push(`/account/orders?placed=${order.order_number}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed. Please try again.");
-      setSubmitting(false);
+      setPlacing(false);
     }
   }
 
   return (
-    <div className="container py-4">
-      <h1 className="font-weight-bold mb-4">Checkout</h1>
-      <div className="row g-4">
-        <div className="col-lg-7">
-          <div className="p-4 rounded mb-4" style={{ border:"1px solid #e9ecef" }}>
-            <h5 className="font-weight-bold mb-3">Review Your Order</h5>
-            {items.map(item => (
-              <div key={item.id} className="d-flex gap-3 py-2" style={{ borderBottom:"1px solid #f0f0f0" }}>
-                <div style={{ width:56, height:56, background:"#f8f9fa", flexShrink:0 }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.image_url || "/img/products/product-grey-1.jpg"} alt={item.name} style={{ width:"100%", height:"100%", objectFit:"contain" }} />
-                </div>
-                <div className="flex-grow-1">
-                  <p className="mb-0 font-weight-semibold text-3">{item.name}</p>
-                  <p className="text-muted mb-0 text-2">Qty: {item.quantity}</p>
-                </div>
-                <p className="mb-0 font-weight-semibold text-3">{formatPrice(item.store_price * item.quantity)}</p>
-              </div>
-            ))}
-          </div>
-          <div className="p-3 rounded mb-4" style={{ background:"#f0f7ff", border:"1px solid #bee3f8", fontSize:"0.875rem" }}>
-            <i className="fas fa-store text-primary me-2" />
-            <strong>In-store pickup.</strong> We will notify you when your order is ready for collection.
-          </div>
-          <div className="mb-4">
-            <label className="form-label font-weight-semibold text-3">Order notes <span className="text-muted font-weight-normal">(optional)</span></label>
-            <textarea className="form-control" rows={3} placeholder="Any special requests…" value={notes} onChange={e => setNotes(e.target.value)} />
-          </div>
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mb-8 flex items-end justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Checkout</p>
+          <h1 className="text-3xl font-black tracking-tight text-slate-950">Order review</h1>
         </div>
-        <div className="col-lg-5">
-          <div className="p-4 rounded" style={{ background:"#f8f9fa", border:"1px solid #e9ecef", position:"sticky", top:20 }}>
-            <h5 className="font-weight-bold mb-3">Order Total</h5>
-            <div className="d-flex justify-content-between mb-2 text-3"><span className="text-muted">Subtotal</span><span>{formatPrice(total)}</span></div>
-            <div className="d-flex justify-content-between mb-2 text-3"><span className="text-muted">Pickup</span><span className="text-success">Free</span></div>
-            <hr />
-            <div className="d-flex justify-content-between mb-4"><strong>Total</strong><strong className="text-6">{formatPrice(total)}</strong></div>
-            {error && <div className="alert alert-danger py-2 mb-3 text-3">{error}</div>}
-            <button className="btn btn-primary w-100 btn-modern mb-2" onClick={handleOrder} disabled={submitting} style={{ padding:"14px" }}>
-              {submitting ? "Placing Order…" : "Place Order"}
-            </button>
-            <Link href="/cart" className="btn btn-outline-secondary w-100 btn-modern text-3">Back to Cart</Link>
-          </div>
+        <OrderStatusBadge status="pending" />
+      </div>
+
+      <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="space-y-5">
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-bold text-slate-950">Review your order</h2>
+            <div className="mt-4 divide-y divide-slate-200">
+              {items.map((item) => (
+                <div key={item.id} className="flex items-center gap-4 py-4">
+                  <div className="h-16 w-16 overflow-hidden rounded-2xl bg-slate-50">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={item.image_url || PLACEHOLDER} alt={item.name} className="h-full w-full object-cover" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-slate-950">{item.name}</p>
+                    <p className="text-sm text-slate-500">Qty: {item.quantity}</p>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-950">{formatPrice(item.store_price * item.quantity)}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-bold text-slate-950">Pickup note</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Orders are collected in store only. Use the notes field below to share any counter instructions.</p>
+            <label className="mt-5 block">
+              <span className="mb-2 block text-sm font-semibold text-slate-800">Optional notes</span>
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4}
+                placeholder="Example: Please hold the order until after 3 PM."
+                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-navy" />
+            </label>
+          </section>
         </div>
+
+        <aside className="h-fit rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm lg:sticky lg:top-24">
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Total</p>
+          <div className="mt-5 space-y-4">
+            <div className="flex items-center justify-between text-sm text-slate-600">
+              <span>Subtotal</span>
+              <span className="font-semibold text-slate-950">{formatPrice(total)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm text-slate-600">
+              <span>Pickup</span>
+              <span className="font-semibold text-emerald-700">Free</span>
+            </div>
+            <div className="flex items-center justify-between border-t border-slate-200 pt-4">
+              <span className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Grand total</span>
+              <span className="text-2xl font-black tracking-tight text-slate-950">{formatPrice(total)}</span>
+            </div>
+          </div>
+          {error && <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
+          <button type="button" onClick={handlePlaceOrder} disabled={placing}
+            className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-wait disabled:opacity-70">
+            {placing ? "Placing Order..." : "Place Order"}
+          </button>
+          <Link href="/cart" className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">
+            Back to Cart
+          </Link>
+        </aside>
       </div>
     </div>
   );

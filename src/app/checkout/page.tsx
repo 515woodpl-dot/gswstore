@@ -28,6 +28,12 @@ export default function CheckoutPage() {
     try {
       const order = await createOrder(user.id, cart, notes);
       await refresh();
+      // Fire email + Pi notification server-side (non-blocking — don't await)
+      fetch("/api/orders/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order_id: order.id }),
+      }).catch(() => {}); // fire-and-forget
       router.push(`/account/orders?placed=${order.order_number}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed. Please try again.");

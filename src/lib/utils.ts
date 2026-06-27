@@ -4,7 +4,8 @@ import type { Cart, Order, StockStatus } from "@/types";
 
 function genOrderNumber() {
   const d = new Date().toISOString().slice(0,10).replace(/-/g,"");
-  const r = Math.random().toString(36).toUpperCase().slice(2,6);
+  // 6 chars from a padded random base-36 string — guaranteed length, ~2B combos/day
+  const r = Math.random().toString(36).slice(2).padEnd(6, "0").slice(0, 6).toUpperCase();
   return `GSW-${d}-${r}`;
 }
 

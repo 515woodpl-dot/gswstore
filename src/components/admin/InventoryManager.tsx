@@ -18,12 +18,14 @@ interface Row {
   amount: number;
   store_price: number;
   image_url: string | null;
+  images: string[] | null;
+  featured: boolean;
   store_visible: boolean;
 }
 
 const BLANK: Row = {
   id: "", name: "", category_id: null, category_name: "", brand: "", model_number: "",
-  voltage: "", sku: "", description: "", amount: 0, store_price: 0, image_url: "", store_visible: true,
+  voltage: "", sku: "", description: "", amount: 0, store_price: 0, image_url: "", images: [], featured: false, store_visible: true,
 };
 
 export default function InventoryManager({ initialItems, categories }: { initialItems: Row[]; categories: Category[] }) {
@@ -55,6 +57,8 @@ export default function InventoryManager({ initialItems, categories }: { initial
       amount: Number(editing.amount) || 0,
       store_price: Number(editing.store_price) || 0,
       image_url: editing.image_url || null,
+      images: editing.images ?? [],
+      featured: editing.featured,
       store_visible: editing.store_visible,
     };
     const { error: err } = await sb.from("inventory").upsert(payload);
@@ -147,7 +151,17 @@ export default function InventoryManager({ initialItems, categories }: { initial
               <Field label="Price" type="number" value={String(editing.store_price)} onChange={(v) => setEditing({ ...editing, store_price: Number(v) })} />
               <Field label="Stock amount" type="number" value={String(editing.amount)} onChange={(v) => setEditing({ ...editing, amount: Number(v) })} />
               <div className="sm:col-span-2">
-                <Field label="Image URL" value={editing.image_url ?? ""} onChange={(v) => setEditing({ ...editing, image_url: v })} />
+                <Field label="Main Image URL" value={editing.image_url ?? ""} onChange={(v) => setEditing({ ...editing, image_url: v })} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block">
+                  <span className="mb-1 block text-sm font-semibold text-slate-700">Gallery Images <span className="font-normal text-slate-400">(one URL per line — shown on the product page)</span></span>
+                  <textarea
+                    value={(editing.images ?? []).join("\n")}
+                    onChange={(e) => setEditing({ ...editing, images: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
+                    rows={3} placeholder={"https://...\nhttps://..."}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-mono" />
+                </label>
               </div>
               <div className="sm:col-span-2">
                 <label className="block">
@@ -156,9 +170,13 @@ export default function InventoryManager({ initialItems, categories }: { initial
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
                 </label>
               </div>
-              <label className="flex items-center gap-2 sm:col-span-2">
+              <label className="flex items-center gap-2">
                 <input type="checkbox" checked={editing.store_visible} onChange={(e) => setEditing({ ...editing, store_visible: e.target.checked })} />
                 <span className="text-sm font-semibold text-slate-700">Visible in store</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={editing.featured} onChange={(e) => setEditing({ ...editing, featured: e.target.checked })} />
+                <span className="text-sm font-semibold text-slate-700">Featured (homepage slideshow)</span>
               </label>
             </div>
             {error && <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}

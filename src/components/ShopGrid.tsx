@@ -68,13 +68,13 @@ function ProductCard({ item }: { item: InventoryItem }) {
             onClick={handleAdd}
             disabled={adding || !canAdd}
             className={[
-              "inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold transition",
+              "inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition",
               added ? "bg-emerald-600 text-white" :
               canAdd ? "bg-brand-navy text-white hover:bg-slate-800" :
               "cursor-not-allowed bg-slate-200 text-slate-500",
             ].join(" ")}
           >
-            {adding ? "Adding…" : added ? "✓ Added" : "Add to Cart"}
+            {adding ? "Adding…" : added ? "✓ Added" : canAdd ? "Add" : "Out"}
           </button>
         </div>
       </div>

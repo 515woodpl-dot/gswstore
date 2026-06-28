@@ -10,6 +10,8 @@ export interface InventoryItem {
   amount: number;
   store_price: number;
   image_url: string | null;
+  images: string[];
+  featured: boolean;
   description: string;
   sku: string;
   stock_status: StockStatus;

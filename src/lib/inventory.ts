@@ -20,6 +20,8 @@ interface InventoryRow {
   amount: number;
   store_price: number;
   image_url: string | null;
+  images: string[] | null;
+  featured: boolean;
   store_visible: boolean;
 }
 
@@ -36,11 +38,13 @@ function rowToItem(r: InventoryRow): InventoryItem {
     amount: r.amount,
     store_price: Number(r.store_price),
     image_url: r.image_url,
+    images: r.images ?? [],
+    featured: r.featured ?? false,
     stock_status: deriveStockStatus(r.amount),
   };
 }
 
-const COLS = "id,name,category_name,brand,model_number,voltage,sku,description,amount,store_price,image_url,store_visible";
+const COLS = "id,name,category_name,brand,model_number,voltage,sku,description,amount,store_price,image_url,images,featured,store_visible";
 
 // ── Public store reads (visible items only) ──────────────────────────────────
 
@@ -60,6 +64,17 @@ export async function getStoreItem(id: string): Promise<InventoryItem> {
   const { data, error } = await sb.from("inventory").select(COLS).eq("id", id).single();
   if (error || !data) throw new Error("Not found");
   return rowToItem(data as InventoryRow);
+}
+
+export async function getFeaturedItems(limit = 5): Promise<InventoryItem[]> {
+  const sb = await createClient();
+  const { data, error } = await sb
+    .from("inventory").select(COLS)
+    .eq("store_visible", true).eq("featured", true)
+    .order("name", { ascending: true })
+    .limit(limit);
+  if (error || !data) return [];
+  return (data as InventoryRow[]).map(rowToItem);
 }
 
 export async function getStoreCategories(): Promise<Category[]> {

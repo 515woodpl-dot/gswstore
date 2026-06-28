@@ -1,6 +1,7 @@
 import { Suspense } from "react";
-import { getStoreItems, getStoreCategories } from "@/lib/inventory";
+import { getStoreItems, getStoreCategories, getFeaturedItems } from "@/lib/inventory";
 import ShopGrid from "@/components/ShopGrid";
+import FeaturedSlideshow from "@/components/FeaturedSlideshow";
 
 export const revalidate = 60;
 
@@ -8,34 +9,15 @@ interface Props { searchParams: Promise<{ q?: string; cat?: string }> }
 
 export default async function HomePage({ searchParams }: Props) {
   const { q, cat } = await searchParams;
-  const [items, cats] = await Promise.all([getStoreItems(), getStoreCategories()]);
+  const [items, cats, featured] = await Promise.all([getStoreItems(), getStoreCategories(), getFeaturedItems(5)]);
 
   return (
     <div>
       {/* Hero */}
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.3fr_0.7fr] lg:px-8 lg:py-16">
-          <div className="space-y-8">
-            <div className="space-y-4">
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-brand-navy">
-                The right tool for every job
-              </p>
-              <h1 className="max-w-3xl text-4xl font-black tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
-                Trade-grade tools and equipment built for the counter, the crew, and the next job.
-              </h1>
-              <p className="max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
-                Golden Stone Tools keeps the catalog sharp and the checkout simple. Buy online, then pick up in store when your order is ready.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <a href="#catalog" className="inline-flex items-center justify-center rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
-                Browse Products
-              </a>
-              <a href="/cart" className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">
-                View Cart
-              </a>
-            </div>
-          </div>
+          {/* Featured products slideshow */}
+          <FeaturedSlideshow items={featured} />
 
           <aside className="rounded-3xl bg-slate-950 p-6 text-white shadow-soft">
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-white/60">Pickup only</p>

@@ -138,3 +138,8 @@ ON CONFLICT (name) DO NOTHING;
 --   2. Confirm Realtime is on: Dashboard → Database → Replication →
 --      ensure "orders" is in the supabase_realtime publication.
 -- ============================================================
+
+-- ── Featured + gallery (added later) ─────────────────────────────────────────
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS featured BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS images TEXT[] NOT NULL DEFAULT '{}';
+CREATE INDEX IF NOT EXISTS idx_inventory_featured ON inventory(featured) WHERE featured = TRUE;

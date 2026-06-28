@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
-import { categories } from "@/lib/inventory";
 
 function navLinkClass(active: boolean) {
   return [
@@ -138,13 +137,13 @@ export function StoreShell({ children }: { children: ReactNode }) {
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Shop Categories</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              {categories.map((cat) => (
+              {["Power Tools", "Hand Tools", "Measuring", "Safety"].map((name) => (
                 <Link
-                  key={cat.id}
-                  href={`/?cat=${encodeURIComponent(cat.name)}`}
+                  key={name}
+                  href={`/?cat=${encodeURIComponent(name)}`}
                   className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700 hover:border-slate-300"
                 >
-                  {cat.name}
+                  {name}
                 </Link>
               ))}
             </div>

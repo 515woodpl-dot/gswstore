@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { getStoreItems, getStoreCategories } from "@/lib/inventory";
 import ShopGrid from "@/components/ShopGrid";
-import { USING_MOCK_DATA } from "@/lib/inventory";
 
 export const revalidate = 60;
 
@@ -10,15 +9,9 @@ interface Props { searchParams: Promise<{ q?: string; cat?: string }> }
 export default async function HomePage({ searchParams }: Props) {
   const { q, cat } = await searchParams;
   const [items, cats] = await Promise.all([getStoreItems(), getStoreCategories()]);
-  const usingMock = USING_MOCK_DATA;
 
   return (
     <div>
-      {usingMock && (
-        <div className="bg-amber-500 text-white text-center px-4 py-2 text-sm font-semibold">
-          ⚠ Demo mode — set <code className="font-mono bg-amber-600 px-1 rounded">INVENTORY_API_BASE</code> to connect to your Pi inventory
-        </div>
-      )}
       {/* Hero */}
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.3fr_0.7fr] lg:px-8 lg:py-16">

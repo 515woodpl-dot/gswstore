@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { sendOrderConfirmationEmail, notifyInventoryApp } from "@/lib/notifications";
+import { sendOrderConfirmationEmail } from "@/lib/notifications";
 import type { Order } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -16,10 +16,9 @@ export async function POST(request: NextRequest) {
     const order: Order = { ...orderRow, items: orderRow.order_items };
     const customerEmail = user.email ?? "";
     const customerName = (user.user_metadata?.full_name as string) ?? "";
-    await Promise.allSettled([
-      sendOrderConfirmationEmail(order, customerEmail, customerName),
-      notifyInventoryApp(order, customerEmail, customerName),
-    ]);
+    // Customer confirmation email. The alerts screen is notified via Supabase
+    // Realtime (no webhook needed) — orders are broadcast on insert.
+    await sendOrderConfirmationEmail(order, customerEmail, customerName).catch(() => {});
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[/api/orders/notify]", err);

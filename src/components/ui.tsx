@@ -16,6 +16,7 @@ export function OrderStatusBadge({ status }: { status: OrderStatus }) {
     ready:     { label: "Ready for Pickup",  cls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" },
     completed: { label: "Completed",         cls: "bg-slate-100 text-slate-700 ring-1 ring-slate-200" },
     cancelled: { label: "Cancelled",         cls: "bg-rose-50 text-rose-700 ring-1 ring-rose-200" },
+    item_unavailable: { label: "Item Unavailable", cls: "bg-amber-50 text-amber-800 ring-1 ring-amber-300" },
   }[status] ?? { label: status, cls: "bg-slate-100 text-slate-700" };
   return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${meta.cls}`}>{meta.label}</span>;
 }

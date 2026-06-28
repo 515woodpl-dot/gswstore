@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
+import { SHOP_PHONE, SHOP_PHONE_RAW } from "@/lib/utils";
 
 function navLinkClass(active: boolean) {
   return [
@@ -149,10 +150,13 @@ export function StoreShell({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Pickup Notice</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Contact & Pickup</p>
             <p className="mt-3 text-sm leading-6 text-slate-600">
               Every order is prepared for in-store pickup. No shipping — just the tools you need, ready at the counter.
             </p>
+            <a href={`tel:${SHOP_PHONE_RAW}`} className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-brand-navy hover:underline">
+              📞 {SHOP_PHONE}
+            </a>
           </div>
         </div>
         <div className="border-t border-slate-200 px-4 py-4 text-center text-xs text-slate-500">

@@ -143,3 +143,9 @@ ON CONFLICT (name) DO NOTHING;
 ALTER TABLE inventory ADD COLUMN IF NOT EXISTS featured BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE inventory ADD COLUMN IF NOT EXISTS images TEXT[] NOT NULL DEFAULT '{}';
 CREATE INDEX IF NOT EXISTS idx_inventory_featured ON inventory(featured) WHERE featured = TRUE;
+
+-- ── Order status: item_unavailable + staff note (added later) ────────────────
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check;
+ALTER TABLE orders ADD CONSTRAINT orders_status_check
+  CHECK (status IN ('pending','confirmed','ready','completed','cancelled','item_unavailable'));
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS attention_note TEXT NOT NULL DEFAULT '';

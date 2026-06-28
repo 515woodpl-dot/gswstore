@@ -6,7 +6,11 @@ import { formatPrice } from "@/lib/utils";
 import { OrderStatusBadge } from "@/components/ui";
 import type { Order, OrderStatus } from "@/types";
 
-const STATUSES: OrderStatus[] = ["pending", "confirmed", "ready", "completed", "cancelled"];
+const STATUSES: OrderStatus[] = ["pending", "confirmed", "ready", "completed", "cancelled", "item_unavailable"];
+const STATUS_LABELS: Record<OrderStatus, string> = {
+  pending: "Pending", confirmed: "Confirmed", ready: "Ready for pickup",
+  completed: "Completed", cancelled: "Cancelled", item_unavailable: "Item Unavailable",
+};
 
 export default function AdminOrdersList({ initialOrders }: { initialOrders: Order[] }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
@@ -29,9 +33,22 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
     return () => { sb.removeChannel(channel); };
   }, [sb]);
 
-  async function setStatus(orderId: string, status: OrderStatus) {
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)));
-    await sb.from("orders").update({ status, updated_at: new Date().toISOString() }).eq("id", orderId);
+  async function setStatus(orderId: string, status: OrderStatus, attentionNote?: string) {
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status, attention_note: attentionNote ?? o.attention_note } : o)));
+    const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
+    if (attentionNote !== undefined) patch.attention_note = attentionNote;
+    await sb.from("orders").update(patch).eq("id", orderId);
+    // Auto-email the customer about the status change
+    fetch("/api/orders/status-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order_id: orderId }),
+    }).catch(() => {});
+  }
+
+  function saveNote(orderId: string, note: string) {
+    const o = orders.find((x) => x.id === orderId);
+    if (o) setStatus(orderId, o.status, note);
   }
 
   if (orders.length === 0) {
@@ -54,10 +71,24 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
               <p className="text-xl font-black tracking-tight text-slate-950">{formatPrice(order.total)}</p>
               <select value={order.status} onChange={(e) => setStatus(order.id, e.target.value as OrderStatus)}
                 className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold">
-                {STATUSES.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}
+                {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
               </select>
             </div>
           </div>
+          {order.status === "item_unavailable" && (
+            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+              <label className="block text-sm font-semibold text-amber-900">Note to customer (which item & why)</label>
+              <p className="mb-2 text-xs text-amber-700">Shown on their orders page. They'll also see your shop phone number to call back.</p>
+              <textarea
+                defaultValue={order.attention_note}
+                onBlur={(e) => saveNote(order.id, e.target.value)}
+                rows={2}
+                placeholder="e.g. The Makita grinder is out of stock — the rest of your order is ready."
+                className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm"
+              />
+              <p className="mt-1 text-xs text-amber-600">Saves when you click away. Customer is emailed automatically.</p>
+            </div>
+          )}
           <div className="mt-4 space-y-2">
             {order.items.map((item) => (
               <div key={item.id} className="flex items-center justify-between gap-4 text-sm">

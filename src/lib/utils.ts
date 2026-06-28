@@ -48,8 +48,59 @@ export function stockLabel(status: StockStatus, amount?: number): string {
 }
 
 export function orderStatusLabel(s: string) {
-  return ({ pending:"Pending", confirmed:"Confirmed", ready:"Ready for pickup", completed:"Completed", cancelled:"Cancelled" })[s] ?? s;
+  return ({ pending:"Pending", confirmed:"Confirmed", ready:"Ready for pickup", completed:"Completed", cancelled:"Cancelled", item_unavailable:"Item Unavailable" })[s] ?? s;
 }
 export function orderStatusColor(s: string) {
-  return ({ pending:"#f59e0b", confirmed:"#0d6efd", ready:"#198754", completed:"#6c757d", cancelled:"#dc3545" })[s] ?? "#6c757d";
+  return ({ pending:"#f59e0b", confirmed:"#0d6efd", ready:"#198754", completed:"#6c757d", cancelled:"#dc3545", item_unavailable:"#dc3545" })[s] ?? "#6c757d";
+}
+
+// ── Shop contact + customer-facing status messages ───────────────────────────
+
+export const SHOP_PHONE = process.env.NEXT_PUBLIC_SHOP_PHONE || "+1 253-449-6246";
+export const SHOP_PHONE_RAW = (process.env.NEXT_PUBLIC_SHOP_PHONE || "+12534496246").replace(/[^+\d]/g, "");
+
+export interface CustomerStatusMessage {
+  title: string;
+  body: string;
+  tone: "info" | "success" | "warning" | "muted";
+}
+
+export function customerStatusMessage(status: string, attentionNote?: string): CustomerStatusMessage {
+  switch (status) {
+    case "pending":
+    case "confirmed":
+      return {
+        title: "We've got your order",
+        body: "Thanks! We're working on it now and will let you know as soon as it's ready for pickup.",
+        tone: "info",
+      };
+    case "ready":
+      return {
+        title: "Your order is ready for pickup!",
+        body: "Come collect it at the store counter. See you soon.",
+        tone: "success",
+      };
+    case "completed":
+      return {
+        title: "Order complete",
+        body: "Thanks for shopping with Golden Stone Tools.",
+        tone: "muted",
+      };
+    case "cancelled":
+      return {
+        title: "Order cancelled",
+        body: `If you have questions, call us at ${SHOP_PHONE}.`,
+        tone: "muted",
+      };
+    case "item_unavailable":
+      return {
+        title: "There's an issue with an item",
+        body: (attentionNote && attentionNote.trim())
+          ? `${attentionNote.trim()} We'll call you soon — or reach us at ${SHOP_PHONE}.`
+          : `One of your items is currently unavailable. We'll call you soon — or reach us at ${SHOP_PHONE}.`,
+        tone: "warning",
+      };
+    default:
+      return { title: "Order received", body: "We're processing your order.", tone: "info" };
+  }
 }

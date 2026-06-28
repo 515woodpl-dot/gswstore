@@ -43,7 +43,7 @@ export interface Cart {
   updated_at: string;
 }
 
-export type OrderStatus = "pending" | "confirmed" | "ready" | "completed" | "cancelled";
+export type OrderStatus = "pending" | "confirmed" | "ready" | "completed" | "cancelled" | "item_unavailable";
 
 export interface OrderItem {
   id: string;
@@ -63,6 +63,7 @@ export interface Order {
   status: OrderStatus;
   total: number;
   notes: string;
+  attention_note: string;
   created_at: string;
   updated_at: string;
   items: OrderItem[];

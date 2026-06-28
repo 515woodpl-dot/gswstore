@@ -31,6 +31,11 @@ export default async function AdminInventoryPage() {
           <Link href="/admin/orders" className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
             View Orders
           </Link>
+          {auth.role === "owner" && (
+            <Link href="/admin/staff" className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+              Staff
+            </Link>
+          )}
         </div>
       </div>
       <InventoryManager

@@ -8,7 +8,7 @@ export async function sendOrderConfirmationEmail(
   customerName: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM || "orders@goldenstonetools.com";
+  const from = process.env.RESEND_FROM || "orders@orders.goldenstonetools.com";
 
   if (!apiKey) {
     console.warn("[Resend] RESEND_API_KEY not set — skipping email");
@@ -111,7 +111,7 @@ async function sendShopNotification(
   customerName: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM || "orders@goldenstonetools.com";
+  const from = process.env.RESEND_FROM || "orders@orders.goldenstonetools.com";
   const shopInbox = process.env.SHOP_NOTIFY_EMAIL || "orders@goldenstonetools.com";
   if (!apiKey) return;
 
@@ -182,7 +182,7 @@ export async function sendStatusEmail(
   customerName: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM || "orders@goldenstonetools.com";
+  const from = process.env.RESEND_FROM || "orders@orders.goldenstonetools.com";
   if (!apiKey) { console.warn("[Resend] no key — skipping status email"); return; }
 
   // Don't email on the very first pending state (they already got the confirmation)

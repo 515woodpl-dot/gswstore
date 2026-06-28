@@ -1,155 +1,143 @@
-# GSW — Setup Commands & Order
-Complete command reference, in execution order. Cloud-only architecture.
+# GSW — Setup & Maintenance Guide
+Two parts:
+- **PART 1 — Setup:** all in the browser. No computer, no terminal.
+- **PART 2 — Changing the website** (logo, branding, text): on your computer.
 
 **Domain:** goldenstonetools.com
-**Supabase project ref:** dibfrhhoslucjgvoszto
-**Repo:** 515woodpl-dot/gswstore
+**Supabase project:** dibfrhhoslucjgvoszto
+**Repo:** github.com/515woodpl-dot/gswstore
+**Hosting:** DigitalOcean App Platform (separate from your /var/www Droplet)
 
----
+═══════════════════════════════════════════════════════════
+# PART 1 — SETUP (browser only)
+═══════════════════════════════════════════════════════════
 
-## PART A — Database via Supabase CLI
+## STEP 1 — Database (Supabase, in the browser)
 
-### A1. Install the CLI
-```bash
-brew install supabase/tap/supabase      # Mac
-# or
-npm install -g supabase                 # any OS
+You're pasting two SQL files into Supabase's web editor. No CLI needed.
+
+### 1a. Open the SQL Editor
+```
+https://supabase.com/dashboard/project/dibfrhhoslucjgvoszto
+→ SQL Editor → New query
 ```
 
-### A2. Log in
-```bash
-supabase login
-# Opens browser → authorize
+### 1b. Run the customer schema
+```
+Open the file STORE_SCHEMA.sql (in the gswstore repo on GitHub —
+click the file, click "Raw", copy everything)
+→ paste into the SQL Editor → click Run
+→ should say "Success"
 ```
 
-### A3. Get the code
-```bash
-git clone https://github.com/515woodpl-dot/gswstore.git
-cd gswstore
+### 1c. Run the cloud schema
 ```
-
-### A4. Link to your project
-```bash
-supabase link --project-ref dibfrhhoslucjgvoszto
-# Prompts for your database password
-# (Supabase dashboard → Settings → Database → reset if forgotten)
+New query → open CLOUD_SCHEMA.sql from the repo → Raw → copy →
+paste → Run → "Success"
 ```
+This creates inventory, categories, admin roles, and turns on realtime.
+Both files are safe to re-run if something interrupts.
 
-### A5. Push the schema
-```bash
-supabase db push
+### 1d. Confirm realtime is on
 ```
-This runs BOTH migrations in order:
-- `20260101000000_store_schema.sql` (customers, carts, orders)
-- `20260101000001_cloud_schema.sql` (inventory, categories, admin roles, realtime)
-
-Safe to re-run — already-applied migrations are skipped, and the SQL itself
-is idempotent (won't error on a second run).
-
-### A6. Verify
-```bash
-supabase db diff
-# "No schema changes found" = everything applied correctly
+Database → Replication → confirm "orders" is listed
+(the schema adds it automatically — just verify)
 ```
 
 ---
 
-## PART B — Resend (email)
+## STEP 2 — Email (Resend, in the browser)
 
-### B1. Create an API key
+### 2a. Create an API key
 ```
-https://resend.com/api-keys  →  Create  →  copy key
-```
-
-### B2. Add and verify your domain
-```
-https://resend.com/domains  →  Add  →  goldenstonetools.com
-→ copy the DNS records  →  add them at your domain registrar  →  Verify
+https://resend.com/api-keys → Create → copy the key (you'll paste it in Step 3)
 ```
 
----
-
-## PART C — Deploy the app (DigitalOcean App Platform)
-
-### C1. Create the app
+### 2b. Verify your domain
 ```
-DigitalOcean → App Platform → Create App
-→ GitHub → 515woodpl-dot/gswstore → branch: master
-```
-
-### C2. Environment variables (paste in the DO dashboard)
-```
-NEXT_PUBLIC_SUPABASE_URL=https://dibfrhhoslucjgvoszto.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
-SUPABASE_SERVICE_ROLE_KEY=<service key>          ← mark Encrypted
-RESEND_API_KEY=<your key from B1>                ← mark Encrypted
-RESEND_FROM=orders@goldenstonetools.com
-NEXT_PUBLIC_SITE_URL=https://goldenstonetools.com
-```
-> Keys are in your .env.local. No INVENTORY_* vars — the Pi is gone.
-
-### C3. Deploy
-```
-Click Deploy → wait ~4 min → copy the temporary .ondigitalocean.app URL
+https://resend.com/domains → Add → goldenstonetools.com
+→ copy the DNS records it shows
+→ add them at your domain registrar (where you bought goldenstonetools.com)
+→ click Verify (can take up to an hour)
 ```
 
 ---
 
-## PART D — Create the first owner account
+## STEP 3 — Deploy the app (DigitalOcean, in the browser)
 
-> You can't be an admin until your account exists. So: sign up first, then promote.
+### 3a. Create the app
+```
+https://cloud.digitalocean.com/apps → Create App
+→ GitHub → authorize → pick 515woodpl-dot/gswstore → branch: master
+→ DO auto-detects Next.js → Next
+```
+> This is App Platform, NOT your Droplet. Your /var/www/website and
+> /var/www/yorki are completely untouched.
 
-### D1. Sign up
+### 3b. Add environment variables
+On the env vars screen, add each of these:
 ```
-Open the temp DO URL → /auth/register
-→ create your account (full name, email, password)
-→ confirm via the email Supabase sends
-```
-
-### D2. Promote yourself to owner (one-time, via CLI)
-```bash
-# From inside the gswstore folder:
-supabase db remote commit   # optional — skip
-# Run the promotion SQL directly:
-psql "$(supabase db remote-url 2>/dev/null)" -c \
-  "INSERT INTO admin_users (user_id, role) SELECT id, 'owner' FROM auth.users WHERE email = 'YOUR_EMAIL';"
+NEXT_PUBLIC_SUPABASE_URL        https://dibfrhhoslucjgvoszto.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY   (anon key — in repo's .env.local)
+SUPABASE_SERVICE_ROLE_KEY       (service key)            ← click Encrypt
+RESEND_API_KEY                  (your key from Step 2a)  ← click Encrypt
+RESEND_FROM                     orders@goldenstonetools.com
+NEXT_PUBLIC_SITE_URL            https://goldenstonetools.com
 ```
 
-**Simpler alternative — paste in the dashboard:**
+### 3c. Deploy
 ```
-Supabase → SQL Editor → run:
+Click Deploy → wait ~4 minutes → copy the temporary
+xxxxx.ondigitalocean.app URL it gives you
+```
+
+---
+
+## STEP 4 — Make yourself the owner
+
+> You must sign up BEFORE you can be made an admin.
+
+### 4a. Sign up
+```
+Open the temporary .ondigitalocean.app URL → /auth/register
+→ create your account → confirm via the email Supabase sends
+```
+
+### 4b. Promote yourself (browser, one time)
+```
+Supabase → SQL Editor → New query → run (use YOUR email):
+
   INSERT INTO admin_users (user_id, role)
   SELECT id, 'owner' FROM auth.users WHERE email = 'YOUR_EMAIL';
 ```
-
-From now on, every other staff member is added through the UI (Part G) —
-this SQL step is only needed for the very first owner.
+This is the only time you touch SQL for accounts. All other staff are
+added through the website (Step 7).
 
 ---
 
-## PART E — Domains & subdomains
+## STEP 5 — Connect your domains (DigitalOcean, in the browser)
 
-### E1. Add three domains in DO
+### 5a. Add three domains
 ```
-DO → your app → Settings → Domains → add:
+DO → your app → Settings → Domains → Add Domain (do this 3 times):
   goldenstonetools.com
   admin.goldenstonetools.com
   alerts.goldenstonetools.com
 ```
 
-### E2. Add the DNS records at your registrar
+### 5b. Add DNS records at your registrar
 ```
-For each domain, add the record DO shows you (usually CNAME).
-Wait 5 min – 1 hr for propagation.
+For each, DO shows a record (usually CNAME). Add them where you bought
+the domain. Wait 5 min – 1 hr to go live.
 ```
 The app routes each subdomain automatically:
-- goldenstonetools.com → storefront
+- goldenstonetools.com → store
 - admin.goldenstonetools.com → admin dashboard
 - alerts.goldenstonetools.com → live order screen
 
 ---
 
-## PART F — Supabase Auth URLs
+## STEP 6 — Auth URLs (Supabase, in the browser)
 
 ```
 Supabase → Authentication → URL Configuration
@@ -166,89 +154,143 @@ Redirect URLs (add all four):
 
 ---
 
-## PART G — Add staff (through the UI — no more SQL)
+## STEP 7 — Add staff (website UI, no SQL)
 
-> This is the new staff management page. Owners only.
-
-### G1. The staff member signs up first
 ```
-They go to goldenstonetools.com/auth/register and create a normal account.
-```
-
-### G2. You grant them access
-```
-Go to admin.goldenstonetools.com/staff  (or /admin → "Staff" button)
-→ enter their account email
-→ choose role:
-    Staff  = manage inventory + orders
-    Owner  = also manage staff
-→ Add
-```
-
-### G3. Remove access anytime
-```
-Same page → find the person → Remove
-(You can't remove yourself.)
+Staff member signs up at goldenstonetools.com/auth/register first.
+Then YOU: admin.goldenstonetools.com/staff
+  → enter their email → choose Staff or Owner → Add
 ```
 
 ---
 
-## PART H — Add products
+## STEP 8 — Add products
 
 ```
-admin.goldenstonetools.com  →  Add Product
-→ ID (e.g. P001), name, category, price, stock, image URL  →  Save
-Products appear on the storefront immediately.
-```
-
----
-
-## PART I — Open the alerts screen
-
-```
-On a tablet / TV / phone:  open  alerts.goldenstonetools.com
-Sign in once with a staff or owner account.
-Leave it open — live orders appear instantly with a chime.
+admin.goldenstonetools.com → Add Product
+→ ID (P001), name, category, price, stock, image URL → Save
+Appears on the store instantly.
 ```
 
 ---
 
-## PART J — End-to-end test
+## STEP 9 — Open the alerts screen
 
 ```
-1. alerts.goldenstonetools.com open on one screen (signed in as staff)
-2. goldenstonetools.com on another device → sign up as a customer
+On a tablet / TV / phone: open alerts.goldenstonetools.com
+→ sign in once with a staff account → leave it open
+Live orders appear with a chime.
+```
+
+---
+
+## STEP 10 — Test everything
+
+```
+1. alerts.goldenstonetools.com open on a screen (staff signed in)
+2. goldenstonetools.com on another device → sign up as customer
 3. add product → checkout → place order
 4. ✓ alerts screen lights up + chime
 5. ✓ customer gets email from orders@goldenstonetools.com
-6. ✓ admin.goldenstonetools.com/orders shows it, status editable
+6. ✓ admin.goldenstonetools.com/orders shows it
 ```
 
----
+That completes setup. Everything above was browser-only.
 
-## ACCOUNT TYPES — quick reference
+═══════════════════════════════════════════════════════════
+# PART 2 — CHANGING THE WEBSITE (on your computer)
+═══════════════════════════════════════════════════════════
 
-| Who | How they're created | What they can do |
-|-----|--------------------|------------------|
-| **Customer** | Self sign-up at /auth/register | Browse, cart, checkout, see own orders |
-| **Staff** | Sign up, then owner adds them at /admin/staff | + manage inventory, see/manage all orders, alerts |
-| **Owner** | First one via SQL (D2); others via /admin/staff | + add/remove staff |
+When you want to change the **logo, colors, text, or branding**, you edit
+the code. That's done on your computer, then pushed. App Platform
+auto-rebuilds and redeploys — you never touch DO.
 
-**The only form anyone fills out is the normal registration form.**
-Staff and owners are just registered accounts that have been granted a role.
-
----
-
-## RE-RUNNING THE SCHEMA LATER
-
-If you change the database, add a new migration file and push:
+## One-time computer setup
 ```bash
-# create a new timestamped migration in supabase/migrations/
-supabase db push        # applies only the new one
+# Install git and Node if you don't have them, then:
+git clone https://github.com/515woodpl-dot/gswstore.git
+cd gswstore
+npm install
 ```
 
-To apply the same schema to a fresh Supabase project, just change the ref:
+## The edit → deploy loop (every time you change something)
 ```bash
-supabase link --project-ref NEW_PROJECT_REF
-supabase db push
+# 1. make your edits (see "what to edit" below)
+
+# 2. preview locally (optional but recommended)
+npm run dev          # opens http://localhost:3000
+
+# 3. ship it
+git add -A
+git commit -m "update branding"
+git push
+# → App Platform auto-rebuilds and redeploys in ~4 min. Done.
 ```
+
+## What to edit for common changes
+
+### The brand name text ("Golden Stone Tools")
+```
+File: src/components/StoreShell.tsx
+Appears in 4 places: top bar, header logo, footer name, copyright.
+Find "Golden Stone Tools" and replace.
+```
+
+### Brand colors (navy + gold)
+```
+File: tailwind.config.ts
+  brand: {
+    navy: "#1e3a5f",   ← change these hex values
+    gold: "#c89b3c",
+  }
+Used everywhere as bg-brand-navy, text-brand-gold, etc.
+```
+
+### Swap the text logo for an image logo
+```
+1. Put your logo file in:  public/logo.png
+2. File: src/components/StoreShell.tsx
+   Find the header brand line (~line 47):
+     <Link href="/" ...>Golden Stone Tools</Link>
+   Replace the text with an image:
+     <Link href="/"><img src="/logo.png" alt="Golden Stone Tools" className="h-8" /></Link>
+```
+
+### Fonts
+```
+File: src/app/globals.css  (top: --font-sans / --font-mono)
+Currently IBM Plex Sans. Change the font-family values.
+```
+
+### Homepage hero text / wording
+```
+File: src/app/page.tsx
+Edit the headline and paragraph text in the hero <section>.
+```
+
+### Footer contact info / links
+```
+File: src/components/StoreShell.tsx  (the <footer> block)
+```
+
+## Tip — save tokens
+For small visual tweaks (logo, colors, text), editing the file directly on
+your computer is faster and cheaper than regenerating files. Clone once,
+then make changes locally and push whenever you like.
+
+## Cleanup note
+The public/ folder still has leftover starter files (next.svg, vercel.svg,
+globe.svg, window.svg, file.svg, and old css/js/vendor/img folders from the
+earlier Porto attempt). They're harmless but unused — safe to delete to keep
+the repo tidy.
+
+═══════════════════════════════════════════════════════════
+# ACCOUNT TYPES
+═══════════════════════════════════════════════════════════
+| Who | Created how | Can do |
+|-----|-------------|--------|
+| Customer | Self sign-up at /auth/register | Browse, cart, checkout, own orders |
+| Staff | Signs up, owner adds at /admin/staff | + inventory, all orders, alerts |
+| Owner | First via SQL (Step 4b); rest via /admin/staff | + manage staff |
+
+Everyone uses the same registration form. Roles are granted, not separate forms.

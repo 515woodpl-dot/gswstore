@@ -5,15 +5,21 @@ One page. Tick top to bottom. Each step unlocks the next.
 
 ## ☐ 1. Database (Supabase SQL Editor — browser)
 ```
-□ run STORE_SCHEMA.sql   (Raw → copy → paste → Run)
-□ run CLOUD_SCHEMA.sql    (includes inventory, roles, realtime,
-                           featured/images, item-unavailable status)
+□ Open: https://raw.githubusercontent.com/515woodpl-dot/gswstore/master/FULL_SCHEMA.sql
+□ Ctrl+A → Ctrl+C → paste into SQL Editor → Run
 □ Database → Replication → confirm "orders" is listed
 ```
+> Use FULL_SCHEMA.sql — ONE file, ONE paste. Do NOT use the old
+> STORE_SCHEMA.sql + CLOUD_SCHEMA.sql two-file method.
+>
+> ⚠ If you ever hit "column category_id does not exist", it means a
+> half-built table exists. Fix: run RESET_AND_BUILD.sql instead
+> (drops + rebuilds clean — only safe before you have real data):
+> https://raw.githubusercontent.com/515woodpl-dot/gswstore/master/RESET_AND_BUILD.sql
 
 ## ☐ 2. Resend (browser) — start early, DNS is slow
 ```
-□ Domain: resend.com/domains → add goldenstonetools.com
+□ resend.com/domains → add goldenstonetools.com
 □ add its DNS records at your registrar → Verify
    (NO email sends until this shows Verified)
 □ Key already issued: re_BCvTtaW3_N3cfVcsoDJ6hha34EUhfSHmJ
@@ -80,14 +86,22 @@ NEXT_PUBLIC_SITE_URL            https://goldenstonetools.com
 
 ---
 
+## Schema files — which is which
+| File | Use it for |
+|------|-----------|
+| **FULL_SCHEMA.sql** | First-time setup. One paste, builds everything. |
+| **RESET_AND_BUILD.sql** | Only if you hit the category_id error — wipes & rebuilds. Pre-data only. |
+| STORE_SCHEMA.sql / CLOUD_SCHEMA.sql | Old two-file method — DON'T use, kept for reference only. |
+
 ## The one trap
 Can't become owner (Step 4) until deployed AND signed up once — your admin
 row points at your account, which doesn't exist until you register.
 
 ## Common issues
-- Empty store? → no products yet, or CLOUD_SCHEMA didn't run
+- "column category_id does not exist" → run RESET_AND_BUILD.sql (Step 1 note)
+- Empty store? → no products yet, or schema didn't finish
 - Can't reach /admin? → not an owner yet (Step 4), or not signed in
 - Alerts blank? → realtime not enabled (Step 1)
 - No emails at all? → Resend domain not verified (Step 2)
 - Login loops? → auth redirect URLs not set (Step 6)
-- Status email not arriving? → only sends on change AWAY from pending; domain verified?
+- Status email not arriving? → only sends on change away from pending; domain verified?

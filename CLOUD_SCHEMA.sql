@@ -53,6 +53,12 @@ RETURNS BOOLEAN AS $$
   SELECT EXISTS (SELECT 1 FROM admin_users WHERE user_id = auth.uid());
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
+-- Helper: is the current user an owner? (SECURITY DEFINER bypasses RLS — no recursion)
+CREATE OR REPLACE FUNCTION is_owner()
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (SELECT 1 FROM admin_users WHERE user_id = auth.uid() AND role = 'owner');
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
 -- ── updated_at trigger for inventory ─────────────────────────────────────────
 CREATE OR REPLACE FUNCTION touch_updated_at()
 RETURNS TRIGGER AS $$
@@ -81,13 +87,15 @@ DROP POLICY IF EXISTS inventory_admin_write ON inventory;
 CREATE POLICY inventory_admin_write ON inventory FOR ALL USING (is_admin()) WITH CHECK (is_admin());
 
 -- Admin_users: a user can see their own row; only owners can manage the list
+-- Admin_users: a user can always read their own row (no is_admin() call here —
+-- that would recurse, since is_admin() itself reads admin_users).
 DROP POLICY IF EXISTS admin_self_read ON admin_users;
 CREATE POLICY admin_self_read ON admin_users FOR SELECT
-  USING (user_id = auth.uid() OR is_admin());
+  USING (user_id = auth.uid());
 DROP POLICY IF EXISTS admin_owner_write ON admin_users;
 CREATE POLICY admin_owner_write ON admin_users FOR ALL
-  USING (EXISTS (SELECT 1 FROM admin_users WHERE user_id = auth.uid() AND role = 'owner'))
-  WITH CHECK (EXISTS (SELECT 1 FROM admin_users WHERE user_id = auth.uid() AND role = 'owner'));
+  USING (is_owner())
+  WITH CHECK (is_owner());
 
 -- ── Staff access to ALL orders (for the alerts screen + admin dashboard) ──────
 -- The existing "orders_own" policy lets customers see their own orders.
@@ -103,7 +111,16 @@ CREATE POLICY order_items_admin_read ON order_items FOR SELECT USING (is_admin()
 -- ── Realtime — broadcast order inserts/updates to the alerts app ─────────────
 -- Adds the orders table to the realtime publication so alerts.goldenstonetools.com
 -- receives live INSERT/UPDATE events over a websocket.
-ALTER PUBLICATION supabase_realtime ADD TABLE orders;
+-- Idempotent: only adds if not already present (re-running this script is safe).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'orders'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE orders;
+  END IF;
+END $$;
 
 -- ── Seed: starter categories (safe to re-run) ────────────────────────────────
 INSERT INTO categories (name, prefix, color, sort_order) VALUES

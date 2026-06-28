@@ -41,7 +41,22 @@ export default function InventoryManager({ initialItems, categories }: { initial
     if (!editing.id.trim() || !editing.name.trim()) { setError("ID and name are required."); return; }
     setSaving(true); setError("");
     const cat = categories.find((c) => c.id === editing.category_id);
-    const payload = { ...editing, category_name: cat?.name ?? editing.category_name ?? "" };
+    // Explicit payload — never send created_at/updated_at (DB trigger owns those)
+    const payload: Row = {
+      id: editing.id.trim(),
+      name: editing.name.trim(),
+      category_id: editing.category_id,
+      category_name: cat?.name ?? editing.category_name ?? "",
+      brand: editing.brand ?? "",
+      model_number: editing.model_number ?? "",
+      voltage: editing.voltage ?? "",
+      sku: editing.sku ?? "",
+      description: editing.description ?? "",
+      amount: Number(editing.amount) || 0,
+      store_price: Number(editing.store_price) || 0,
+      image_url: editing.image_url || null,
+      store_visible: editing.store_visible,
+    };
     const { error: err } = await sb.from("inventory").upsert(payload);
     if (err) { setError(err.message); setSaving(false); return; }
     setItems((prev) => {

@@ -55,7 +55,7 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
         const o = payload.new as Order;
         const { data: items } = await sb.from("order_items").select("*").eq("order_id", o.id);
         const full = { ...o, items: items ?? [] };
-        setOrders((prev) => [full, ...prev].slice(0, 30));
+        setOrders((prev) => prev.some((p) => p.id === full.id) ? prev : [full, ...prev].slice(0, 30));
         showAlert(full);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
@@ -64,6 +64,35 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
       })
       .subscribe((status) => setConnected(status === "SUBSCRIBED"));
     return () => { sb.removeChannel(channel); };
+  }, [sb]);
+
+  // Safety net — poll every 20s for any order realtime might have missed
+  useEffect(() => {
+    const poll = setInterval(async () => {
+      const { data } = await sb
+        .from("orders")
+        .select("*, order_items(*)")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (!data) return;
+      setOrders((prev) => {
+        const known = new Set(prev.map((o) => o.id));
+        const fetched: Order[] = data.map((o) => ({ ...o, items: o.order_items }));
+        const missed = fetched.filter((o) => !known.has(o.id));
+        if (missed.length === 0) {
+          // still merge status updates
+          return prev.map((p) => {
+            const fresh = fetched.find((f) => f.id === p.id);
+            return fresh ? { ...p, status: fresh.status } : p;
+          });
+        }
+        // a missed order arrived — surface the newest one
+        showAlert(missed[0]);
+        return [...missed, ...prev].slice(0, 30);
+      });
+    }, 20000);
+    return () => clearInterval(poll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sb]);
 
   const STATUS_BG: Record<string, string> = {

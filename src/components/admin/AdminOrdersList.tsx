@@ -19,7 +19,7 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, async (payload) => {
         const newOrder = payload.new as Order;
         const { data: items } = await sb.from("order_items").select("*").eq("order_id", newOrder.id);
-        setOrders((prev) => [{ ...newOrder, items: items ?? [] }, ...prev]);
+        setOrders((prev) => prev.some((o) => o.id === newOrder.id) ? prev : [{ ...newOrder, items: items ?? [] }, ...prev]);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
         const updated = payload.new as Order;

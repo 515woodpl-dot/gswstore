@@ -7,6 +7,8 @@ Two parts:
 **Supabase project:** dibfrhhoslucjgvoszto
 **Repo:** github.com/515woodpl-dot/gswstore
 **Hosting:** DigitalOcean App Platform (separate from your /var/www Droplet)
+**Shop phone:** +1 253-449-6246
+**Order email:** orders@goldenstonetools.com (sends AND receives)
 
 ═══════════════════════════════════════════════════════════
 # PART 1 — SETUP (browser only)
@@ -14,7 +16,7 @@ Two parts:
 
 ## STEP 1 — Database (Supabase, in the browser)
 
-You're pasting two SQL files into Supabase's web editor. No CLI needed.
+Paste the schema files into Supabase's web SQL editor, in order.
 
 ### 1a. Open the SQL Editor
 ```
@@ -22,44 +24,46 @@ https://supabase.com/dashboard/project/dibfrhhoslucjgvoszto
 → SQL Editor → New query
 ```
 
-### 1b. Run the customer schema
+### 1b. Run each schema file IN ORDER
+From the gswstore repo on GitHub, open each file, click "Raw", copy all,
+paste into a New query, click Run. Do them in this order:
 ```
-Open the file STORE_SCHEMA.sql (in the gswstore repo on GitHub —
-click the file, click "Raw", copy everything)
-→ paste into the SQL Editor → click Run
-→ should say "Success"
+1. STORE_SCHEMA.sql      (customers, carts, orders)
+2. CLOUD_SCHEMA.sql      (inventory, categories, admin roles, realtime,
+                          featured/images, item-unavailable status)
 ```
+> CLOUD_SCHEMA.sql already includes everything added later (featured products,
+> image galleries, the "Item Unavailable" status, and the staff note field).
+> All of it is safe to re-run if a paste gets interrupted.
 
-### 1c. Run the cloud schema
-```
-New query → open CLOUD_SCHEMA.sql from the repo → Raw → copy →
-paste → Run → "Success"
-```
-This creates inventory, categories, admin roles, and turns on realtime.
-Both files are safe to re-run if something interrupts.
-
-### 1d. Confirm realtime is on
+### 1c. Confirm realtime is on
 ```
 Database → Replication → confirm "orders" is listed
-(the schema adds it automatically — just verify)
 ```
 
 ---
 
 ## STEP 2 — Email (Resend, in the browser)
 
-### 2a. Create an API key
+> Two emails go out per order, BOTH from orders@goldenstonetools.com:
+>   • Customer gets an order confirmation
+>   • Shop gets a "new order" notice AT orders@goldenstonetools.com
+> Plus: when staff change an order's status, the customer is auto-emailed.
+> ALL of this requires the domain to be verified first (below).
+
+### 2a. The API key (already issued)
 ```
-https://resend.com/api-keys → Create → copy the key (you'll paste it in Step 3)
+RESEND_API_KEY = re_BCvTtaW3_N3cfVcsoDJ6hha34EUhfSHmJ
+(You'll paste this into DigitalOcean in Step 3b.)
 ```
 
-### 2b. Verify your domain
+### 2b. Verify your domain  ← REQUIRED or no email sends
 ```
 https://resend.com/domains → Add → goldenstonetools.com
-→ copy the DNS records it shows
-→ add them at your domain registrar (where you bought goldenstonetools.com)
-→ click Verify (can take up to an hour)
+→ copy the DNS records → add them at your domain registrar → Verify
+(can take up to an hour)
 ```
+Until "goldenstonetools.com" shows Verified in Resend, no emails send at all.
 
 ---
 
@@ -68,27 +72,25 @@ https://resend.com/domains → Add → goldenstonetools.com
 ### 3a. Create the app
 ```
 https://cloud.digitalocean.com/apps → Create App
-→ GitHub → authorize → pick 515woodpl-dot/gswstore → branch: master
-→ DO auto-detects Next.js → Next
+→ GitHub → 515woodpl-dot/gswstore → branch: master → Next
 ```
-> This is App Platform, NOT your Droplet. Your /var/www/website and
-> /var/www/yorki are completely untouched.
+> App Platform, NOT your Droplet. /var/www/website and /var/www/yorki untouched.
 
-### 3b. Add environment variables
-On the env vars screen, add each of these:
+### 3b. Environment variables (paste all of these)
 ```
-NEXT_PUBLIC_SUPABASE_URL        https://dibfrhhoslucjgvoszto.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY   (anon key — in repo's .env.local)
-SUPABASE_SERVICE_ROLE_KEY       (service key)            ← click Encrypt
-RESEND_API_KEY                  (your key from Step 2a)  ← click Encrypt
-RESEND_FROM                     orders@goldenstonetools.com
-NEXT_PUBLIC_SITE_URL            https://goldenstonetools.com
+NEXT_PUBLIC_SUPABASE_URL     https://dibfrhhoslucjgvoszto.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY  (anon key — in repo .env.local)
+SUPABASE_SERVICE_ROLE_KEY    (service key)         ← mark Encrypted
+RESEND_API_KEY               re_BCvTtaW3_N3cfVcsoDJ6hha34EUhfSHmJ  ← Encrypted
+RESEND_FROM                  orders@goldenstonetools.com
+SHOP_NOTIFY_EMAIL            orders@goldenstonetools.com
+NEXT_PUBLIC_SHOP_PHONE       +1 253-449-6246
+NEXT_PUBLIC_SITE_URL         https://goldenstonetools.com
 ```
 
 ### 3c. Deploy
 ```
-Click Deploy → wait ~4 minutes → copy the temporary
-xxxxx.ondigitalocean.app URL it gives you
+Deploy → wait ~4 min → copy the temporary xxxxx.ondigitalocean.app URL
 ```
 
 ---
@@ -99,53 +101,39 @@ xxxxx.ondigitalocean.app URL it gives you
 
 ### 4a. Sign up
 ```
-Open the temporary .ondigitalocean.app URL → /auth/register
-→ create your account → confirm via the email Supabase sends
+Open the temp URL → /auth/register → create your account → confirm via email
 ```
 
 ### 4b. Promote yourself (browser, one time)
 ```
-Supabase → SQL Editor → New query → run (use YOUR email):
+Supabase → SQL Editor → run (use YOUR email):
 
   INSERT INTO admin_users (user_id, role)
   SELECT id, 'owner' FROM auth.users WHERE email = 'YOUR_EMAIL';
 ```
-This is the only time you touch SQL for accounts. All other staff are
-added through the website (Step 7).
 
 ---
 
-## STEP 5 — Connect your domains (DigitalOcean, in the browser)
+## STEP 5 — Connect your domains
 
-### 5a. Add three domains
+### 5a. Add three domains in DO
 ```
-DO → your app → Settings → Domains → Add Domain (do this 3 times):
+DO → app → Settings → Domains → add:
   goldenstonetools.com
   admin.goldenstonetools.com
   alerts.goldenstonetools.com
 ```
 
-### 5b. Add DNS records at your registrar
-```
-For each, DO shows a record (usually CNAME). Add them where you bought
-the domain. Wait 5 min – 1 hr to go live.
-```
-The app routes each subdomain automatically:
-- goldenstonetools.com → store
-- admin.goldenstonetools.com → admin dashboard
-- alerts.goldenstonetools.com → live order screen
+### 5b. Add the DNS records at your registrar, wait for propagation.
+The app auto-routes each subdomain (store / admin / alerts).
 
 ---
 
-## STEP 6 — Auth URLs (Supabase, in the browser)
-
+## STEP 6 — Supabase Auth URLs
 ```
 Supabase → Authentication → URL Configuration
-
-Site URL:
-  https://goldenstonetools.com
-
-Redirect URLs (add all four):
+Site URL:  https://goldenstonetools.com
+Redirect URLs (add all):
   https://goldenstonetools.com/api/auth/callback
   https://admin.goldenstonetools.com/api/auth/callback
   https://alerts.goldenstonetools.com/api/auth/callback
@@ -155,142 +143,128 @@ Redirect URLs (add all four):
 ---
 
 ## STEP 7 — Add staff (website UI, no SQL)
-
 ```
-Staff member signs up at goldenstonetools.com/auth/register first.
-Then YOU: admin.goldenstonetools.com/staff
-  → enter their email → choose Staff or Owner → Add
+Staff signs up at goldenstonetools.com/auth/register first.
+Then YOU: admin.goldenstonetools.com/staff → enter email → Staff or Owner → Add
 ```
 
 ---
 
 ## STEP 8 — Add products
-
 ```
 admin.goldenstonetools.com → Add Product
-→ ID (P001), name, category, price, stock, image URL → Save
-Appears on the store instantly.
+Fields: ID, name, category, price, stock, main image URL,
+        gallery images (one URL per line), description,
+        ☑ Visible in store,  ☑ Featured (homepage slideshow — up to 5)
 ```
 
 ---
 
 ## STEP 9 — Open the alerts screen
-
 ```
-On a tablet / TV / phone: open alerts.goldenstonetools.com
-→ sign in once with a staff account → leave it open
+On a tablet/TV/phone: alerts.goldenstonetools.com → sign in as staff → leave open
 Live orders appear with a chime.
 ```
 
 ---
 
-## STEP 10 — Test everything
-
+## STEP 10 — Test
 ```
-1. alerts.goldenstonetools.com open on a screen (staff signed in)
-2. goldenstonetools.com on another device → sign up as customer
-3. add product → checkout → place order
-4. ✓ alerts screen lights up + chime
-5. ✓ customer gets email from orders@goldenstonetools.com
+1. alerts.goldenstonetools.com open (staff signed in)
+2. goldenstonetools.com on another device → sign up → add to cart → checkout
+3. ✓ alerts screen lights up + chime
+4. ✓ customer gets confirmation email
+5. ✓ shop gets a "new order" email at orders@goldenstonetools.com
 6. ✓ admin.goldenstonetools.com/orders shows it
+7. Change the order status → ✓ customer gets a status email
 ```
 
-That completes setup. Everything above was browser-only.
+═══════════════════════════════════════════════════════════
+# ORDER STATUS & CUSTOMER MESSAGES
+═══════════════════════════════════════════════════════════
+
+Staff change an order's status in admin.goldenstonetools.com/orders.
+Each status shows the customer a friendly message on their My Orders page
+AND auto-emails them:
+
+| Status            | Customer sees / is emailed |
+|-------------------|----------------------------|
+| Pending / Confirmed | "We've got your order — we're working on it." |
+| Ready for pickup  | "Your order is ready for pickup!" |
+| Item Unavailable  | Your typed note + "We'll call you soon, or reach us at +1 253-449-6246" (with a call button) |
+| Completed         | "Order complete." |
+| Cancelled         | "Order cancelled — call us with questions." |
+
+**Item Unavailable:** when staff pick this status, an amber note box appears.
+Staff type which item is unavailable and why. That note is shown to the
+customer and included in their email, along with the shop phone number.
 
 ═══════════════════════════════════════════════════════════
 # PART 2 — CHANGING THE WEBSITE (on your computer)
 ═══════════════════════════════════════════════════════════
 
-When you want to change the **logo, colors, text, or branding**, you edit
-the code. That's done on your computer, then pushed. App Platform
-auto-rebuilds and redeploys — you never touch DO.
+For logo, colors, text, branding — edit the code, push, and App Platform
+auto-redeploys. You never touch DO.
 
-## One-time computer setup
+## One-time
 ```bash
-# Install git and Node if you don't have them, then:
 git clone https://github.com/515woodpl-dot/gswstore.git
 cd gswstore
 npm install
 ```
 
-## The edit → deploy loop (every time you change something)
+## Edit → deploy loop
 ```bash
-# 1. make your edits (see "what to edit" below)
-
-# 2. preview locally (optional but recommended)
-npm run dev          # opens http://localhost:3000
-
-# 3. ship it
+# make edits, then:
+npm run dev          # preview at http://localhost:3000 (optional)
 git add -A
 git commit -m "update branding"
-git push
-# → App Platform auto-rebuilds and redeploys in ~4 min. Done.
+git push             # auto-redeploys in ~4 min
 ```
 
-## What to edit for common changes
-
-### The brand name text ("Golden Stone Tools")
+## What to edit
 ```
-File: src/components/StoreShell.tsx
-Appears in 4 places: top bar, header logo, footer name, copyright.
-Find "Golden Stone Tools" and replace.
-```
-
-### Brand colors (navy + gold)
-```
-File: tailwind.config.ts
-  brand: {
-    navy: "#1e3a5f",   ← change these hex values
-    gold: "#c89b3c",
-  }
-Used everywhere as bg-brand-navy, text-brand-gold, etc.
+Brand name text   src/components/StoreShell.tsx  (4 spots: bar, header, footer, copyright)
+Brand colors      tailwind.config.ts  (brand.navy / brand.gold)
+Text → image logo public/logo.png + StoreShell.tsx header line
+Fonts             src/app/globals.css  (--font-sans / --font-mono)
+Hero/slideshow    src/app/page.tsx  (slideshow pulls "featured" products)
+Footer + phone    src/components/StoreShell.tsx
+Phone number      easiest: change NEXT_PUBLIC_SHOP_PHONE in DO env vars (no code)
 ```
 
-### Swap the text logo for an image logo
-```
-1. Put your logo file in:  public/logo.png
-2. File: src/components/StoreShell.tsx
-   Find the header brand line (~line 47):
-     <Link href="/" ...>Golden Stone Tools</Link>
-   Replace the text with an image:
-     <Link href="/"><img src="/logo.png" alt="Golden Stone Tools" className="h-8" /></Link>
-```
-
-### Fonts
-```
-File: src/app/globals.css  (top: --font-sans / --font-mono)
-Currently IBM Plex Sans. Change the font-family values.
-```
-
-### Homepage hero text / wording
-```
-File: src/app/page.tsx
-Edit the headline and paragraph text in the hero <section>.
-```
-
-### Footer contact info / links
-```
-File: src/components/StoreShell.tsx  (the <footer> block)
+## Changing the schema later
+```bash
+# add a new file to supabase/migrations/ then:
+supabase db push        # applies only new migrations
+# (or paste the new SQL into the Supabase SQL Editor)
 ```
 
 ## Tip — save tokens
-For small visual tweaks (logo, colors, text), editing the file directly on
-your computer is faster and cheaper than regenerating files. Clone once,
-then make changes locally and push whenever you like.
+For small visual tweaks, edit the file directly on your computer and push —
+cheaper and faster than regenerating files.
 
-## Cleanup note
-The public/ folder still has leftover starter files (next.svg, vercel.svg,
-globe.svg, window.svg, file.svg, and old css/js/vendor/img folders from the
-earlier Porto attempt). They're harmless but unused — safe to delete to keep
-the repo tidy.
+═══════════════════════════════════════════════════════════
+# ENV VARS — QUICK REFERENCE (set in DigitalOcean)
+═══════════════════════════════════════════════════════════
+| Var | Value | Encrypted? |
+|-----|-------|-----------|
+| NEXT_PUBLIC_SUPABASE_URL | https://dibfrhhoslucjgvoszto.supabase.co | no |
+| NEXT_PUBLIC_SUPABASE_ANON_KEY | (anon key) | no |
+| SUPABASE_SERVICE_ROLE_KEY | (service key) | YES |
+| RESEND_API_KEY | re_BCvTtaW3_N3cfVcsoDJ6hha34EUhfSHmJ | YES |
+| RESEND_FROM | orders@goldenstonetools.com | no |
+| SHOP_NOTIFY_EMAIL | orders@goldenstonetools.com | no |
+| NEXT_PUBLIC_SHOP_PHONE | +1 253-449-6246 | no |
+| NEXT_PUBLIC_SITE_URL | https://goldenstonetools.com | no |
 
 ═══════════════════════════════════════════════════════════
 # ACCOUNT TYPES
 ═══════════════════════════════════════════════════════════
 | Who | Created how | Can do |
 |-----|-------------|--------|
-| Customer | Self sign-up at /auth/register | Browse, cart, checkout, own orders |
-| Staff | Signs up, owner adds at /admin/staff | + inventory, all orders, alerts |
+| Customer | Self sign-up at /auth/register | Browse, cart, checkout, track own orders |
+| Staff | Signs up, owner adds at /admin/staff | + inventory, all orders, set status, alerts |
 | Owner | First via SQL (Step 4b); rest via /admin/staff | + manage staff |
 
 Everyone uses the same registration form. Roles are granted, not separate forms.

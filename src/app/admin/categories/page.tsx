@@ -2,24 +2,21 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
-import InventoryManager from "@/components/admin/InventoryManager";
 import CategoryManager from "@/components/admin/CategoryManager";
 import type { Category } from "@/types";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Categories — Admin" };
 
-export default async function AdminInventoryPage() {
+export default async function AdminCategoriesPage() {
   const auth = await requireAdmin();
   if (!auth.ok) {
-    if (auth.reason === "unauthenticated") redirect("/auth/login?next=/admin");
+    if (auth.reason === "unauthenticated") redirect("/auth/login?next=/admin/categories");
     redirect("/?error=not_authorized");
   }
 
   const sb = await createClient();
-  const [{ data: items }, { data: cats }] = await Promise.all([
-    sb.from("inventory").select("*").order("id", { ascending: true }),
-    sb.from("categories").select("id,name,prefix,color").order("sort_order"),
-  ]);
+  const { data: cats } = await sb.from("categories").select("id,name,prefix,color").order("name");
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
@@ -42,10 +39,13 @@ export default async function AdminInventoryPage() {
           )}
         </div>
       </div>
-      <AdminTabs
-        items={items ?? []}
-        cats={(cats ?? []) as Category[]}
-      />
+
+      <div className="mb-6 flex gap-2 border-b border-slate-200">
+        <Link href="/admin" className="pb-3 px-4 text-sm font-semibold text-slate-500 hover:text-slate-900">Inventory</Link>
+        <a href="/admin/categories" className="border-b-2 border-brand-navy pb-3 px-4 text-sm font-bold text-brand-navy">Categories</a>
+      </div>
+
+      <CategoryManager initialCategories={(cats ?? []) as Category[]} />
     </div>
   );
 }

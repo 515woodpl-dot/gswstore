@@ -20,11 +20,11 @@ export async function createOrder(userId: string, cart: Cart, notes = ""): Promi
   return { ...order, items: items as Order["items"] };
 }
 
-export async function getUserOrders(userId: string): Promise<Order[]> {
-  const sb = createClient();
+export async function getUserOrders(userId: string, client?: any): Promise<Order[]> {
+  const sb = client ?? createClient();
   const { data, error } = await sb.from("orders").select("*,order_items(*)").eq("user_id", userId).order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
-  return (data || []).map(o => ({ ...o, items: o.order_items as Order["items"] }));
+  return (data || []).map((o: any) => ({ ...o, items: o.order_items }));
 }
 
 // ── Format helpers ────────────────────────────────────────────────────────────

@@ -8,6 +8,9 @@
   color-scheme: light;
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --brand-primary: #ef5123;
+  --brand-secondary: #435d69;
+  --brand-text: #3c3c3c;
 }
 
 html {
@@ -16,8 +19,12 @@ html {
 }
 
 body {
-  @apply bg-white text-slate-900 antialiased;
+  @apply antialiased;
   font-family: var(--font-sans);
+  color: var(--brand-text);
+  background:
+    radial-gradient(circle at top, rgba(239, 81, 35, 0.08), transparent 32%),
+    linear-gradient(180deg, #fffdfb 0%, #ffffff 48%, #fbf8f6 100%);
 }
 
 * {
@@ -25,15 +32,15 @@ body {
 }
 
 ::selection {
-  background: rgba(30, 58, 95, 0.18);
-  color: #0f172a;
+  background: rgba(239, 81, 35, 0.2);
+  color: #1f2937;
 }
 
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #c89b3c;
+  outline: 2px solid #ef5123;
   outline-offset: 2px;
 }
 

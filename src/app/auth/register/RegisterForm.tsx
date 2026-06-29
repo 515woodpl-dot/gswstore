@@ -25,21 +25,21 @@ export default function RegisterForm() {
   }
 
   if (done) return (
-    <div className="mx-auto flex min-h-[calc(100vh-140px)] max-w-2xl items-center px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full rounded-3xl border border-emerald-200 bg-emerald-50 p-8 text-center">
+    <div className="mx-auto flex min-h-[calc(100vh-140px)] max-w-2xl items-center px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <div className="w-full rounded-3xl border border-emerald-200 bg-emerald-50 p-6 text-center sm:p-8">
         <h2 className="text-2xl font-black tracking-tight text-slate-950">Check your email</h2>
         <p className="mt-3 text-slate-600">We sent a confirmation link to <strong>{email}</strong>.</p>
-        <Link href="/auth/login" className="mt-6 inline-flex rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800">Back to Sign In</Link>
+        <Link href="/auth/login" className="mt-6 inline-flex w-full justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 sm:w-auto">Back to Sign In</Link>
       </div>
     </div>
   );
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-140px)] max-w-2xl items-center px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <div className="mx-auto flex min-h-[calc(100vh-140px)] max-w-2xl items-center px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <div className="w-full rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
         <div className="mb-8 space-y-3">
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Register</p>
-          <h1 className="text-3xl font-black tracking-tight text-slate-950">Create an account</h1>
+          <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Create an account</h1>
         </div>
         <form onSubmit={handle} className="space-y-5">
           <label className="block">
@@ -63,7 +63,7 @@ export default function RegisterForm() {
             {loading ? "Creating account…" : "Create Account"}
           </button>
         </form>
-        <div className="mt-6 flex items-center justify-between gap-4 text-sm">
+        <div className="mt-6 flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
           <Link href="/auth/login" className="font-semibold text-slate-600 hover:text-slate-950">Back to Sign In</Link>
           <Link href="/" className="font-semibold text-brand-navy hover:text-slate-800">Return Home</Link>
         </div>

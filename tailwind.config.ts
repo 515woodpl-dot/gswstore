@@ -13,8 +13,8 @@ const config: Config = {
       },
       colors: {
         brand: {
-          navy: "#1e3a5f",
-          gold: "#c89b3c",
+          navy: "#435d69",
+          gold: "#ef5123",
         },
       },
     },

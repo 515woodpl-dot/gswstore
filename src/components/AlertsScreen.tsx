@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
+import BrandLogo from "@/components/BrandLogo";
 import type { Order } from "@/types";
 
 export default function AlertsScreen({ initialOrders }: { initialOrders: Order[] }) {
@@ -24,7 +25,7 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
   }, []);
 
   // Chime
-  function playChime() {
+  const playChime = useCallback(() => {
     if (!soundRef.current) return;
     try {
       const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
@@ -38,14 +39,14 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
         osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.25);
       });
     } catch { /* ignore */ }
-  }
+  }, []);
 
-  function showAlert(order: Order) {
+  const showAlert = useCallback((order: Order) => {
     setActive(order);
     playChime();
     if (dismissTimer.current) clearTimeout(dismissTimer.current);
     dismissTimer.current = setTimeout(() => setActive(null), 30000);
-  }
+  }, [playChime]);
 
   // Realtime subscription
   useEffect(() => {
@@ -64,7 +65,7 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
       })
       .subscribe((status) => setConnected(status === "SUBSCRIBED"));
     return () => { sb.removeChannel(channel); };
-  }, [sb]);
+  }, [sb, showAlert]);
 
   // Safety net — poll every 20s for any order realtime might have missed
   useEffect(() => {
@@ -101,74 +102,84 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+    <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top,_rgba(239,81,35,0.08),_transparent_30%),linear-gradient(180deg,_#fffdfb_0%,_#f6fbfc_52%,_#ffffff_100%)] text-slate-700">
       {/* Header */}
-      <header className="flex items-center justify-between border-b border-blue-500 bg-[#1e3a5f] px-6 py-3">
-        <div className="text-xl font-black tracking-wide">GSW<span className="text-blue-400">.</span> Orders</div>
-        <div className="flex items-center gap-4">
-          <span className="font-mono text-sm tabular-nums text-slate-300">{clock}</span>
+      <header className="border-b border-slate-200 bg-white/95 px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur sm:px-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <BrandLogo href="/alerts" className="rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200" compact />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Live Alerts</p>
+              <p className="text-sm font-semibold text-slate-700">Order notifications</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 sm:gap-4">
+            <span className="font-mono text-sm tabular-nums text-slate-500">{clock}</span>
           <button onClick={() => setSoundOn((s) => !s)}
-            className={`rounded-md border px-3 py-1 text-xs font-semibold ${soundOn ? "border-blue-400 text-blue-300" : "border-slate-600 text-slate-400"}`}>
-            {soundOn ? "🔔 Sound On" : "🔕 Sound Off"}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${soundOn ? "border-brand-gold bg-brand-gold text-white" : "border-slate-200 bg-white text-slate-600"}`}>
+              {soundOn ? "Sound On" : "Sound Off"}
           </button>
-          <div className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
-            <span className={`h-2 w-2 rounded-full ${connected ? "animate-pulse bg-emerald-500" : "bg-rose-500"}`} />
+            <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm">
+              <span className={`h-2 w-2 rounded-full ${connected ? "animate-pulse bg-emerald-500" : "bg-rose-500"}`} />
             {connected ? "Connected" : "Connecting…"}
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="grid flex-1 lg:grid-cols-[1fr_360px]">
+      <main className="grid flex-1 gap-4 p-4 lg:grid-cols-[1fr_360px] lg:gap-6 lg:p-6">
         {/* Alert stage */}
-        <div className="relative flex items-center justify-center p-10">
+        <div className="relative flex min-h-[55vh] items-center justify-center overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-soft lg:min-h-[calc(100vh-132px)]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(239,81,35,0.12),_transparent_32%),radial-gradient(circle_at_bottom_left,_rgba(67,93,105,0.08),_transparent_28%)]" />
           {!active ? (
-            <div className="text-center opacity-40">
-              <div className="mx-auto mb-4 text-7xl">🔔</div>
-              <p className="text-sm text-slate-400">Waiting for orders…</p>
+            <div className="relative text-center">
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-brand-gold/10 text-4xl">🔔</div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Waiting for orders</p>
             </div>
           ) : (
-            <div className="w-full max-w-xl rounded-3xl border-2 border-emerald-500 bg-slate-800 p-9 shadow-[0_0_60px_rgba(34,197,94,0.2)]">
+            <div className="relative w-full max-w-xl rounded-3xl border border-emerald-200 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.12)] sm:p-9">
+              <div className="mb-5 h-2 rounded-full bg-gradient-to-r from-brand-gold via-brand-navy to-brand-gold" />
               <button onClick={() => setActive(null)}
-                className="float-right rounded-md border border-slate-600 bg-white/5 px-3 py-1 text-xs text-slate-300">Dismiss</button>
-              <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.15em] text-emerald-400">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" /> New Order Received
+                className="float-right rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-100">Dismiss</button>
+              <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.15em] text-brand-gold">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-brand-gold" /> New Order Received
               </div>
-              <div className="mb-1 text-4xl font-black">{active.order_number}</div>
-              <div className="mb-6 text-slate-400">
+              <div className="mb-1 text-4xl font-black text-slate-900">{active.order_number}</div>
+              <div className="mb-6 text-slate-500">
                 {active.items.length} item{active.items.length !== 1 ? "s" : ""}
               </div>
               <div className="mb-5 flex gap-4">
-                <div className="flex-1 rounded-xl border border-slate-700 bg-white/5 p-4">
-                  <div className="text-xs font-bold uppercase tracking-wide text-slate-400">Total</div>
-                  <div className="text-2xl font-bold text-emerald-400">{formatPrice(active.total)}</div>
+                <div className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Total</div>
+                  <div className="text-2xl font-bold text-brand-gold">{formatPrice(active.total)}</div>
                 </div>
-                <div className="flex-1 rounded-xl border border-slate-700 bg-white/5 p-4">
-                  <div className="text-xs font-bold uppercase tracking-wide text-slate-400">Items</div>
-                  <div className="text-2xl font-bold">{active.items.reduce((s, i) => s + i.quantity, 0)}</div>
+                <div className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Items</div>
+                  <div className="text-2xl font-bold text-slate-900">{active.items.reduce((s, i) => s + i.quantity, 0)}</div>
                 </div>
               </div>
-              <div className="border-t border-slate-700 pt-4 text-sm leading-7 text-slate-300">
+              <div className="border-t border-slate-200 pt-4 text-sm leading-7 text-slate-600">
                 {active.items.map((i) => (
-                  <div key={i.id}><span className="font-semibold text-white">{i.name}</span> × {i.quantity}</div>
+                  <div key={i.id}><span className="font-semibold text-slate-900">{i.name}</span> × {i.quantity}</div>
                 ))}
               </div>
-              {active.notes && <div className="mt-3 text-xs italic text-slate-400">Note: {active.notes}</div>}
+              {active.notes && <div className="mt-3 text-xs italic text-slate-500">Note: {active.notes}</div>}
             </div>
           )}
         </div>
 
         {/* History */}
-        <aside className="border-l border-slate-800 bg-[#111827]">
-          <div className="border-b border-slate-800 px-5 py-4 text-xs font-bold uppercase tracking-[0.08em] text-slate-400">Recent Orders</div>
-          <div className="max-h-[calc(100vh-110px)] overflow-y-auto p-3">
+        <aside className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-soft">
+          <div className="border-b border-slate-200 px-5 py-4 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">Recent Orders</div>
+          <div className="max-h-[calc(100vh-150px)] overflow-y-auto p-3">
             {orders.length === 0 ? (
               <p className="mt-10 text-center text-sm text-slate-500">No orders yet.</p>
             ) : orders.map((o) => (
-              <div key={o.id} className="mb-2 cursor-pointer rounded-lg border border-slate-700 p-3 transition hover:bg-slate-800" onClick={() => setActive(o)}>
-                <div className="text-sm font-bold">{o.order_number}</div>
-                <div className="mb-1 text-xs text-slate-400">{new Date(o.created_at).toLocaleTimeString()}</div>
+              <div key={o.id} className="mb-2 cursor-pointer rounded-2xl border border-slate-200 p-3 transition hover:border-brand-gold hover:bg-brand-gold/5" onClick={() => setActive(o)}>
+                <div className="text-sm font-bold text-slate-900">{o.order_number}</div>
+                <div className="mb-1 text-xs text-slate-500">{new Date(o.created_at).toLocaleTimeString()}</div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-emerald-400">{formatPrice(o.total)}</span>
+                  <span className="text-sm font-bold text-brand-gold">{formatPrice(o.total)}</span>
                   <span className="rounded-full px-2 py-0.5 text-[0.62rem] font-bold uppercase" style={{ background: `#${STATUS_BG[o.status]?.split(";")[0]}`, color: STATUS_BG[o.status]?.split("color:")[1] }}>
                     {o.status}
                   </span>

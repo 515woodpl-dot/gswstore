@@ -30,7 +30,7 @@ function ProductCard({ item }: { item: InventoryItem }) {
   return (
     <article className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft">
       <Link href={`/shop/product/${item.id}`} className="block">
-        <div className="relative aspect-[4/3] overflow-hidden bg-slate-900">
+        <div className="relative aspect-[16/11] overflow-hidden bg-slate-900 sm:aspect-[4/3]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={item.image_url || PLACEHOLDER}
@@ -49,18 +49,18 @@ function ProductCard({ item }: { item: InventoryItem }) {
         </div>
       </Link>
 
-      <div className="space-y-4 p-5">
+      <div className="space-y-4 p-4 sm:p-5">
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{item.sku}</p>
-          <h3 className="text-lg font-bold tracking-tight text-slate-900">
+          <h3 className="text-base font-bold tracking-tight text-slate-900 sm:text-lg">
             <Link href={`/shop/product/${item.id}`} className="hover:text-brand-navy">{item.name}</Link>
           </h3>
           {item.description && <p className="text-sm leading-6 text-slate-600 line-clamp-2">{item.description}</p>}
         </div>
 
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-2xl font-bold tracking-tight text-slate-900">{formatPrice(item.store_price)}</p>
+            <p className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{formatPrice(item.store_price)}</p>
             <p className="text-xs font-medium text-slate-500">{item.amount} available</p>
           </div>
           <button
@@ -68,7 +68,7 @@ function ProductCard({ item }: { item: InventoryItem }) {
             onClick={handleAdd}
             disabled={adding || !canAdd}
             className={[
-              "inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition",
+              "inline-flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-4 py-3 text-sm font-semibold transition sm:px-3 sm:py-1.5 sm:text-xs",
               added ? "bg-emerald-600 text-white" :
               canAdd ? "bg-brand-navy text-white hover:bg-slate-800" :
               "cursor-not-allowed bg-slate-200 text-slate-500",
@@ -97,13 +97,13 @@ export default function ShopGrid({ items, cat, q }: { items: InventoryItem[]; ca
       <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
         <p className="text-lg font-semibold text-slate-900">No products match that search.</p>
         <p className="mt-2 text-sm text-slate-600">Try a different category or a shorter keyword.</p>
-        {(cat || q) && <a href="/" className="mt-4 inline-flex rounded-xl bg-brand-navy px-4 py-2 text-sm font-semibold text-white">Clear filters</a>}
+        {(cat || q) && <Link href="/" className="mt-4 inline-flex rounded-xl bg-brand-navy px-4 py-2 text-sm font-semibold text-white">Clear filters</Link>}
       </div>
     );
   }
 
   return (
-    <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 sm:gap-5">
       {filtered.map((item) => <ProductCard key={item.id} item={item} />)}
     </div>
   );

@@ -25,7 +25,7 @@ export default function AddToCartButton({ item }: { item: InventoryItem }) {
 
   if (!canAdd) return (
     <div className="space-y-3">
-      <button disabled className="inline-flex cursor-not-allowed items-center justify-center rounded-xl bg-slate-200 px-6 py-3 text-sm font-semibold text-slate-500">
+      <button disabled className="inline-flex w-full cursor-not-allowed items-center justify-center rounded-xl bg-slate-200 px-6 py-3 text-sm font-semibold text-slate-500 sm:w-auto">
         Out of Stock
       </button>
       <p className="text-sm text-slate-500">Contact us about availability.</p>
@@ -33,14 +33,14 @@ export default function AddToCartButton({ item }: { item: InventoryItem }) {
   );
 
   return (
-    <div className="flex flex-wrap items-center gap-4">
+    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
       <QuantitySelector value={qty} onChange={setQty} max={item.amount} />
       <button
         type="button"
         onClick={handleAdd}
         disabled={adding}
         className={[
-          "inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold transition",
+          "inline-flex min-h-11 items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold transition",
           added ? "bg-emerald-600 text-white" : "bg-brand-navy text-white hover:bg-slate-800 disabled:opacity-70",
         ].join(" ")}
       >

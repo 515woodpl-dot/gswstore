@@ -2,23 +2,23 @@
 import Link from "next/link";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
-import { QuantitySelector, StockBadge } from "@/components/ui";
+import { QuantitySelector } from "@/components/ui";
 import { formatPrice } from "@/lib/utils";
 
 export default function CartPage() {
-  const { cart, itemCount, total, loading, updateQty, removeItem } = useCart();
+  const { cart, total, loading, updateQty, removeItem } = useCart();
   const { user } = useAuth();
 
-  if (loading) return <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6 lg:px-8"><p className="text-slate-500">Loading cart…</p></div>;
+  if (loading) return <div className="mx-auto max-w-3xl px-4 py-12 text-center sm:px-6 lg:px-8 sm:py-16"><p className="text-slate-500">Loading cart…</p></div>;
 
   if (!user) return (
-    <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-3xl px-4 py-12 text-center sm:px-6 lg:px-8 sm:py-16">
       <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Cart</p>
-      <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">Sign in to view your cart</h1>
+      <h1 className="mt-3 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Sign in to view your cart</h1>
       <p className="mt-3 text-slate-600">Your cart is saved to your account.</p>
-      <div className="mt-8 flex justify-center gap-3">
-        <Link href="/auth/login?next=/cart" className="inline-flex rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white">Sign In</Link>
-        <Link href="/auth/register" className="inline-flex rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800">Create Account</Link>
+      <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+        <Link href="/auth/login?next=/cart" className="inline-flex w-full justify-center rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white sm:w-auto">Sign In</Link>
+        <Link href="/auth/register" className="inline-flex w-full justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 sm:w-auto">Create Account</Link>
       </div>
     </div>
   );
@@ -26,11 +26,11 @@ export default function CartPage() {
   const items = cart?.items ?? [];
 
   if (items.length === 0) return (
-    <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-3xl px-4 py-12 text-center sm:px-6 lg:px-8 sm:py-16">
       <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Cart</p>
-      <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">Your cart is empty.</h1>
+      <h1 className="mt-3 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Your cart is empty.</h1>
       <p className="mt-3 text-slate-600">Add a few trade essentials from the catalog to continue.</p>
-      <Link href="/" className="mt-8 inline-flex rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white">Browse Products</Link>
+      <Link href="/" className="mt-8 inline-flex w-full justify-center rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white sm:w-auto">Browse Products</Link>
     </div>
   );
 
@@ -38,10 +38,10 @@ export default function CartPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mb-8 flex items-end justify-between gap-4">
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Cart</p>
-          <h1 className="text-3xl font-black tracking-tight text-slate-950">Review your items</h1>
+          <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Review your items</h1>
         </div>
         <Link href="/" className="text-sm font-semibold text-slate-600 hover:text-slate-950">Continue shopping</Link>
       </div>
@@ -62,9 +62,9 @@ export default function CartPage() {
                       <p className="text-sm text-slate-500">{item.sku}</p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
                     <QuantitySelector value={item.quantity} onChange={(v) => updateQty(item.id, v)} />
-                    <button type="button" onClick={() => removeItem(item.id)} className="text-sm font-semibold text-rose-600 transition hover:text-rose-700">Remove</button>
+                    <button type="button" onClick={() => removeItem(item.id)} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-rose-200 px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 hover:text-rose-700 sm:min-h-0 sm:border-0 sm:px-0 sm:py-0">Remove</button>
                   </div>
                 </div>
                 <div className="flex items-end justify-between sm:flex-col sm:items-end sm:justify-between">
@@ -79,7 +79,7 @@ export default function CartPage() {
           ))}
         </div>
 
-        <aside className="h-fit rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm lg:sticky lg:top-24">
+        <aside className="h-fit rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm lg:sticky lg:top-24 sm:p-6">
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Order Summary</p>
           <div className="mt-5 space-y-4">
             <div className="flex items-center justify-between text-sm text-slate-600">

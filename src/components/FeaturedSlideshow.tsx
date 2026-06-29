@@ -25,7 +25,7 @@ export default function FeaturedSlideshow({ items }: { items: InventoryItem[] })
   if (count === 0) {
     // Graceful fallback when nothing is featured yet
     return (
-      <div className="flex h-full min-h-[320px] items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+      <div className="flex h-full min-h-[260px] items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center sm:min-h-[320px] sm:p-8">
         <div>
           <p className="text-lg font-bold text-slate-900">No featured products yet</p>
           <p className="mt-2 text-sm text-slate-600">Mark up to 5 products as “featured” in the admin panel to show them here.</p>
@@ -41,25 +41,25 @@ export default function FeaturedSlideshow({ items }: { items: InventoryItem[] })
     <div className="relative h-full overflow-hidden rounded-3xl border border-slate-200 bg-slate-900 shadow-soft">
       {/* Slide */}
       <Link href={`/shop/product/${item.id}`} className="block h-full">
-        <div className="relative h-full min-h-[320px]">
+        <div className="relative h-full min-h-[260px] sm:min-h-[320px]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={img} alt={item.name} className="absolute inset-0 h-full w-full object-cover opacity-90 transition-opacity duration-500"
             onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER; }} />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent" />
 
           {/* Top-left badges */}
-          <div className="absolute left-5 top-5 flex items-center gap-2">
+          <div className="absolute left-4 top-4 flex items-center gap-2 sm:left-5 sm:top-5">
             <span className="rounded-full bg-brand-gold px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-950">Featured</span>
             <StockBadge status={item.stock_status} />
           </div>
 
           {/* Bottom content */}
-          <div className="absolute inset-x-0 bottom-0 p-6 text-white">
+          <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">{item.category_name}</p>
-            <h2 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{item.name}</h2>
-            <div className="mt-2 flex items-center gap-4">
+            <h2 className="mt-1 text-xl font-black tracking-tight sm:text-3xl">{item.name}</h2>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
               <span className="text-2xl font-bold">{formatPrice(item.store_price)}</span>
-              <span className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-navy">View Product</span>
+              <span className="inline-flex w-fit rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-navy">View Product</span>
             </div>
           </div>
         </div>
@@ -69,11 +69,11 @@ export default function FeaturedSlideshow({ items }: { items: InventoryItem[] })
       {count > 1 && (
         <>
           <button onClick={() => go(index - 1)} aria-label="Previous"
-            className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 text-slate-900 shadow transition hover:bg-white">
+            className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-3 text-slate-900 shadow transition hover:bg-white">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
           </button>
           <button onClick={() => go(index + 1)} aria-label="Next"
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 text-slate-900 shadow transition hover:bg-white">
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-3 text-slate-900 shadow transition hover:bg-white">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
           </button>
 

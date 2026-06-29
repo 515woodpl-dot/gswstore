@@ -21,11 +21,11 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-140px)] max-w-2xl items-center px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <div className="mx-auto flex min-h-[calc(100vh-140px)] max-w-2xl items-center px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <div className="w-full rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
         <div className="mb-8 space-y-3">
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Sign In</p>
-          <h1 className="text-3xl font-black tracking-tight text-slate-950">Access your account</h1>
+          <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Access your account</h1>
         </div>
         <form onSubmit={handle} className="space-y-5">
           <label className="block">
@@ -46,7 +46,7 @@ export default function LoginForm() {
             {loading ? "Signing in…" : "Sign In"}
           </button>
         </form>
-        <div className="mt-6 flex items-center justify-between gap-4 text-sm">
+        <div className="mt-6 flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
           <Link href="/" className="font-semibold text-slate-600 hover:text-slate-950">Back to Home</Link>
           <Link href={`/auth/register?next=${next}`} className="font-semibold text-brand-navy hover:text-slate-800">Create account</Link>
         </div>

@@ -65,21 +65,21 @@ export default async function ProductPage({ params }: Props) {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mb-6 flex items-center justify-between gap-4">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <Link href="/" className="text-sm font-semibold text-slate-600 hover:text-slate-950">← Back to catalog</Link>
         <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{item!.category_name}</span>
       </div>
 
-      <section className="grid gap-8 lg:grid-cols-2">
+      <section className="grid gap-6 lg:grid-cols-2 lg:gap-8">
         {/* LEFT — image gallery */}
         <ImageGallery images={galleryImages} name={item!.name} />
 
         {/* RIGHT — details */}
-        <div className="space-y-6">
+        <div className="space-y-5 sm:space-y-6">
           <div className="space-y-3">
             {item!.sku && <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">{item!.sku}</p>}
-            <h1 className="text-4xl font-black tracking-tight text-slate-950">{item!.name}</h1>
+            <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">{item!.name}</h1>
             <div className="flex flex-wrap items-center gap-3">
               <StockBadge status={item!.stock_status} />
               <span className="text-sm text-slate-500">{item!.amount} available · in-store pickup</span>
@@ -87,11 +87,11 @@ export default async function ProductPage({ params }: Props) {
           </div>
 
           {/* Price + quantity + add to cart */}
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <div className="mb-4 flex items-end justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">Price</p>
-                <p className="mt-1 text-4xl font-black tracking-tight text-slate-950">{formatPrice(item!.store_price)}</p>
+                <p className="mt-1 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">{formatPrice(item!.store_price)}</p>
               </div>
             </div>
             <AddToCartButton item={item!} />
@@ -109,7 +109,7 @@ export default async function ProductPage({ params }: Props) {
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Related items</p>
             <h2 className="text-2xl font-bold tracking-tight text-slate-950">More in {item!.category_name}</h2>
           </div>
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 sm:gap-5">
             {related.map((r) => (
               <article key={r.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <Link href={`/shop/product/${r.id}`}>

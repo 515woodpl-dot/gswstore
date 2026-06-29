@@ -18,10 +18,10 @@ export default function CheckoutPage() {
   const PLACEHOLDER = "https://placehold.co/64x64/1e3a5f/ffffff?text=GST";
 
   if (items.length === 0) return (
-    <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-3xl px-4 py-12 text-center sm:px-6 lg:px-8 sm:py-16">
       <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Checkout</p>
-      <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">Nothing to checkout yet.</h1>
-      <Link href="/" className="mt-8 inline-flex rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white">Browse Products</Link>
+      <h1 className="mt-3 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Nothing to checkout yet.</h1>
+      <Link href="/" className="mt-8 inline-flex w-full justify-center rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white sm:w-auto">Browse Products</Link>
     </div>
   );
 
@@ -40,18 +40,18 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mb-8 flex items-end justify-between gap-4">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Checkout</p>
-          <h1 className="text-3xl font-black tracking-tight text-slate-950">Order review</h1>
+          <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Order review</h1>
         </div>
         <OrderStatusBadge status="pending" />
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-5">
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <h2 className="text-lg font-bold text-slate-950">Review your order</h2>
             <div className="mt-4 divide-y divide-slate-200">
               {items.map((item) => (
@@ -70,7 +70,7 @@ export default function CheckoutPage() {
             </div>
           </section>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <h2 className="text-lg font-bold text-slate-950">Pickup note</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">Orders are collected in store only. Use the notes field below to share any counter instructions.</p>
             <label className="mt-5 block">
@@ -82,7 +82,7 @@ export default function CheckoutPage() {
           </section>
         </div>
 
-        <aside className="h-fit rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm lg:sticky lg:top-24">
+        <aside className="h-fit rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm lg:sticky lg:top-24 sm:p-6">
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Total</p>
           <div className="mt-5 space-y-4">
             <div className="flex items-center justify-between text-sm text-slate-600">

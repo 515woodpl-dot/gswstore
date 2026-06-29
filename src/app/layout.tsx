@@ -9,6 +9,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: { default: "Golden Stone Tools", template: "%s | Golden Stone Tools" },
   description: "Trade-grade tools and equipment. Order online, pick up in store.",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

@@ -3,14 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
+import BrandLogo from "@/components/BrandLogo";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { SHOP_PHONE, SHOP_PHONE_RAW } from "@/lib/utils";
 
 function navLinkClass(active: boolean) {
   return [
-    "rounded-full px-4 py-2 text-sm font-medium transition",
-    active ? "bg-white text-brand-navy shadow-sm" : "text-white/80 hover:bg-white/10 hover:text-white",
+    "inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium transition",
+    active ? "bg-brand-gold text-white shadow-sm" : "text-slate-600 hover:bg-slate-100 hover:text-brand-navy",
+  ].join(" ");
+}
+
+function mobileLinkClass(active: boolean) {
+  return [
+    "flex flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-xs font-semibold transition",
+    active ? "text-brand-gold" : "text-slate-500",
   ].join(" ");
 }
 
@@ -38,22 +46,12 @@ export function StoreShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
-      {/* Top notice bar */}
-      <div className="bg-brand-navy text-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] sm:px-6 lg:px-8">
-          <span>Golden Stone Tools</span>
-          <span>In-store pickup only</span>
-        </div>
-      </div>
-
+    <div className="min-h-screen bg-transparent text-slate-900">
       {/* Sticky header */}
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-brand-navy text-white backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 text-slate-900 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between py-4">
-            <Link href="/" className="text-xl font-black tracking-wide text-white">
-              Golden Stone Tools
-            </Link>
+          <div className="flex items-center justify-between py-3 sm:py-4">
+            <BrandLogo href="/" className="rounded-2xl bg-white/80 p-1.5 shadow-sm ring-1 ring-slate-200" compact />
 
             {/* Desktop nav */}
             <nav className="hidden items-center gap-2 lg:flex">
@@ -66,7 +64,7 @@ export function StoreShell({ children }: { children: ReactNode }) {
                   </Link>
                   <button
                     onClick={signOut}
-                    className="rounded-full px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white"
+                    className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-brand-navy"
                   >
                     Sign Out
                   </button>
@@ -81,11 +79,11 @@ export function StoreShell({ children }: { children: ReactNode }) {
 
               <Link
                 href="/cart"
-                className="relative inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                aria-label="Cart"
+                className="relative inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 <CartGlyph />
-                Cart
-                <span className="ml-2 inline-flex min-w-6 items-center justify-center rounded-full bg-white px-2 py-0.5 text-xs font-bold text-brand-navy">
+                <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-brand-gold px-2 py-0.5 text-xs font-bold text-white">
                   {itemCount}
                 </span>
               </Link>
@@ -95,35 +93,36 @@ export function StoreShell({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-2 lg:hidden">
               <Link
                 href="/cart"
-                className="relative inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                aria-label="Cart"
+                className="relative inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 <CartGlyph />
-                Cart
-                <span className="ml-2 inline-flex min-w-6 items-center justify-center rounded-full bg-white px-2 py-0.5 text-xs font-bold text-brand-navy">
+                <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-brand-gold px-2 py-0.5 text-xs font-bold text-white">
                   {itemCount}
                 </span>
               </Link>
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen((o) => !o)}
-                className="rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                className="rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                aria-label="Open menu"
               >
-                Menu
+                <span aria-hidden="true">☰</span>
               </button>
             </div>
           </div>
 
           {mobileMenuOpen && (
             <div className="pb-4 lg:hidden">
-              <div className="grid gap-2 rounded-2xl bg-white/10 p-3">
-                <Link href="/" className="rounded-xl px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">Shop</Link>
+            <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-soft">
+                <Link href="/" onClick={() => setMobileMenuOpen(false)} className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Shop</Link>
                 {user ? (
                   <>
-                    <Link href="/account/orders" className="rounded-xl px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">My Orders</Link>
-                    <button onClick={signOut} className="rounded-xl px-4 py-3 text-left text-sm font-semibold text-white hover:bg-white/10">Sign Out</button>
+                    <Link href="/account/orders" onClick={() => setMobileMenuOpen(false)} className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">My Orders</Link>
+                    <button onClick={() => { setMobileMenuOpen(false); signOut(); }} className="rounded-xl px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100">Sign Out</button>
                   </>
                 ) : (
-                  <Link href="/auth/login" className="rounded-xl px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">Sign In</Link>
+                  <Link href="/auth/login" onClick={() => setMobileMenuOpen(false)} className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Sign In</Link>
                 )}
               </div>
             </div>
@@ -131,7 +130,25 @@ export function StoreShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main>{children}</main>
+      <main className="pb-24 md:pb-0">{children}</main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 py-2 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur md:hidden">
+        <div className="mx-auto grid max-w-7xl grid-cols-3 gap-2">
+          <Link href="/" className={mobileLinkClass(pathname === "/")}>
+            Shop
+          </Link>
+          <Link href="/cart" className={mobileLinkClass(pathname === "/cart")}>
+            Cart
+            {itemCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-brand-gold px-1.5 py-0.5 text-[11px] font-bold text-white">{itemCount}</span>}
+          </Link>
+          <Link
+            href={user ? "/account/orders" : "/auth/login"}
+            className={mobileLinkClass(pathname.startsWith("/account") || pathname.startsWith("/auth"))}
+          >
+            {user ? "Orders" : "Sign In"}
+          </Link>
+        </div>
+      </nav>
 
       {/* Footer */}
       <footer className="border-t border-slate-200 bg-slate-50">

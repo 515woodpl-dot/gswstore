@@ -13,7 +13,7 @@ export default async function OrdersPage({ searchParams }: Props) {
   if (!user) redirect("/auth/login?next=/account/orders");
   const { placed } = await searchParams;
   let orders: Order[] = [];
-  try { orders = await getUserOrders(user.id); } catch {}
+  try { orders = await getUserOrders(user.id, sb); } catch {}
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">

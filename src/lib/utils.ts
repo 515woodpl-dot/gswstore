@@ -77,7 +77,7 @@ export function customerStatusMessage(status: string, attentionNote?: string): C
     case "ready":
       return {
         title: "Your order is ready for pickup!",
-        body: "Come collect it at the store counter. See you soon.",
+        body: "Come collect it at our store counter. We look forward to seeing you!<br><br>📍 <strong>4204 Auburn Wy N Ste 8, Auburn, WA 98002</strong><br>📞 <strong>+1 253-449-6246</strong><br>✉️ <strong>orders@goldenstonetools.com</strong>",
         tone: "success",
       };
     case "completed":

@@ -13,7 +13,7 @@ export default function BrandLogo({ href, className = "", compact = false }: Bra
       <img
         src="/brand/gst-logo-white.png"
         alt="Golden Stone Tools"
-        className={compact ? "h-10 w-auto sm:h-12" : "h-12 w-auto sm:h-14"}
+        className={compact ? "h-12 w-auto sm:h-14" : "h-14 w-auto sm:h-16"}
       />
     </Link>
   );

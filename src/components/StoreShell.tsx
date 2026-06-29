@@ -30,6 +30,13 @@ export function StoreShell({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Staff screens (admin dashboard, alerts display) don't use the customer
+  // storefront chrome — render them bare.
+  const isStaffScreen = pathname.startsWith("/admin") || pathname.startsWith("/alerts");
+  if (isStaffScreen) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="min-h-screen bg-white text-slate-900">
       {/* Top notice bar */}

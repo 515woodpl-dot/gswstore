@@ -185,18 +185,29 @@ export async function sendStatusEmail(
   const from = process.env.RESEND_FROM || "orders@orders.goldenstonetools.com";
   if (!apiKey) { console.warn("[Resend] no key — skipping status email"); return; }
 
-  // Don't email on the very first pending state (they already got the confirmation)
   if (order.status === "pending") return;
 
   const msg = customerStatusMessage(order.status, order.attention_note);
-  const toneColor = { info:"#0369a1", success:"#047857", warning:"#b45309", muted:"#475569" }[msg.tone];
-
+  const toneColor = { info:"#0369a1", success:"#047857", warning:"#b45309", muted:"#475569" }[msg.tone] ?? "#475569";
   const showCall = msg.tone === "warning";
+  const phoneRaw = (process.env.NEXT_PUBLIC_SHOP_PHONE || "+12534496246").replace(/[^+\d]/g, "");
+
+  const itemRows = order.items.map(i =>
+    `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:0.85rem;color:#374151">${i.name}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:center;font-size:0.85rem;color:#374151">${i.quantity}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:0.85rem;color:#374151">$${(i.unit_price * i.quantity).toFixed(2)}</td>
+    </tr>`
+  ).join("");
+
+  const callBtn = showCall
+    ? `<a href="tel:${phoneRaw}" style="display:inline-block;background:#b45309;color:#fff;text-decoration:none;font-weight:600;font-size:0.9rem;padding:11px 20px;border-radius:8px;margin-bottom:20px">📞 Call ${SHOP_PHONE}</a>`
+    : "";
 
   const html = `<!DOCTYPE html>
 <html><body style="margin:0;padding:0;background:#f8f9fa;font-family:sans-serif">
 <div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
-  <div style="background:#1e3a5f;padding:24px 32px">
+  <div style="background:#435d69;padding:24px 32px">
     <h1 style="margin:0;color:#fff;font-size:1.2rem;font-weight:700">Golden Stone Tools</h1>
     <p style="margin:6px 0 0;color:rgba(255,255,255,0.7);font-size:0.85rem">Order ${order.order_number}</p>
   </div>
@@ -204,12 +215,24 @@ export async function sendStatusEmail(
     <div style="display:inline-block;background:${toneColor};color:#fff;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:4px 12px;border-radius:9999px;margin-bottom:16px">${orderStatusLabel(order.status)}</div>
     <h2 style="margin:0 0 8px;color:#0f172a;font-size:1.35rem">${msg.title}</h2>
     <p style="margin:0 0 20px;color:#374151;line-height:1.6">${msg.body}</p>
-    ${showCall ? `<a href="tel:${(process.env.NEXT_PUBLIC_SHOP_PHONE||"+12534496246").replace(/[^+\\d]/g,"")}" style="display:inline-block;background:#b45309;color:#fff;text-decoration:none;font-weight:600;font-size:0.9rem;padding:11px 20px;border-radius:8px;margin-bottom:8px">📞 Call ${SHOP_PHONE}</a>` : ""}
-    <div style="margin-top:20px;border-top:1px solid #e5e7eb;padding-top:16px">
-      <p style="margin:0 0 4px;font-size:0.8rem;color:#6b7280">Order total</p>
-      <p style="margin:0;font-size:1.1rem;font-weight:700;color:#0f172a">${formatPrice(order.total)}</p>
-    </div>
-    <p style="margin:20px 0 0;font-size:0.78rem;color:#9ca3af">Questions? Call ${SHOP_PHONE} or reply to this email.</p>
+    ${callBtn}
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px">
+      <thead>
+        <tr style="background:#f9fafb">
+          <th style="padding:10px 12px;text-align:left;font-size:0.75rem;color:#6b7280;font-weight:600">Item</th>
+          <th style="padding:10px 12px;text-align:center;font-size:0.75rem;color:#6b7280;font-weight:600">Qty</th>
+          <th style="padding:10px 12px;text-align:right;font-size:0.75rem;color:#6b7280;font-weight:600">Price</th>
+        </tr>
+      </thead>
+      <tbody>${itemRows}</tbody>
+      <tfoot>
+        <tr style="background:#f9fafb">
+          <td colspan="2" style="padding:10px 12px;font-weight:700;color:#111827;font-size:0.9rem">Total</td>
+          <td style="padding:10px 12px;text-align:right;font-weight:700;color:#111827;font-size:1rem">$${order.total.toFixed(2)}</td>
+        </tr>
+      </tfoot>
+    </table>
+    <p style="margin:0;font-size:0.78rem;color:#9ca3af">Questions? Call ${SHOP_PHONE} or email orders@goldenstonetools.com</p>
   </div>
 </div>
 </body></html>`;

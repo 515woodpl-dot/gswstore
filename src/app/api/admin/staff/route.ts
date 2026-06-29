@@ -32,12 +32,14 @@ export async function GET() {
   // Resolve emails via the auth admin API
   const { data: usersList } = await admin.auth.admin.listUsers({ perPage: 1000 });
   const emailById = new Map((usersList?.users ?? []).map((u) => [u.id, u.email]));
+  const nameById  = new Map((usersList?.users ?? []).map((u) => [u.id, (u.user_metadata?.full_name as string) ?? ""]));
 
   const result = staff.map((s) => ({
     user_id: s.user_id,
     role: s.role,
     created_at: s.created_at,
     email: emailById.get(s.user_id) ?? "(unknown)",
+    full_name: nameById.get(s.user_id) ?? "",
   }));
   return NextResponse.json({ staff: result });
 }

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 interface Staff {
   user_id: string;
   email: string;
+  full_name: string;
   role: "owner" | "staff";
   created_at: string;
 }
@@ -101,8 +102,9 @@ export default function StaffManager() {
             {staff.map((s) => (
               <li key={s.user_id} className="flex items-center justify-between gap-4 px-5 py-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">{s.email}</p>
-                  <p className="text-xs text-slate-500">Added {new Date(s.created_at).toLocaleDateString()}</p>
+                  <p className="text-sm font-semibold text-slate-900">{s.full_name || s.email}</p>
+                  {s.full_name && <p className="text-xs text-slate-500">{s.email}</p>}
+                  <p className="text-xs text-slate-400">Added {new Date(s.created_at).toLocaleDateString()}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase ${s.role === "owner" ? "bg-brand-navy text-white" : "bg-slate-100 text-slate-700"}`}>

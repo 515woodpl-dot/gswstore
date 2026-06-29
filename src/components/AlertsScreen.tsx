@@ -2,9 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, orderStatusLabel, orderStatusColor } from "@/lib/utils";
 import BrandLogo from "@/components/BrandLogo";
-import type { Order } from "@/types";
+import type { Order, OrderStatus } from "@/types";
+
+const STATUS_ACTIONS: { status: OrderStatus; label: string; emoji: string }[] = [
+  { status: "confirmed",        label: "Confirm",          emoji: "✅" },
+  { status: "ready",            label: "Ready for Pickup", emoji: "🟢" },
+  { status: "item_unavailable", label: "Item Unavailable", emoji: "⚠️" },
+  { status: "completed",        label: "Completed",        emoji: "🏁" },
+  { status: "cancelled",        label: "Cancel",           emoji: "❌" },
+];
 
 export default function AlertsScreen({ initialOrders }: { initialOrders: Order[] }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
@@ -12,9 +20,31 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
   const [connected, setConnected] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
   const [clock, setClock] = useState("");
+  const [filter, setFilter] = useState<"active" | "all">("active");
+  const [updating, setUpdating] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const soundRef = useRef(true);
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sb = createClient();
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500); };
+
+  const updateStatus = useCallback(async (order: Order, newStatus: OrderStatus) => {
+    setUpdating(order.id + newStatus);
+    try {
+      const { error } = await sb.from("orders").update({ status: newStatus }).eq("id", order.id);
+      if (error) throw error;
+      const updated = { ...order, status: newStatus };
+      setOrders(prev => prev.map(o => o.id === order.id ? updated : o));
+      setActive(prev => prev?.id === order.id ? updated : prev);
+      const res = await fetch("/api/orders/status-email", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order_id: order.id }),
+      });
+      showToast(res.ok ? `✅ "${orderStatusLabel(newStatus)}" — customer notified` : `⚠️ Status updated but email failed`);
+    } catch { showToast("\u274C Failed to update status"); }
+    setUpdating(null);
+  }, [sb]);
 
   useEffect(() => { soundRef.current = soundOn; }, [soundOn]);
 
@@ -96,6 +126,11 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sb]);
 
+  const activeStatuses: OrderStatus[] = ["pending", "confirmed", "ready"];
+  const visibleOrders = filter === "active"
+    ? orders.filter(o => activeStatuses.includes(o.status as OrderStatus))
+    : orders;
+
   const STATUS_BG: Record<string, string> = {
     pending: "#451a03;color:#fbbf24", confirmed: "#172554;color:#93c5fd",
     ready: "#052e16;color:#86efac", completed: "#1e293b;color:#94a3b8", cancelled: "#450a0a;color:#fca5a5",
@@ -103,6 +138,13 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
 
   return (
     <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top,_rgba(239,81,35,0.08),_transparent_30%),linear-gradient(180deg,_#fffdfb_0%,_#f6fbfc_52%,_#ffffff_100%)] text-slate-700">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-xl">
+          {toast}
+        </div>
+      )}
+
       {/* Header */}
       <header className="border-b border-slate-200 bg-white/95 px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur sm:px-6">
         <div className="flex items-center justify-between gap-4">
@@ -164,25 +206,53 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
                 ))}
               </div>
               {active.notes && <div className="mt-3 text-xs italic text-slate-500">Note: {active.notes}</div>}
+              {/* Status buttons */}
+              <div className="mt-5 border-t border-slate-200 pt-4">
+                <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Update Status & Notify Customer</p>
+                <div className="flex flex-wrap gap-2">
+                  {STATUS_ACTIONS.filter(a => a.status !== active.status).map(({ status, label, emoji }) => (
+                    <button key={status} disabled={!!updating}
+                      onClick={() => updateStatus(active, status)}
+                      className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-brand-navy hover:bg-brand-navy hover:text-white disabled:opacity-50">
+                      {updating === active.id + status ? "…" : <>{emoji} {label}</>}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
 
         {/* History */}
         <aside className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-soft">
-          <div className="border-b border-slate-200 px-5 py-4 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">Recent Orders</div>
-          <div className="max-h-[calc(100vh-150px)] overflow-y-auto p-3">
-            {orders.length === 0 ? (
-              <p className="mt-10 text-center text-sm text-slate-500">No orders yet.</p>
-            ) : orders.map((o) => (
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+            <span className="text-xs font-bold uppercase tracking-[0.08em] text-slate-500">Orders</span>
+            <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
+              <button onClick={() => setFilter("active")} className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${filter === "active" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>Active</button>
+              <button onClick={() => setFilter("all")} className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${filter === "all" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>All</button>
+            </div>
+          </div>
+          <div className="max-h-[calc(100vh-180px)] overflow-y-auto p-3">
+            {visibleOrders.length === 0 ? (
+              <p className="mt-10 text-center text-sm text-slate-500">{filter === "active" ? "No active orders." : "No orders yet."}</p>
+            ) : visibleOrders.map((o) => (
               <div key={o.id} className="mb-2 cursor-pointer rounded-2xl border border-slate-200 p-3 transition hover:border-brand-gold hover:bg-brand-gold/5" onClick={() => setActive(o)}>
                 <div className="text-sm font-bold text-slate-900">{o.order_number}</div>
                 <div className="mb-1 text-xs text-slate-500">{new Date(o.created_at).toLocaleTimeString()}</div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-brand-gold">{formatPrice(o.total)}</span>
-                  <span className="rounded-full px-2 py-0.5 text-[0.62rem] font-bold uppercase" style={{ background: `#${STATUS_BG[o.status]?.split(";")[0]}`, color: STATUS_BG[o.status]?.split("color:")[1] }}>
-                    {o.status}
+                  <span className="rounded-full px-2 py-0.5 text-[0.62rem] font-bold uppercase text-white" style={{ background: orderStatusColor(o.status) }}>
+                    {orderStatusLabel(o.status)}
                   </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1" onClick={e => e.stopPropagation()}>
+                  {STATUS_ACTIONS.filter(a => a.status !== o.status).map(({ status, label, emoji }) => (
+                    <button key={status} disabled={!!updating}
+                      onClick={() => updateStatus(o, status)}
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[0.6rem] font-semibold text-slate-600 transition hover:border-brand-navy hover:bg-brand-navy hover:text-white disabled:opacity-50">
+                      {updating === o.id + status ? "…" : `${emoji} ${label}`}
+                    </button>
+                  ))}
                 </div>
               </div>
             ))}

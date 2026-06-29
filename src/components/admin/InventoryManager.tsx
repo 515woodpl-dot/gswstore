@@ -283,7 +283,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
                     {(editing.images ?? []).map((url, i) => (
                       <div key={i} className="relative">
                         <img src={url} alt="" className="h-16 w-16 rounded-xl object-cover border border-slate-200" />
-                        <button onClick={() => setEditing({ ...editing, images: editing.images?.filter((_, j) => j !== i) })}
+                        <button onClick={() => setEditing({ ...editing, images: editing.images?.filter((_, j) => j !== i) ?? null })}
                           className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white shadow">✕</button>
                       </div>
                     ))}

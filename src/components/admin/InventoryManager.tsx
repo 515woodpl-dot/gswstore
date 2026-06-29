@@ -18,47 +18,85 @@ const BLANK: Row = {
   voltage: "", sku: "", description: "", amount: 0, store_price: 0, image_url: "", images: [], featured: false, store_visible: true,
 };
 
+// Compress image to max 1200px wide and ~80% quality JPEG using Canvas
+async function compressImage(file: File, maxWidth = 1200, quality = 0.82): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxWidth / img.width);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("Canvas not available"));
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Compression failed")), "image/jpeg", quality);
+    };
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = url;
+  });
+}
+
 export default function InventoryManager({ initialItems, categories }: { initialItems: Row[]; categories: Category[] }) {
-  const [items, setItems]     = useState<Row[]>(initialItems);
-  const [editing, setEditing] = useState<Row | null>(null);
-  const [saving, setSaving]   = useState(false);
-  const [error, setError]     = useState("");
+  const [items, setItems]       = useState<Row[]>(initialItems);
+  const [editing, setEditing]   = useState<Row | null>(null);
+  const [saving, setSaving]     = useState(false);
+  const [error, setError]       = useState("");
   const [uploading, setUploading] = useState(false);
-  const [search, setSearch]   = useState("");
-  const mainImgRef = useRef<HTMLInputElement>(null);
-  const galleryRef = useRef<HTMLInputElement>(null);
+  const [uploadProgress, setUploadProgress] = useState("");
+  const [search, setSearch]     = useState("");
+  const mainImgRef  = useRef<HTMLInputElement>(null);
+  const galleryRef  = useRef<HTMLInputElement>(null);
   const sb = createClient();
 
   function startNew() { setEditing({ ...BLANK }); setError(""); }
   function startEdit(row: Row) { setEditing({ ...row }); setError(""); }
 
-  async function uploadImage(file: File, bucket = "inventory-images"): Promise<string> {
-    const ext = file.name.split(".").pop();
-    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error: upErr } = await sb.storage.from(bucket).upload(path, file, { upsert: true });
+  async function uploadImage(file: File): Promise<string> {
+    setUploadProgress(`Compressing ${file.name}…`);
+    const compressed = await compressImage(file);
+    const sizeBefore = (file.size / 1024).toFixed(0);
+    const sizeAfter  = (compressed.size / 1024).toFixed(0);
+    console.log(`[Image] ${file.name}: ${sizeBefore}KB → ${sizeAfter}KB`);
+
+    setUploadProgress(`Uploading…`);
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+    const { error: upErr } = await sb.storage.from("inventory-images").upload(path, compressed, {
+      contentType: "image/jpeg", upsert: true,
+    });
     if (upErr) throw new Error(upErr.message);
-    const { data } = sb.storage.from(bucket).getPublicUrl(path);
+    const { data } = sb.storage.from("inventory-images").getPublicUrl(path);
     return data.publicUrl;
   }
 
   async function handleMainImage(e: React.ChangeEvent<HTMLInputElement>) {
     if (!editing || !e.target.files?.[0]) return;
-    setUploading(true);
+    setUploading(true); setError("");
     try {
       const url = await uploadImage(e.target.files[0]);
-      setEditing({ ...editing, image_url: url });
+      setEditing(prev => prev ? { ...prev, image_url: url } : prev);
     } catch (err) { setError(String(err)); }
-    setUploading(false);
+    setUploading(false); setUploadProgress("");
+    e.target.value = "";
   }
 
   async function handleGalleryImages(e: React.ChangeEvent<HTMLInputElement>) {
     if (!editing || !e.target.files?.length) return;
-    setUploading(true);
+    setUploading(true); setError("");
     try {
-      const urls = await Promise.all(Array.from(e.target.files).map(f => uploadImage(f)));
-      setEditing({ ...editing, images: [...(editing.images ?? []), ...urls] });
+      const files = Array.from(e.target.files);
+      const urls: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        setUploadProgress(`Image ${i + 1} of ${files.length}…`);
+        urls.push(await uploadImage(files[i]));
+      }
+      setEditing(prev => prev ? { ...prev, images: [...(prev.images ?? []), ...urls] } : prev);
     } catch (err) { setError(String(err)); }
-    setUploading(false);
+    setUploading(false); setUploadProgress("");
+    e.target.value = "";
   }
 
   async function save() {
@@ -98,7 +136,9 @@ export default function InventoryManager({ initialItems, categories }: { initial
     return <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">In ({n})</span>;
   }
 
-  const filtered = search ? items.filter(i => [i.name, i.id, i.sku, i.category_name].join(" ").toLowerCase().includes(search.toLowerCase())) : items;
+  const filtered = search
+    ? items.filter(i => [i.name, i.id, i.sku, i.category_name].join(" ").toLowerCase().includes(search.toLowerCase()))
+    : items;
 
   return (
     <div>
@@ -188,11 +228,10 @@ export default function InventoryManager({ initialItems, categories }: { initial
         ))}
       </div>
 
-      {/* Edit modal */}
+      {/* Edit / New modal */}
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center p-0 sm:p-4" onClick={() => !saving && setEditing(null)}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center p-0 sm:p-4" onClick={() => !saving && !uploading && setEditing(null)}>
           <div className="max-h-[95vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-xl sm:max-w-2xl sm:rounded-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
-            {/* Modal handle for mobile */}
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-200 sm:hidden" />
             <h2 className="mb-5 text-lg font-black text-slate-950">{items.some((i) => i.id === editing.id) ? "Edit" : "New"} Product</h2>
 
@@ -218,42 +257,41 @@ export default function InventoryManager({ initialItems, categories }: { initial
 
               {/* Main image upload */}
               <div className="sm:col-span-2">
-                <span className="mb-1 block text-sm font-semibold text-slate-700">Main Image</span>
+                <span className="mb-2 block text-sm font-semibold text-slate-700">Main Image</span>
                 <div className="flex items-start gap-3">
                   {editing.image_url && (
                     <div className="relative shrink-0">
                       <img src={editing.image_url} alt="preview" className="h-20 w-20 rounded-xl object-cover border border-slate-200" />
                       <button onClick={() => setEditing({ ...editing, image_url: "" })}
-                        className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white">✕</button>
+                        className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white shadow">✕</button>
                     </div>
                   )}
-                  <div className="flex-1">
-                    <button onClick={() => mainImgRef.current?.click()} disabled={uploading}
-                      className="flex items-center gap-2 rounded-xl border-2 border-dashed border-slate-300 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:border-brand-navy hover:text-brand-navy disabled:opacity-50 w-full justify-center">
-                      {uploading ? "Uploading…" : "📷 Upload Image"}
-                    </button>
-                    <input ref={mainImgRef} type="file" accept="image/*" className="hidden" onChange={handleMainImage} />
-                  </div>
+                  <button onClick={() => mainImgRef.current?.click()} disabled={uploading}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 px-4 py-4 text-sm font-semibold text-slate-600 transition hover:border-brand-navy hover:text-brand-navy disabled:opacity-50">
+                    {uploading && uploadProgress.includes("Compress") ? <span className="animate-pulse">{uploadProgress}</span> : "📷 Upload Image"}
+                  </button>
+                  <input ref={mainImgRef} type="file" accept="image/*" className="hidden" onChange={handleMainImage} />
                 </div>
+                <p className="mt-1 text-xs text-slate-400">Auto-compressed to web size before uploading.</p>
               </div>
 
-              {/* Gallery upload */}
+              {/* Gallery images */}
               <div className="sm:col-span-2">
-                <span className="mb-1 block text-sm font-semibold text-slate-700">Gallery Images</span>
+                <span className="mb-2 block text-sm font-semibold text-slate-700">Gallery Images</span>
                 {(editing.images ?? []).length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-2">
+                  <div className="mb-3 flex flex-wrap gap-2">
                     {(editing.images ?? []).map((url, i) => (
                       <div key={i} className="relative">
                         <img src={url} alt="" className="h-16 w-16 rounded-xl object-cover border border-slate-200" />
                         <button onClick={() => setEditing({ ...editing, images: editing.images?.filter((_, j) => j !== i) })}
-                          className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white">✕</button>
+                          className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white shadow">✕</button>
                       </div>
                     ))}
                   </div>
                 )}
                 <button onClick={() => galleryRef.current?.click()} disabled={uploading}
-                  className="flex items-center gap-2 rounded-xl border-2 border-dashed border-slate-300 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:border-brand-navy hover:text-brand-navy disabled:opacity-50 w-full justify-center">
-                  {uploading ? "Uploading…" : "🖼️ Add Gallery Images"}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:border-brand-navy hover:text-brand-navy disabled:opacity-50">
+                  {uploading && uploadProgress ? <span className="animate-pulse">{uploadProgress}</span> : "🖼️ Add Gallery Images (select multiple)"}
                 </button>
                 <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={handleGalleryImages} />
               </div>
@@ -265,6 +303,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
                 </label>
               </div>
+
               <label className="flex items-center gap-2 py-1">
                 <input type="checkbox" checked={editing.store_visible} onChange={(e) => setEditing({ ...editing, store_visible: e.target.checked })} className="h-4 w-4 rounded" />
                 <span className="text-sm font-semibold text-slate-700">Visible in store</span>
@@ -278,8 +317,10 @@ export default function InventoryManager({ initialItems, categories }: { initial
             {error && <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
 
             <div className="mt-6 flex gap-3">
-              <button onClick={() => setEditing(null)} disabled={saving} className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 sm:flex-none sm:px-5">Cancel</button>
-              <button onClick={save} disabled={saving || uploading} className="flex-1 rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-70 sm:flex-none">
+              <button onClick={() => setEditing(null)} disabled={saving || uploading}
+                className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 sm:flex-none sm:px-5">Cancel</button>
+              <button onClick={save} disabled={saving || uploading}
+                className="flex-1 rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-70 sm:flex-none">
                 {saving ? "Saving…" : "Save"}
               </button>
             </div>

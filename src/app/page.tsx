@@ -1,8 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { getStoreItems, getStoreCategories, getFeaturedItems } from "@/lib/inventory";
+import { getStoreItems, getStoreCategories, getFeaturedItems, getNewArrivals, getTopDeals } from "@/lib/inventory";
 import ShopGrid from "@/components/ShopGrid";
 import FeaturedSlideshow from "@/components/FeaturedSlideshow";
+import ProductRow from "@/components/ProductRow";
+import NewsletterSignup from "@/components/NewsletterSignup";
 
 export const revalidate = 60;
 
@@ -10,7 +12,7 @@ interface Props { searchParams: Promise<{ q?: string; cat?: string }> }
 
 export default async function HomePage({ searchParams }: Props) {
   const { q, cat } = await searchParams;
-  const [items, cats, featured] = await Promise.all([getStoreItems(), getStoreCategories(), getFeaturedItems(5)]);
+  const [items, cats, featured, newArrivals, deals] = await Promise.all([getStoreItems(), getStoreCategories(), getFeaturedItems(5), getNewArrivals(8), getTopDeals(8)]);
 
   return (
     <div>
@@ -76,6 +78,9 @@ export default async function HomePage({ searchParams }: Props) {
         </div>
       </section>
 
+      <ProductRow title="Top Deals" subtitle="Limited-time savings" items={deals} accent="primary" />
+      <ProductRow title="Just In" subtitle="New Arrivals" items={newArrivals} accent="gold" />
+
       {/* Catalog */}
       <section id="catalog" className="scroll-mt-20 mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="space-y-6">
@@ -116,6 +121,8 @@ export default async function HomePage({ searchParams }: Props) {
           </Suspense>
         </div>
       </section>
+
+      <NewsletterSignup />
     </div>
   );
 }

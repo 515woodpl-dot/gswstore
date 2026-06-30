@@ -19,10 +19,12 @@ interface InventoryRow {
   description: string | null;
   amount: number;
   store_price: number;
+  sale_price: number | null;
   image_url: string | null;
   images: string[] | null;
   featured: boolean;
   store_visible: boolean;
+  created_at?: string;
 }
 
 function rowToItem(r: InventoryRow): InventoryItem {
@@ -37,6 +39,7 @@ function rowToItem(r: InventoryRow): InventoryItem {
     description: r.description || "",
     amount: r.amount,
     store_price: Number(r.store_price),
+    sale_price: r.sale_price != null ? Number(r.sale_price) : null,
     image_url: r.image_url,
     images: r.images ?? [],
     featured: r.featured ?? false,
@@ -44,7 +47,7 @@ function rowToItem(r: InventoryRow): InventoryItem {
   };
 }
 
-const COLS = "id,name,category_name,brand,model_number,voltage,sku,description,amount,store_price,image_url,images,featured,store_visible";
+const COLS = "id,name,category_name,brand,model_number,voltage,sku,description,amount,store_price,sale_price,image_url,images,featured,store_visible,created_at";
 
 // ── Public store reads (visible items only) ──────────────────────────────────
 
@@ -84,4 +87,27 @@ export async function getStoreCategories(): Promise<Category[]> {
     .order("sort_order", { ascending: true });
   if (error || !data) return [];
   return data as Category[];
+}
+
+export async function getNewArrivals(limit = 8): Promise<InventoryItem[]> {
+  const sb = await createClient();
+  const { data, error } = await sb
+    .from("inventory").select(COLS)
+    .eq("store_visible", true)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return (data as InventoryRow[]).map(rowToItem);
+}
+
+export async function getTopDeals(limit = 8): Promise<InventoryItem[]> {
+  const sb = await createClient();
+  const { data, error } = await sb
+    .from("inventory").select(COLS)
+    .eq("store_visible", true)
+    .not("sale_price", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return (data as InventoryRow[]).map(rowToItem);
 }

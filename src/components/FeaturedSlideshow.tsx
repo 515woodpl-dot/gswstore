@@ -58,7 +58,14 @@ export default function FeaturedSlideshow({ items }: { items: InventoryItem[] })
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">{item.category_name}</p>
             <h2 className="mt-1 text-xl font-black tracking-tight sm:text-3xl">{item.name}</h2>
             <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <span className="text-2xl font-bold">{formatPrice(item.store_price)}</span>
+              {item.sale_price ? (
+                <span className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold text-brand-gold">{formatPrice(item.sale_price)}</span>
+                  <span className="text-base font-semibold text-white/50 line-through">{formatPrice(item.store_price)}</span>
+                </span>
+              ) : (
+                <span className="text-2xl font-bold">{formatPrice(item.store_price)}</span>
+              )}
               <span className="inline-flex w-fit rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-navy">View Product</span>
             </div>
           </div>

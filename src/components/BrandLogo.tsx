@@ -18,8 +18,8 @@ export default function BrandLogo({ href, className = "", compact = false }: Bra
         aria-hidden="true"
         className={
           compact
-            ? "block h-9 w-auto sm:hidden"
-            : "block h-10 w-auto sm:hidden"
+            ? "block h-[54px] w-auto sm:hidden"
+            : "block h-[60px] w-auto sm:hidden"
         }
       />
       {/* Desktop: horizontal logo */}
@@ -30,8 +30,8 @@ export default function BrandLogo({ href, className = "", compact = false }: Bra
         aria-hidden="true"
         className={
           compact
-            ? "hidden h-8 w-auto sm:block"
-            : "hidden h-10 w-auto sm:block"
+            ? "hidden h-[48px] w-auto sm:block"
+            : "hidden h-[60px] w-auto sm:block"
         }
       />
     </Link>

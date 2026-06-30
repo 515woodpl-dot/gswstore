@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { formatPrice } from "@/lib/utils";
 import type { InventoryItem } from "@/types";

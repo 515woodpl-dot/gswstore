@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { getStoreItems, getStoreCategories, getFeaturedItems, getNewArrivals, getTopDeals } from "@/lib/inventory";
 import ShopGrid from "@/components/ShopGrid";
-import FeaturedSlideshow from "@/components/FeaturedSlideshow";
+import PromoHero from "@/components/PromoHero";
 import ProductRow from "@/components/ProductRow";
 import NewsletterSignup from "@/components/NewsletterSignup";
 
@@ -16,43 +16,15 @@ export default async function HomePage({ searchParams }: Props) {
 
   return (
     <div>
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-white">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(67,93,105,0.06),transparent)]" />
-        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid items-center gap-6 py-8 lg:grid-cols-[1fr_440px] lg:gap-10 lg:py-14">
-            <div>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-navy/15 bg-brand-navy/5 px-3 py-1 text-[0.68rem] font-bold uppercase tracking-[0.18em] text-brand-navy">
-                <span className="h-1.5 w-1.5 rounded-full bg-brand-gold" />
-                In-Store Pickup Only
-              </span>
-              <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl lg:text-5xl leading-[1.1]">
-                Trade-grade tools,{" "}
-                <span className="text-brand-navy">ready when you are.</span>
-              </h1>
-              <p className="mt-3 max-w-md text-sm leading-6 text-slate-500">
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
-              </p>
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <a href="#catalog"
-                  className="inline-flex items-center gap-2 rounded-xl bg-brand-navy px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800">
-                  Shop the Catalog
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                </a>
-                <a href={`tel:${process.env.NEXT_PUBLIC_SHOP_PHONE?.replace(/[^+\d]/g,"") || "+12534496246"}`}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50">
-                  📞 Call Us
-                </a>
-              </div>
-              <div className="mt-6 flex flex-wrap gap-5 border-t border-slate-100 pt-5 text-xs font-semibold text-slate-500">
-                <span>🏪 Auburn, WA</span>
-                <span>⚡ Order Online</span>
-                <span>🔧 {items.length} Products</span>
-              </div>
-            </div>
-            <div className="relative">
-              <FeaturedSlideshow items={featured} />
-            </div>
+      {/* Hero — featured products promo banner */}
+      <section className="relative bg-white">
+        <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
+          <PromoHero items={featured} />
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-5 border-t border-slate-100 pt-5 text-xs font-semibold text-slate-500 sm:justify-start">
+            <span>🏪 Auburn, WA</span>
+            <span>⚡ Order Online · In-Store Pickup</span>
+            <span>🔧 {items.length} Products</span>
+            <a href={`tel:${process.env.NEXT_PUBLIC_SHOP_PHONE?.replace(/[^+\d]/g,"") || "+12534496246"}`} className="text-brand-navy hover:underline">📞 Call Us</a>
           </div>
         </div>
       </section>

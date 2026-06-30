@@ -11,11 +11,14 @@ interface Row {
   sku: string | null; description: string | null; amount: number;
   store_price: number; sale_price: number | null; image_url: string | null; images: string[] | null;
   featured: boolean; new_arrival: boolean; store_visible: boolean;
+  attributes: Record<string, string> | null;
+  tax_enabled: boolean; tax_rate_percent: number;
 }
 
 const BLANK: Row = {
   id: "", name: "", category_id: null, category_name: "", brand: "", model_number: "",
   voltage: "", sku: "", description: "", amount: 0, store_price: 0, sale_price: null, image_url: "", images: [], featured: false, new_arrival: false, store_visible: true,
+  attributes: {}, tax_enabled: false, tax_rate_percent: 0,
 };
 
 // Compress image to max 1200px wide and ~80% quality JPEG using Canvas
@@ -113,6 +116,9 @@ export default function InventoryManager({ initialItems, categories }: { initial
       description: editing.description ?? "",
       amount: Number(editing.amount) || 0, store_price: Number(editing.store_price) || 0, sale_price: editing.sale_price ? Number(editing.sale_price) : null,
       image_url: editing.image_url || null, images: editing.images ?? [], new_arrival: editing.new_arrival ?? false,
+      attributes: editing.attributes ?? {},
+      tax_enabled: editing.tax_enabled ?? false,
+      tax_rate_percent: Number(editing.tax_rate_percent) || 0,
     };
     const { error: err } = await sb.from("inventory").upsert(payload);
     if (err) { setError(err.message); setSaving(false); return; }
@@ -255,6 +261,67 @@ export default function InventoryManager({ initialItems, categories }: { initial
               <Field label="Regular Price ($)" type="number" value={String(editing.store_price)} onChange={(v) => setEditing({ ...editing, store_price: Number(v) })} />
               <Field label="Sale Price ($)" type="number" value={String(editing.sale_price ?? "")} onChange={(v) => setEditing({ ...editing, sale_price: v ? Number(v) : null })} placeholder="Leave empty if no sale" />
               <Field label="Stock amount" type="number" value={String(editing.amount)} onChange={(v) => setEditing({ ...editing, amount: Number(v) })} />
+
+              {/* Tax controls */}
+              <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <span className="mb-2 block text-sm font-semibold text-slate-700">Tax</span>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={editing.tax_enabled}
+                      onChange={(e) => setEditing({ ...editing, tax_enabled: e.target.checked })} className="h-4 w-4 rounded" />
+                    <span className="text-sm font-semibold text-slate-700">Apply tax to this item</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <span className="text-sm text-slate-600">Rate (%)</span>
+                    <input type="number" step="0.01" value={String(editing.tax_rate_percent ?? 0)}
+                      disabled={!editing.tax_enabled}
+                      onChange={(e) => setEditing({ ...editing, tax_rate_percent: Number(e.target.value) })}
+                      className="w-24 rounded-xl border border-slate-300 px-3 py-2 text-sm disabled:opacity-50" placeholder="e.g. 8.5" />
+                  </label>
+                </div>
+                <p className="mt-1 text-xs text-slate-400">When on, the product page shows the price plus this tax. Turn off to display price without added tax.</p>
+              </div>
+
+              {/* Key Attributes editor */}
+              <div className="sm:col-span-2">
+                <span className="mb-2 block text-sm font-semibold text-slate-700">Key Attributes</span>
+                <p className="mb-2 text-xs text-slate-400">Shown in the “Key attributes” block on the product page. e.g. Material → Steel.</p>
+                <div className="space-y-2">
+                  {Object.entries(editing.attributes ?? {}).map(([k, v], i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input value={k} placeholder="Label (e.g. Material)"
+                        onChange={(e) => {
+                          const ents = Object.entries(editing.attributes ?? {});
+                          ents[i] = [e.target.value, v];
+                          setEditing({ ...editing, attributes: Object.fromEntries(ents) });
+                        }}
+                        className="w-1/3 rounded-xl border border-slate-300 px-3 py-2 text-sm" />
+                      <input value={v} placeholder="Value (e.g. Steel)"
+                        onChange={(e) => {
+                          const ents = Object.entries(editing.attributes ?? {});
+                          ents[i] = [k, e.target.value];
+                          setEditing({ ...editing, attributes: Object.fromEntries(ents) });
+                        }}
+                        className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm" />
+                      <button type="button"
+                        onClick={() => {
+                          const ents = Object.entries(editing.attributes ?? {}).filter((_, j) => j !== i);
+                          setEditing({ ...editing, attributes: Object.fromEntries(ents) });
+                        }}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50">✕</button>
+                    </div>
+                  ))}
+                </div>
+                <button type="button"
+                  onClick={() => {
+                    const ents = Object.entries(editing.attributes ?? {});
+                    ents.push(["", ""]);
+                    setEditing({ ...editing, attributes: Object.fromEntries(ents) });
+                  }}
+                  className="mt-2 rounded-xl border border-dashed border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-brand-navy hover:text-brand-navy">
+                  + Add attribute
+                </button>
+              </div>
 
               {/* Main image upload */}
               <div className="sm:col-span-2">

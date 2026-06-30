@@ -41,6 +41,31 @@ export function stockColor(status: StockStatus): string {
   return "#198754";
 }
 
+// ── Tax helpers ──────────────────────────────────────────────────────────────
+// Tax is controlled per-item from the inventory admin panel via
+// `tax_enabled` (on/off) and `tax_rate_percent` (e.g. 8.5).
+
+export interface PriceBreakdown {
+  base: number;       // pre-tax price (sale price if on sale, else store price)
+  taxRate: number;    // percent, 0 when tax disabled
+  taxAmount: number;  // currency amount of tax
+  total: number;      // base + taxAmount
+  taxed: boolean;     // whether tax was applied
+}
+
+export function priceBreakdown(opts: {
+  store_price: number;
+  sale_price?: number | null;
+  tax_enabled?: boolean;
+  tax_rate_percent?: number;
+}): PriceBreakdown {
+  const base = opts.sale_price != null ? Number(opts.sale_price) : Number(opts.store_price);
+  const taxed = !!opts.tax_enabled && Number(opts.tax_rate_percent) > 0;
+  const taxRate = taxed ? Number(opts.tax_rate_percent) : 0;
+  const taxAmount = taxed ? Math.round(base * taxRate) / 100 : 0;
+  return { base, taxRate, taxAmount, total: base + taxAmount, taxed };
+}
+
 export function stockLabel(status: StockStatus, amount?: number): string {
   if (status === "out_of_stock") return "Out of Stock";
   if (status === "low_stock") return amount ? `Low Stock (${amount} left)` : "Low Stock";

@@ -17,6 +17,21 @@ export interface InventoryItem {
   description: string;
   sku: string;
   stock_status: StockStatus;
+  attributes: Record<string, string>;
+  tax_enabled: boolean;
+  tax_rate_percent: number;
+}
+
+export interface Review {
+  id: string;
+  item_id: string;
+  user_id: string;
+  author_name: string;
+  rating: number;
+  title: string;
+  body: string;
+  approved: boolean;
+  created_at: string;
 }
 
 export interface Category {

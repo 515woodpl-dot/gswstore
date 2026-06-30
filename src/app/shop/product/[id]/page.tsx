@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { getStoreItem, getStoreItems } from "@/lib/inventory";
-import { formatPrice, stockLabel, stockColor } from "@/lib/utils";
+import { getStoreItem, getStoreItems, getItemReviews } from "@/lib/inventory";
+import { formatPrice, stockLabel, stockColor, priceBreakdown } from "@/lib/utils";
 import AddToCartButton from "@/components/AddToCartButton";
 import ImageGallery from "@/components/ImageGallery";
 import Accordion from "@/components/Accordion";
+import KeyAttributes from "@/components/KeyAttributes";
+import ProductReviews from "@/components/ProductReviews";
+import { Stars } from "@/components/Stars";
 import { StockBadge } from "@/components/ui";
 
 export const revalidate = 60;
@@ -18,9 +21,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProductPage({ params }: Props) {
   const { id } = await params;
-  let item, allItems;
-  try { [item, allItems] = await Promise.all([getStoreItem(id), getStoreItems()]); }
+  let item, allItems, reviews;
+  try { [item, allItems, reviews] = await Promise.all([getStoreItem(id), getStoreItems(), getItemReviews(id)]); }
   catch { notFound(); }
+
+  const reviewCount = reviews!.length;
+  const reviewAvg = reviewCount ? reviews!.reduce((a, r) => a + r.rating, 0) / reviewCount : 0;
+
+  // Tax breakdown (controlled per-item from the inventory admin panel)
+  const price = priceBreakdown({
+    store_price: item!.store_price,
+    sale_price: item!.sale_price,
+    tax_enabled: item!.tax_enabled,
+    tax_rate_percent: item!.tax_rate_percent,
+  });
 
   const related = allItems!.filter((i) => i!.category_name === item!.category_name && i.id !== item!.id).slice(0, 3);
 
@@ -84,6 +98,13 @@ export default async function ProductPage({ params }: Props) {
               <StockBadge status={item!.stock_status} />
               <span className="text-sm text-slate-500">{item!.amount} available · in-store pickup</span>
             </div>
+            {reviewCount > 0 && (
+              <a href="#reviews" className="flex w-fit items-center gap-2 text-sm text-slate-600 hover:text-slate-900">
+                <Stars value={reviewAvg} />
+                <span className="font-semibold">{reviewAvg.toFixed(1)}</span>
+                <span className="text-slate-400">({reviewCount} review{reviewCount === 1 ? "" : "s"})</span>
+              </a>
+            )}
           </div>
 
           {/* Price + quantity + add to cart */}
@@ -100,6 +121,14 @@ export default async function ProductPage({ params }: Props) {
               ) : (
                 <p className="mt-1 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">{formatPrice(item!.store_price)}</p>
               )}
+                {price.taxed ? (
+                  <div className="mt-2 space-y-0.5 text-sm text-slate-500">
+                    <p>+ {price.taxRate}% tax ({formatPrice(price.taxAmount)})</p>
+                    <p className="font-semibold text-slate-900">Total with tax: {formatPrice(price.total)}</p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-slate-400">Tax included / not applicable</p>
+                )}
               </div>
             </div>
             <AddToCartButton item={item!} />
@@ -109,6 +138,14 @@ export default async function ProductPage({ params }: Props) {
           <Accordion sections={sections} defaultOpen={0} />
         </div>
       </section>
+
+      {/* Key attributes — populated from inventory */}
+      <KeyAttributes attributes={item!.attributes} />
+
+      {/* Customer reviews */}
+      <div id="reviews">
+        <ProductReviews itemId={item!.id} initialReviews={reviews!} />
+      </div>
 
       {/* Related */}
       {related.length > 0 && (

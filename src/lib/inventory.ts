@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { InventoryItem, Category, StockStatus } from "@/types";
+import type { InventoryItem, Category, StockStatus, Review } from "@/types";
 
 // ── Stock status derivation (0 = out, 1-9 = low, 10+ = in) ───────────────────
 export function deriveStockStatus(amount: number): StockStatus {
@@ -25,6 +25,9 @@ interface InventoryRow {
   featured: boolean;
   new_arrival: boolean;
   store_visible: boolean;
+  attributes: Record<string, string> | null;
+  tax_enabled: boolean | null;
+  tax_rate_percent: number | null;
   created_at?: string;
 }
 
@@ -46,10 +49,13 @@ function rowToItem(r: InventoryRow): InventoryItem {
     featured: r.featured ?? false,
     new_arrival: r.new_arrival ?? false,
     stock_status: deriveStockStatus(r.amount),
+    attributes: r.attributes ?? {},
+    tax_enabled: r.tax_enabled ?? false,
+    tax_rate_percent: r.tax_rate_percent != null ? Number(r.tax_rate_percent) : 0,
   };
 }
 
-const COLS = "id,name,category_name,brand,model_number,voltage,sku,description,amount,store_price,sale_price,image_url,images,featured,new_arrival,store_visible,created_at";
+const COLS = "id,name,category_name,brand,model_number,voltage,sku,description,amount,store_price,sale_price,image_url,images,featured,new_arrival,store_visible,attributes,tax_enabled,tax_rate_percent,created_at";
 
 // ── Public store reads (visible items only) ──────────────────────────────────
 
@@ -113,4 +119,26 @@ export async function getTopDeals(limit = 8): Promise<InventoryItem[]> {
     .limit(limit);
   if (error || !data) return [];
   return (data as InventoryRow[]).map(rowToItem);
+}
+
+// ── Reviews ──────────────────────────────────────────────────────────────────
+
+export async function getItemReviews(itemId: string): Promise<Review[]> {
+  const sb = await createClient();
+  const { data, error } = await sb
+    .from("reviews")
+    .select("id,item_id,user_id,author_name,rating,title,body,approved,created_at")
+    .eq("item_id", itemId)
+    .eq("approved", true)
+    .order("created_at", { ascending: false });
+  if (error || !data) return [];
+  return data as Review[];
+}
+
+export interface ReviewSummary { count: number; average: number; }
+
+export function summarizeReviews(reviews: Review[]): ReviewSummary {
+  if (reviews.length === 0) return { count: 0, average: 0 };
+  const sum = reviews.reduce((a, r) => a + r.rating, 0);
+  return { count: reviews.length, average: Math.round((sum / reviews.length) * 10) / 10 };
 }

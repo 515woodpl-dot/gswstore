@@ -60,7 +60,15 @@ function ProductCard({ item }: { item: InventoryItem }) {
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{formatPrice(item.store_price)}</p>
+            {item.sale_price ? (
+              <div className="flex items-baseline gap-2">
+                <p className="text-xl font-bold tracking-tight text-brand-primary sm:text-2xl">{formatPrice(item.sale_price)}</p>
+                <p className="text-sm font-semibold text-slate-400 line-through">{formatPrice(item.store_price)}</p>
+                <span className="rounded-full bg-brand-primary px-2 py-0.5 text-[0.6rem] font-bold uppercase text-white">Sale</span>
+              </div>
+            ) : (
+              <p className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{formatPrice(item.store_price)}</p>
+            )}
             <p className="text-xs font-medium text-slate-500">{item.amount} available</p>
           </div>
           <button

@@ -147,6 +147,12 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
     ? orders.filter(o => activeStatuses.includes(o.status as OrderStatus))
     : orders;
 
+  // Revenue accounting
+  const completedRevenue = orders.filter(o => o.status === "completed").reduce((s, o) => s + o.total, 0);
+  const activeRevenue    = orders.filter(o => ["pending","confirmed","ready"].includes(o.status)).reduce((s, o) => s + o.total, 0);
+  const cancelledTotal   = orders.filter(o => ["cancelled","item_unavailable"].includes(o.status)).reduce((s, o) => s + o.total, 0);
+  const totalOrders      = orders.filter(o => o.status !== "cancelled" && o.status !== "item_unavailable").length;
+
   return (
     <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top,_rgba(239,81,35,0.08),_transparent_30%),linear-gradient(180deg,_#fffdfb_0%,_#f6fbfc_52%,_#ffffff_100%)] text-slate-700">
 
@@ -180,6 +186,28 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
           </div>
         </div>
       </header>
+
+      {/* Revenue Summary Bar */}
+      <div className="border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
+        <div className="mx-auto flex flex-wrap gap-3 sm:gap-6">
+          <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-2">
+            <span className="text-xs font-bold uppercase tracking-wide text-emerald-700">Completed Revenue</span>
+            <span className="text-base font-black text-emerald-700">{formatPrice(completedRevenue)}</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-xl bg-blue-50 border border-blue-200 px-4 py-2">
+            <span className="text-xs font-bold uppercase tracking-wide text-blue-700">In Progress</span>
+            <span className="text-base font-black text-blue-700">{formatPrice(activeRevenue)}</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-xl bg-rose-50 border border-rose-200 px-4 py-2">
+            <span className="text-xs font-bold uppercase tracking-wide text-rose-700">Cancelled / Lost</span>
+            <span className="text-base font-black text-rose-700">{formatPrice(cancelledTotal)}</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-xl bg-slate-100 border border-slate-200 px-4 py-2">
+            <span className="text-xs font-bold uppercase tracking-wide text-slate-600">Total Orders</span>
+            <span className="text-base font-black text-slate-800">{totalOrders}</span>
+          </div>
+        </div>
+      </div>
 
       <main className="grid flex-1 gap-4 p-4 lg:grid-cols-[1fr_360px] lg:gap-6 lg:p-6">
 

@@ -9,6 +9,7 @@ export interface InventoryItem {
   voltage: string;
   amount: number;
   store_price: number;
+  sale_price: number | null;
   image_url: string | null;
   images: string[];
   featured: boolean;
@@ -32,6 +33,7 @@ export interface CartItem {
   sku: string;
   image_url: string | null;
   store_price: number;
+  sale_price: number | null;
   quantity: number;
 }
 

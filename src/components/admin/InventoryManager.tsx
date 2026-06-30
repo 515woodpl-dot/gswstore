@@ -9,13 +9,13 @@ interface Row {
   id: string; name: string; category_id: number | null; category_name: string;
   brand: string | null; model_number: string | null; voltage: string | null;
   sku: string | null; description: string | null; amount: number;
-  store_price: number; image_url: string | null; images: string[] | null;
+  store_price: number; sale_price: number | null; image_url: string | null; images: string[] | null;
   featured: boolean; store_visible: boolean;
 }
 
 const BLANK: Row = {
   id: "", name: "", category_id: null, category_name: "", brand: "", model_number: "",
-  voltage: "", sku: "", description: "", amount: 0, store_price: 0, image_url: "", images: [], featured: false, store_visible: true,
+  voltage: "", sku: "", description: "", amount: 0, store_price: 0, sale_price: null, image_url: "", images: [], featured: false, store_visible: true,
 };
 
 // Compress image to max 1200px wide and ~80% quality JPEG using Canvas
@@ -111,7 +111,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
       brand: editing.brand ?? "", model_number: editing.model_number ?? "",
       voltage: editing.voltage ?? "", sku: editing.sku ?? "",
       description: editing.description ?? "",
-      amount: Number(editing.amount) || 0, store_price: Number(editing.store_price) || 0,
+      amount: Number(editing.amount) || 0, store_price: Number(editing.store_price) || 0, sale_price: editing.sale_price ? Number(editing.sale_price) : null,
       image_url: editing.image_url || null, images: editing.images ?? [],
     };
     const { error: err } = await sb.from("inventory").upsert(payload);
@@ -252,7 +252,8 @@ export default function InventoryManager({ initialItems, categories }: { initial
               <Field label="Brand" value={editing.brand ?? ""} onChange={(v) => setEditing({ ...editing, brand: v })} />
               <Field label="Model #" value={editing.model_number ?? ""} onChange={(v) => setEditing({ ...editing, model_number: v })} />
               <Field label="Voltage" value={editing.voltage ?? ""} onChange={(v) => setEditing({ ...editing, voltage: v })} />
-              <Field label="Price ($)" type="number" value={String(editing.store_price)} onChange={(v) => setEditing({ ...editing, store_price: Number(v) })} />
+              <Field label="Regular Price ($)" type="number" value={String(editing.store_price)} onChange={(v) => setEditing({ ...editing, store_price: Number(v) })} />
+              <Field label="Sale Price ($)" type="number" value={String(editing.sale_price ?? "")} onChange={(v) => setEditing({ ...editing, sale_price: v ? Number(v) : null })} placeholder="Leave empty if no sale" />
               <Field label="Stock amount" type="number" value={String(editing.amount)} onChange={(v) => setEditing({ ...editing, amount: Number(v) })} />
 
               {/* Main image upload */}

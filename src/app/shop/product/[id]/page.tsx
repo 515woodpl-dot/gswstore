@@ -91,7 +91,15 @@ export default async function ProductPage({ params }: Props) {
             <div className="mb-4 flex items-end justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">Price</p>
+                {item!.sale_price ? (
+                <div className="mt-1 flex items-baseline gap-3">
+                  <p className="text-3xl font-black tracking-tight text-brand-primary sm:text-4xl">{formatPrice(item!.sale_price)}</p>
+                  <p className="text-xl font-semibold text-slate-400 line-through">{formatPrice(item!.store_price)}</p>
+                  <span className="rounded-full bg-brand-primary px-3 py-1 text-xs font-bold uppercase text-white">On Sale</span>
+                </div>
+              ) : (
                 <p className="mt-1 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">{formatPrice(item!.store_price)}</p>
+              )}
               </div>
             </div>
             <AddToCartButton item={item!} />

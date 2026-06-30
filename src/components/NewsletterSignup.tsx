@@ -24,7 +24,7 @@ export default function NewsletterSignup() {
 
   return (
     <section className="border-t border-slate-200 bg-slate-50">
-      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-xl text-center">
           <p className="text-xs font-bold uppercase tracking-[0.24em] text-brand-gold">Newsletter</p>
           <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Join Our Email List</h2>

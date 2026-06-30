@@ -23,8 +23,8 @@ export default function ProductRow({
   }[accent];
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-4 flex items-end justify-between">
+    <section className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mb-3 flex items-end justify-between">
         <div>
           <p className={`text-xs font-bold uppercase tracking-[0.24em] ${accentClasses}`}>{title}</p>
           {subtitle && <h2 className="mt-1 text-xl font-black tracking-tight text-slate-950 sm:text-2xl">{subtitle}</h2>}

@@ -40,7 +40,8 @@ export function StoreShell({ children }: { children: ReactNode }) {
 
   // Staff screens (admin dashboard, alerts display) don't use the customer
   // storefront chrome — render them bare.
-  const isStaffScreen = pathname.startsWith("/admin") || pathname.startsWith("/alerts");
+  const isStaffScreen = pathname.startsWith("/admin") || pathname.startsWith("/alerts")
+    || (typeof window !== "undefined" && (window.location.hostname.startsWith("admin.") || window.location.hostname.startsWith("alerts.")));
   if (isStaffScreen) {
     return <>{children}</>;
   }

@@ -15,8 +15,9 @@ export default function AdminHeader() {
     { href: "/admin", label: "Inventory" },
     { href: "/admin/orders", label: "Orders" },
     { href: "/admin/staff", label: "Staff" },
-    { href: "/alerts", label: "Alerts" },
   ];
+
+  const alertsUrl = "https://alerts.goldenstonetools.com";
 
   return (
     <header className="border-b border-slate-200 bg-white/95 text-slate-900 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur">
@@ -34,6 +35,9 @@ export default function AdminHeader() {
               {label}
             </Link>
           ))}
+          <a href={alertsUrl} className="rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-brand-navy">
+            Alerts
+          </a>
           <button onClick={signOut} className="ml-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
             Sign Out
           </button>
@@ -57,6 +61,7 @@ export default function AdminHeader() {
                 {label}
               </Link>
             ))}
+            <a href={alertsUrl} className="block rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Alerts</a>
             <button onClick={signOut} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50">
               Sign Out
             </button>

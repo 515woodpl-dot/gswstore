@@ -23,6 +23,7 @@ interface InventoryRow {
   image_url: string | null;
   images: string[] | null;
   featured: boolean;
+  new_arrival: boolean;
   store_visible: boolean;
   created_at?: string;
 }
@@ -43,11 +44,12 @@ function rowToItem(r: InventoryRow): InventoryItem {
     image_url: r.image_url,
     images: r.images ?? [],
     featured: r.featured ?? false,
+    new_arrival: r.new_arrival ?? false,
     stock_status: deriveStockStatus(r.amount),
   };
 }
 
-const COLS = "id,name,category_name,brand,model_number,voltage,sku,description,amount,store_price,sale_price,image_url,images,featured,store_visible,created_at";
+const COLS = "id,name,category_name,brand,model_number,voltage,sku,description,amount,store_price,sale_price,image_url,images,featured,new_arrival,store_visible,created_at";
 
 // ── Public store reads (visible items only) ──────────────────────────────────
 
@@ -94,6 +96,7 @@ export async function getNewArrivals(limit = 8): Promise<InventoryItem[]> {
   const { data, error } = await sb
     .from("inventory").select(COLS)
     .eq("store_visible", true)
+    .eq("new_arrival", true)
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error || !data) return [];

@@ -10,12 +10,12 @@ interface Row {
   brand: string | null; model_number: string | null; voltage: string | null;
   sku: string | null; description: string | null; amount: number;
   store_price: number; sale_price: number | null; image_url: string | null; images: string[] | null;
-  featured: boolean; store_visible: boolean;
+  featured: boolean; new_arrival: boolean; store_visible: boolean;
 }
 
 const BLANK: Row = {
   id: "", name: "", category_id: null, category_name: "", brand: "", model_number: "",
-  voltage: "", sku: "", description: "", amount: 0, store_price: 0, sale_price: null, image_url: "", images: [], featured: false, store_visible: true,
+  voltage: "", sku: "", description: "", amount: 0, store_price: 0, sale_price: null, image_url: "", images: [], featured: false, new_arrival: false, store_visible: true,
 };
 
 // Compress image to max 1200px wide and ~80% quality JPEG using Canvas
@@ -112,7 +112,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
       voltage: editing.voltage ?? "", sku: editing.sku ?? "",
       description: editing.description ?? "",
       amount: Number(editing.amount) || 0, store_price: Number(editing.store_price) || 0, sale_price: editing.sale_price ? Number(editing.sale_price) : null,
-      image_url: editing.image_url || null, images: editing.images ?? [],
+      image_url: editing.image_url || null, images: editing.images ?? [], new_arrival: editing.new_arrival ?? false,
     };
     const { error: err } = await sb.from("inventory").upsert(payload);
     if (err) { setError(err.message); setSaving(false); return; }
@@ -312,6 +312,10 @@ export default function InventoryManager({ initialItems, categories }: { initial
               <label className="flex items-center gap-2 py-1">
                 <input type="checkbox" checked={editing.featured} onChange={(e) => setEditing({ ...editing, featured: e.target.checked })} className="h-4 w-4 rounded" />
                 <span className="text-sm font-semibold text-slate-700">Featured (homepage slideshow)</span>
+              </label>
+              <label className="flex items-center gap-2 py-1">
+                <input type="checkbox" checked={editing.new_arrival} onChange={(e) => setEditing({ ...editing, new_arrival: e.target.checked })} className="h-4 w-4 rounded" />
+                <span className="text-sm font-semibold text-slate-700">New Arrival (homepage section)</span>
               </label>
             </div>
 

@@ -13,6 +13,7 @@ export interface InventoryItem {
   image_url: string | null;
   images: string[];
   featured: boolean;
+  new_arrival: boolean;
   description: string;
   sku: string;
   stock_status: StockStatus;

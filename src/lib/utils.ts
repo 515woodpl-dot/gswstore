@@ -16,6 +16,14 @@ export async function createOrder(userId: string, cart: Cart, notes = ""): Promi
   if (error) throw new Error(error.message);
   const items = cart.items.map(ci => ({ order_id: order.id, item_id: ci.item_id, name: ci.name, sku: ci.sku, image_url: ci.image_url, unit_price: ci.sale_price ?? ci.store_price, quantity: ci.quantity }));
   await sb.from("order_items").insert(items);
+
+  // Decrement inventory stock for each purchased item (atomic via RPC).
+  await Promise.all(
+    cart.items.map(ci =>
+      sb.rpc("decrement_inventory", { p_item_id: ci.item_id, p_qty: ci.quantity })
+    )
+  );
+
   await clearCart(cart.id);
   return { ...order, items: items as Order["items"] };
 }
@@ -68,7 +76,7 @@ export function priceBreakdown(opts: {
 
 export function stockLabel(status: StockStatus, amount?: number): string {
   if (status === "out_of_stock") return "Out of Stock";
-  if (status === "low_stock") return amount ? `Low Stock (${amount} left)` : "Low Stock";
+  if (status === "low_stock") return "Low Stock";
   return "In Stock";
 }
 

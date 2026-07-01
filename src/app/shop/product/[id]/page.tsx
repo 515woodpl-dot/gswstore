@@ -96,7 +96,7 @@ export default async function ProductPage({ params }: Props) {
             <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">{item!.name}</h1>
             <div className="flex flex-wrap items-center gap-3">
               <StockBadge status={item!.stock_status} />
-              <span className="text-sm text-slate-500">{item!.amount} available · in-store pickup</span>
+              <span className="text-sm text-slate-500">In-store pickup</span>
             </div>
             {reviewCount > 0 && (
               <a href="#reviews" className="flex w-fit items-center gap-2 text-sm text-slate-600 hover:text-slate-900">

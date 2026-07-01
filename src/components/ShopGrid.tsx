@@ -69,7 +69,7 @@ function ProductCard({ item }: { item: InventoryItem }) {
             ) : (
               <p className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{formatPrice(item.store_price)}</p>
             )}
-            <p className="text-xs font-medium text-slate-500">{item.amount} available</p>
+            
           </div>
           <button
             type="button"

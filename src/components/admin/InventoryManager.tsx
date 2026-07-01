@@ -15,6 +15,14 @@ interface Row {
   tax_enabled: boolean; tax_rate_percent: number;
 }
 
+const PRODUCT_ATTR_FIELDS = [
+  "Material", "Installation", "Surface Finishing", "Feature", "Design Style",
+  "Application", "Shape", "Warranty", "After-sale Service",
+  "Bath Hardware Set Finishing", "Project Solution Capability",
+  "Type", "Place of Origin", "Brand Name", "Model Number",
+  "Main Material", "Single package size", "Single gross weight",
+];
+
 const BLANK: Row = {
   id: "", name: "", category_id: null, category_name: "", brand: "", model_number: "",
   voltage: "", sku: "", description: "", amount: 0, store_price: 0, sale_price: null, image_url: "", images: [], featured: false, new_arrival: false, store_visible: true,
@@ -284,43 +292,66 @@ export default function InventoryManager({ initialItems, categories }: { initial
 
               {/* Key Attributes editor */}
               <div className="sm:col-span-2">
-                <span className="mb-2 block text-sm font-semibold text-slate-700">Key Attributes</span>
-                <p className="mb-2 text-xs text-slate-400">Shown in the “Key attributes” block on the product page. e.g. Material → Steel.</p>
-                <div className="space-y-2">
-                  {Object.entries(editing.attributes ?? {}).map(([k, v], i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <input value={k} placeholder="Label (e.g. Material)"
+                <span className="mb-2 block text-sm font-semibold text-slate-700">Product Attributes</span>
+                <p className="mb-3 text-xs text-slate-400">Fill in any fields that apply. Leave blank to hide. Shown in the Key Attributes block on the product page.</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {PRODUCT_ATTR_FIELDS.map((field) => (
+                    <label key={field} className="block">
+                      <span className="mb-1 block text-xs font-semibold text-slate-600">{field}</span>
+                      <input
+                        type="text"
+                        value={(editing.attributes ?? {})[field] ?? ""}
                         onChange={(e) => {
-                          const ents = Object.entries(editing.attributes ?? {});
-                          ents[i] = [e.target.value, v];
-                          setEditing({ ...editing, attributes: Object.fromEntries(ents) });
+                          const attrs = { ...(editing.attributes ?? {}) };
+                          if (e.target.value.trim()) { attrs[field] = e.target.value; }
+                          else { delete attrs[field]; }
+                          setEditing({ ...editing, attributes: attrs });
                         }}
-                        className="w-1/3 rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-                      <input value={v} placeholder="Value (e.g. Steel)"
-                        onChange={(e) => {
-                          const ents = Object.entries(editing.attributes ?? {});
-                          ents[i] = [k, e.target.value];
-                          setEditing({ ...editing, attributes: Object.fromEntries(ents) });
-                        }}
-                        className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-                      <button type="button"
-                        onClick={() => {
-                          const ents = Object.entries(editing.attributes ?? {}).filter((_, j) => j !== i);
-                          setEditing({ ...editing, attributes: Object.fromEntries(ents) });
-                        }}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50">✕</button>
-                    </div>
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
+                    </label>
                   ))}
                 </div>
-                <button type="button"
-                  onClick={() => {
-                    const ents = Object.entries(editing.attributes ?? {});
-                    ents.push(["", ""]);
-                    setEditing({ ...editing, attributes: Object.fromEntries(ents) });
-                  }}
-                  className="mt-2 rounded-xl border border-dashed border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-brand-navy hover:text-brand-navy">
-                  + Add attribute
-                </button>
+                <div className="mt-4">
+                  <p className="mb-2 text-xs font-semibold text-slate-500">Custom attributes</p>
+                  <div className="space-y-2">
+                    {Object.entries(editing.attributes ?? {}).filter(([k]) => !PRODUCT_ATTR_FIELDS.includes(k)).map(([k, v], i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input value={k} placeholder="Label"
+                          onChange={(e) => {
+                            const custom = Object.entries(editing.attributes ?? {}).filter(([key]) => !PRODUCT_ATTR_FIELDS.includes(key));
+                            const preset = Object.fromEntries(Object.entries(editing.attributes ?? {}).filter(([key]) => PRODUCT_ATTR_FIELDS.includes(key)));
+                            custom[i] = [e.target.value, v];
+                            setEditing({ ...editing, attributes: { ...preset, ...Object.fromEntries(custom) } });
+                          }}
+                          className="w-1/3 rounded-xl border border-slate-300 px-3 py-2 text-sm" />
+                        <input value={v} placeholder="Value"
+                          onChange={(e) => {
+                            const custom = Object.entries(editing.attributes ?? {}).filter(([key]) => !PRODUCT_ATTR_FIELDS.includes(key));
+                            const preset = Object.fromEntries(Object.entries(editing.attributes ?? {}).filter(([key]) => PRODUCT_ATTR_FIELDS.includes(key)));
+                            custom[i] = [k, e.target.value];
+                            setEditing({ ...editing, attributes: { ...preset, ...Object.fromEntries(custom) } });
+                          }}
+                          className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm" />
+                        <button type="button"
+                          onClick={() => {
+                            const custom = Object.entries(editing.attributes ?? {}).filter(([key]) => !PRODUCT_ATTR_FIELDS.includes(key)).filter((_, j) => j !== i);
+                            const preset = Object.fromEntries(Object.entries(editing.attributes ?? {}).filter(([key]) => PRODUCT_ATTR_FIELDS.includes(key)));
+                            setEditing({ ...editing, attributes: { ...preset, ...Object.fromEntries(custom) } });
+                          }}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button"
+                    onClick={() => {
+                      const custom = Object.entries(editing.attributes ?? {}).filter(([k]) => !PRODUCT_ATTR_FIELDS.includes(k));
+                      const preset = Object.fromEntries(Object.entries(editing.attributes ?? {}).filter(([k]) => PRODUCT_ATTR_FIELDS.includes(k)));
+                      setEditing({ ...editing, attributes: { ...preset, ...Object.fromEntries([...custom, ["", ""]]) } });
+                    }}
+                    className="mt-2 rounded-xl border border-dashed border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-brand-navy hover:text-brand-navy">
+                    + Add custom attribute
+                  </button>
+                </div>
               </div>
 
               {/* Main image upload */}

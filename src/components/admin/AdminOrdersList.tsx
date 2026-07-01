@@ -13,10 +13,11 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 export default function AdminOrdersList({ initialOrders }: { initialOrders: Order[] }) {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [orders, setOrders]   = useState<Order[]>(initialOrders);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [filter, setFilter]   = useState<OrderStatus | "all">("all");
   const sb = createClient();
 
-  // Live updates — new orders and status changes appear instantly
   useEffect(() => {
     const channel = sb
       .channel("admin-orders")
@@ -38,7 +39,6 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
     const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
     if (attentionNote !== undefined) patch.attention_note = attentionNote;
     await sb.from("orders").update(patch).eq("id", orderId);
-    // Auto-email the customer about the status change
     fetch("/api/orders/status-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -51,55 +51,99 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
     if (o) setStatus(orderId, o.status, note);
   }
 
+  const visible = filter === "all" ? orders : orders.filter(o => o.status === filter);
+
   if (orders.length === 0) {
     return <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center text-slate-500">No orders yet.</div>;
   }
 
   return (
-    <div className="space-y-4">
-      {orders.map((order) => (
-        <article key={order.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">{order.order_number}</p>
-              <p className="mt-1 text-sm text-slate-500">
-                {new Date(order.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <OrderStatusBadge status={order.status} />
-              <p className="text-xl font-black tracking-tight text-slate-950">{formatPrice(order.total)}</p>
-              <select value={order.status} onChange={(e) => setStatus(order.id, e.target.value as OrderStatus)}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold">
-                {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-              </select>
-            </div>
-          </div>
-          {order.status === "item_unavailable" && (
-            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
-              <label className="block text-sm font-semibold text-amber-900">Note to customer (which item & why)</label>
-              <p className="mb-2 text-xs text-amber-700">Shown on their orders page. They'll also see your shop phone number to call back.</p>
-              <textarea
-                defaultValue={order.attention_note}
-                onBlur={(e) => saveNote(order.id, e.target.value)}
-                rows={2}
-                placeholder="e.g. The Makita grinder is out of stock — the rest of your order is ready."
-                className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm"
-              />
-              <p className="mt-1 text-xs text-amber-600">Saves when you click away. Customer is emailed automatically.</p>
-            </div>
-          )}
-          <div className="mt-4 space-y-2">
-            {order.items.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-4 text-sm">
-                <span className="font-medium text-slate-900">{item.name} × {item.quantity}</span>
-                <span className="text-slate-600">{formatPrice(item.unit_price * item.quantity)}</span>
+    <div>
+      {/* Filter bar */}
+      <div className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+        {(["all", ...STATUSES] as const).map((s) => (
+          <button key={s} onClick={() => setFilter(s)}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition ${filter === s ? "bg-brand-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+            {s === "all" ? `All (${orders.length})` : STATUS_LABELS[s]}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-3">
+        {visible.length === 0 && (
+          <p className="rounded-2xl border border-dashed border-slate-200 py-10 text-center text-sm text-slate-500">No orders with this status.</p>
+        )}
+        {visible.map((order) => {
+          const isOpen = expanded === order.id;
+          return (
+            <article key={order.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              {/* Header row — always visible */}
+              <div
+                className="flex cursor-pointer items-center justify-between gap-3 p-4"
+                onClick={() => setExpanded(isOpen ? null : order.id)}>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-slate-900">{order.order_number}</p>
+                  <p className="text-xs text-slate-400">
+                    {new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <OrderStatusBadge status={order.status} />
+                  <span className="font-black text-slate-950">{formatPrice(order.total)}</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                    className={`shrink-0 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}>
+                    <path d="M6 9l6 6 6-6"/>
+                  </svg>
+                </div>
               </div>
-            ))}
-          </div>
-          {order.notes && <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600"><strong>Notes:</strong> {order.notes}</div>}
-        </article>
-      ))}
+
+              {/* Expanded detail */}
+              {isOpen && (
+                <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+                  {/* Items */}
+                  <div className="mb-4 space-y-2">
+                    {order.items.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between gap-4 text-sm">
+                        <span className="font-medium text-slate-900">{item.name} × {item.quantity}</span>
+                        <span className="text-slate-600">{formatPrice(item.unit_price * item.quantity)}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {order.notes && (
+                    <div className="mb-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                      <strong>Notes:</strong> {order.notes}
+                    </div>
+                  )}
+
+                  {/* Status selector */}
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Update Status</span>
+                    <select value={order.status} onChange={(e) => setStatus(order.id, e.target.value as OrderStatus)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold">
+                      {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                    </select>
+                  </label>
+
+                  {order.status === "item_unavailable" && (
+                    <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
+                      <label className="block text-xs font-bold text-amber-900 mb-1">Note to customer</label>
+                      <textarea
+                        defaultValue={order.attention_note}
+                        onBlur={(e) => saveNote(order.id, e.target.value)}
+                        rows={2}
+                        placeholder="e.g. The Makita grinder is out of stock — the rest is ready."
+                        className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm"
+                      />
+                      <p className="mt-1 text-xs text-amber-600">Saves on click away. Customer emailed automatically.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </div>
     </div>
   );
 }

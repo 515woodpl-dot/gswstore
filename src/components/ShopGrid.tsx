@@ -90,15 +90,27 @@ function ProductCard({ item }: { item: InventoryItem }) {
   );
 }
 
+const PAGE_SIZE = 10;
+
 export default function ShopGrid({ items, cat, q }: { items: InventoryItem[]; cat?: string; q?: string }) {
+  const [page, setPage] = useState(1);
+
   let filtered = items;
   if (cat) filtered = filtered.filter((i) => i.category_name === cat);
   if (q) {
     const ql = q.toLowerCase();
     filtered = filtered.filter((i) =>
-      [i.name, i.sku, i.category_name, i.description].join(" ").toLowerCase().includes(ql)
+      [i.name, i.sku, i.category_name, i.description, i.brand, i.model_number].join(" ").toLowerCase().includes(ql)
     );
   }
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Reset to page 1 when filter changes
+  const prevFilter = [cat, q].join("|");
+  const [lastFilter, setLastFilter] = useState(prevFilter);
+  if (prevFilter !== lastFilter) { setLastFilter(prevFilter); setPage(1); }
 
   if (filtered.length === 0) {
     return (
@@ -111,8 +123,30 @@ export default function ShopGrid({ items, cat, q }: { items: InventoryItem[]; ca
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 sm:gap-5">
-      {filtered.map((item) => <ProductCard key={item.id} item={item} />)}
+    <div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 sm:gap-5">
+        {paginated.map((item) => <ProductCard key={item.id} item={item} />)}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-8 flex items-center justify-center gap-2">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40 hover:bg-slate-50">
+            ← Prev
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+            <button key={p} onClick={() => setPage(p)}
+              className={`h-9 w-9 rounded-xl text-sm font-bold transition ${p === page ? "bg-brand-navy text-white" : "border border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
+              {p}
+            </button>
+          ))}
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40 hover:bg-slate-50">
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

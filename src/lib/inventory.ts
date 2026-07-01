@@ -88,6 +88,10 @@ export async function getFeaturedItems(limit = 5): Promise<InventoryItem[]> {
   return (data as InventoryRow[]).map(rowToItem);
 }
 
+export async function getHeroItems(): Promise<InventoryItem[]> {
+  return getFeaturedItems(3);
+}
+
 export async function getStoreCategories(): Promise<Category[]> {
   const sb = await createClient();
   const { data, error } = await sb

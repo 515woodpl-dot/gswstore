@@ -87,6 +87,9 @@ export interface Order {
   user_id: string;
   status: OrderStatus;
   total: number;
+  fulfillment: "pickup" | "delivery";
+  delivery_address: string;
+  delivery_fee: number;
   notes: string;
   attention_note: string;
   created_at: string;

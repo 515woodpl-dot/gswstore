@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 
 export default function RegisterForm() {
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,7 +19,7 @@ export default function RegisterForm() {
     e.preventDefault(); setLoading(true); setError("");
     const { error: err } = await createClient().auth.signUp({
       email, password,
-      options: { data: { full_name: name }, emailRedirectTo: `${window.location.origin}/api/auth/callback?next=${next}` }
+      options: { data: { full_name: name, phone }, emailRedirectTo: `${window.location.origin}/api/auth/callback?next=${next}` }
     });
     if (err) { setError(err.message); setLoading(false); return; }
     setDone(true);
@@ -51,6 +52,11 @@ export default function RegisterForm() {
             <span className="mb-2 block text-sm font-semibold text-slate-800">Email</span>
             <input type="email" required value={email} onChange={e => setEmail(e.target.value)} autoComplete="email"
               className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-navy" placeholder="name@company.com" />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-800">Phone number</span>
+            <input type="tel" required value={phone} onChange={e => setPhone(e.target.value)} autoComplete="tel"
+              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-navy" placeholder="(253) 555-0100" />
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-800">Password</span>

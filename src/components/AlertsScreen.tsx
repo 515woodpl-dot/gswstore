@@ -278,6 +278,21 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
                 })}
               </div>
 
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${active.fulfillment === "delivery" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
+                  {active.fulfillment === "delivery" ? "🚚 Delivery" : "🏪 Pickup"}
+                </span>
+                {active.fulfillment === "delivery" && active.total >= 100 && (
+                  <span className="text-xs font-semibold text-emerald-700">Free delivery ($100+)</span>
+                )}
+              </div>
+              {active.fulfillment === "delivery" && active.delivery_address && (
+                <div className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  <span className="font-bold">Deliver to:</span> {active.delivery_address}
+                  {active.total < 100 && <div className="mt-1 font-semibold">⚠ Set delivery fee when processing (order under $100)</div>}
+                </div>
+              )}
+
               {active.notes && <div className="mb-4 text-xs italic text-slate-500">Note: {active.notes}</div>}
 
               {/* Status buttons */}

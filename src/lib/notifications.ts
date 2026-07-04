@@ -139,7 +139,12 @@ async function sendShopNotification(
       <tr><td style="padding:4px 0;color:#6b7280">Customer</td><td style="padding:4px 0;text-align:right;font-weight:600">${customerName || "—"}</td></tr>
       <tr><td style="padding:4px 0;color:#6b7280">Email</td><td style="padding:4px 0;text-align:right">${customerEmail}</td></tr>
       <tr><td style="padding:4px 0;color:#6b7280">Placed</td><td style="padding:4px 0;text-align:right">${new Date(order.created_at).toLocaleString()}</td></tr>
+      <tr><td style="padding:4px 0;color:#6b7280">Fulfillment</td><td style="padding:4px 0;text-align:right;font-weight:600">${order.fulfillment === "delivery" ? "🚚 Delivery" : "🏪 Pickup"}</td></tr>
     </table>
+    ${order.fulfillment === "delivery" ? `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;font-size:0.85rem;color:#92400e;margin-bottom:16px">
+      <strong>Deliver to:</strong> ${order.delivery_address || "—"}
+      ${order.total < 100 ? "<br><strong>⚠ Set delivery fee when processing (order under $100).</strong>" : "<br>Free delivery (order $100+)."}
+    </div>` : ""}
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:16px">
       <thead><tr style="background:#f9fafb">
         <th style="padding:10px 12px;text-align:left;font-size:0.8rem;color:#6b7280">Item</th>

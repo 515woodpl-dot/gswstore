@@ -12,9 +12,13 @@ export default function CheckoutPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [notes, setNotes] = useState("");
+  const [fulfillment, setFulfillment] = useState<"pickup" | "delivery">("pickup");
+  const [address, setAddress] = useState("");
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
   const items = cart?.items ?? [];
+  const FREE_DELIVERY_THRESHOLD = 100;
+  const qualifiesFreeDelivery = total >= FREE_DELIVERY_THRESHOLD;
   const PLACEHOLDER = "https://placehold.co/64x64/1e3a5f/ffffff?text=GST";
 
   if (items.length === 0) return (
@@ -27,9 +31,13 @@ export default function CheckoutPage() {
 
   async function handlePlaceOrder() {
     if (!user || !cart) return;
+    if (fulfillment === "delivery" && !address.trim()) {
+      setError("Please enter a delivery address.");
+      return;
+    }
     setPlacing(true); setError("");
     try {
-      const order = await createOrder(user.id, cart, notes);
+      const order = await createOrder(user.id, cart, notes, fulfillment, address);
       await refresh();
       fetch("/api/orders/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order_id: order.id }) }).catch(() => {});
       router.push(`/account/orders?placed=${order.order_number}`);
@@ -71,7 +79,41 @@ export default function CheckoutPage() {
           </section>
 
           <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-            <h2 className="text-lg font-bold text-slate-950">Pickup note</h2>
+            <h2 className="text-lg font-bold text-slate-950">How would you like to receive your order?</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <button type="button" onClick={() => setFulfillment("pickup")}
+                className={`rounded-2xl border p-4 text-left transition ${fulfillment === "pickup" ? "border-brand-navy bg-brand-navy/5 ring-1 ring-brand-navy" : "border-slate-200 hover:border-slate-300"}`}>
+                <p className="font-bold text-slate-950">🏪 In-store Pickup</p>
+                <p className="mt-1 text-sm font-semibold text-emerald-700">Free</p>
+                <p className="mt-1 text-xs text-slate-500">Collect at our store counter.</p>
+              </button>
+              <button type="button" onClick={() => setFulfillment("delivery")}
+                className={`rounded-2xl border p-4 text-left transition ${fulfillment === "delivery" ? "border-brand-navy bg-brand-navy/5 ring-1 ring-brand-navy" : "border-slate-200 hover:border-slate-300"}`}>
+                <p className="font-bold text-slate-950">🚚 Delivery</p>
+                <p className="mt-1 text-sm font-semibold text-emerald-700">
+                  {qualifiesFreeDelivery ? "Free (orders $100+)" : "Fee confirmed by our team"}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {qualifiesFreeDelivery ? "Your order qualifies for free delivery." : "Add $100+ to qualify for free delivery."}
+                </p>
+              </button>
+            </div>
+
+            {fulfillment === "delivery" && (
+              <label className="mt-4 block">
+                <span className="mb-2 block text-sm font-semibold text-slate-800">Delivery address</span>
+                <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={3} required
+                  placeholder="Street address, city, state, ZIP"
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-navy" />
+                {!qualifiesFreeDelivery && (
+                  <span className="mt-2 block text-xs text-amber-700">A delivery fee will be confirmed by our team when your order is processed.</span>
+                )}
+              </label>
+            )}
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <h2 className="text-lg font-bold text-slate-950">Order note</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">Orders are collected in store only. Use the notes field below to share any counter instructions.</p>
             <label className="mt-5 block">
               <span className="mb-2 block text-sm font-semibold text-slate-800">Optional notes</span>
@@ -90,9 +132,14 @@ export default function CheckoutPage() {
               <span className="font-semibold text-slate-950">{formatPrice(total)}</span>
             </div>
             <div className="flex items-center justify-between text-sm text-slate-600">
-              <span>Pickup</span>
-              <span className="font-semibold text-emerald-700">Free</span>
+              <span>{fulfillment === "delivery" ? "Delivery" : "Pickup"}</span>
+              <span className="font-semibold text-emerald-700">
+                {fulfillment === "pickup" ? "Free" : qualifiesFreeDelivery ? "Free" : "TBD"}
+              </span>
             </div>
+            {fulfillment === "delivery" && !qualifiesFreeDelivery && (
+              <p className="text-xs text-amber-700">Delivery fee confirmed by our team when processing.</p>
+            )}
             <div className="flex items-center justify-between border-t border-slate-200 pt-4">
               <span className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Grand total</span>
               <span className="text-2xl font-black tracking-tight text-slate-950">{formatPrice(total)}</span>

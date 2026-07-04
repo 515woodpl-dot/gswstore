@@ -10,10 +10,24 @@ function genOrderNumber() {
   return `GSW-${d}-${r}`;
 }
 
-export async function createOrder(userId: string, cart: Cart, notes = ""): Promise<Order> {
+export async function createOrder(
+  userId: string,
+  cart: Cart,
+  notes = "",
+  fulfillment: "pickup" | "delivery" = "pickup",
+  deliveryAddress = ""
+): Promise<Order> {
   const sb = createClient();
   const total = cartTotal(cart.items);
-  const { data: order, error } = await sb.from("orders").insert({ order_number: genOrderNumber(), user_id: userId, status: "pending", total, notes }).select().single();
+  const { data: order, error } = await sb.from("orders").insert({
+    order_number: genOrderNumber(),
+    user_id: userId,
+    status: "pending",
+    total,
+    notes,
+    fulfillment,
+    delivery_address: fulfillment === "delivery" ? deliveryAddress : "",
+  }).select().single();
   if (error) throw new Error(error.message);
   const items = cart.items.map(ci => ({ order_id: order.id, item_id: ci.item_id, name: ci.name, sku: ci.sku, image_url: ci.image_url, unit_price: ci.sale_price ?? ci.store_price, quantity: ci.quantity }));
   await sb.from("order_items").insert(items);

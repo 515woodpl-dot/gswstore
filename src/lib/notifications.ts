@@ -1,4 +1,5 @@
 import type { Order } from "@/types";
+import { BRAND } from "@/lib/brand";
 
 // ── Resend email to customer ──────────────────────────────────────────────────
 
@@ -8,7 +9,8 @@ export async function sendOrderConfirmationEmail(
   customerName: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM || "orders@orders.goldenstonetools.com";
+  const from = process.env.RESEND_FROM || "noreply@mail.goldenstonesupply.com";
+  const replyTo = process.env.SHOP_NOTIFY_EMAIL || BRAND.orderEmail;
 
   if (!apiKey) {
     console.warn("[Resend] RESEND_API_KEY not set — skipping email");
@@ -67,7 +69,7 @@ export async function sendOrderConfirmationEmail(
 
     <p style="margin:0;font-size:0.8rem;color:#9ca3af">
       Questions? Reply to this email or contact us directly.<br>
-      Golden Stone Tools
+      ${BRAND.name}
     </p>
   </div>
 </div>
@@ -83,7 +85,7 @@ export async function sendOrderConfirmationEmail(
     body: JSON.stringify({
       from,
       to: [customerEmail],
-      reply_to: from,
+      reply_to: replyTo,
       subject: `Order Confirmed — ${order.order_number}`,
       html,
     }),
@@ -97,7 +99,7 @@ export async function sendOrderConfirmationEmail(
   console.log(`[Resend] Customer email sent to ${customerEmail} for ${order.order_number}`);
 
   // ── Notify the shop ────────────────────────────────────────────────────────
-  // A copy goes to orders@goldenstonetools.com so staff see every order by email.
+  // A copy goes to the shop inbox so staff see every order by email.
   await sendShopNotification(order, customerEmail, customerName).catch((e) =>
     console.warn("[Resend] Shop notification failed:", e)
   );
@@ -111,8 +113,8 @@ async function sendShopNotification(
   customerName: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM || "orders@orders.goldenstonetools.com";
-  const shopInbox = process.env.SHOP_NOTIFY_EMAIL || "orders@goldenstonetools.com";
+  const from = process.env.RESEND_FROM || "noreply@mail.goldenstonesupply.com";
+  const shopInbox = process.env.SHOP_NOTIFY_EMAIL || BRAND.orderEmail;
   if (!apiKey) return;
 
   const itemRows = order.items
@@ -151,7 +153,7 @@ async function sendShopNotification(
       </tr></tfoot>
     </table>
     ${order.notes ? `<p style="background:#f0f7ff;border-radius:6px;padding:12px 14px;font-size:0.85rem;color:#374151;margin:0 0 16px"><strong>Note:</strong> ${order.notes}</p>` : ""}
-    <a href="https://admin.goldenstonetools.com/orders" style="display:inline-block;background:#1e3a5f;color:#fff;text-decoration:none;font-weight:600;font-size:0.85rem;padding:10px 18px;border-radius:8px">View in Admin →</a>
+    <a href="${BRAND.adminUrl}/orders" style="display:inline-block;background:#1e3a5f;color:#fff;text-decoration:none;font-weight:600;font-size:0.85rem;padding:10px 18px;border-radius:8px">View in Admin →</a>
   </div>
 </div>
 </body></html>`;
@@ -182,7 +184,8 @@ export async function sendStatusEmail(
   customerName: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM || "orders@orders.goldenstonetools.com";
+  const from = process.env.RESEND_FROM || "noreply@mail.goldenstonesupply.com";
+  const replyTo = process.env.SHOP_NOTIFY_EMAIL || BRAND.orderEmail;
   if (!apiKey) { console.warn("[Resend] no key — skipping status email"); return; }
 
   if (order.status === "pending") return;
@@ -208,7 +211,7 @@ export async function sendStatusEmail(
 <html><body style="margin:0;padding:0;background:#f8f9fa;font-family:sans-serif">
 <div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
   <div style="background:#435d69;padding:24px 32px">
-    <h1 style="margin:0;color:#fff;font-size:1.2rem;font-weight:700">Golden Stone Tools</h1>
+    <h1 style="margin:0;color:#fff;font-size:1.2rem;font-weight:700">${BRAND.name}</h1>
     <p style="margin:6px 0 0;color:rgba(255,255,255,0.7);font-size:0.85rem">Order ${order.order_number}</p>
   </div>
   <div style="padding:28px 32px">
@@ -232,7 +235,7 @@ export async function sendStatusEmail(
         </tr>
       </tfoot>
     </table>
-    <p style="margin:0;font-size:0.78rem;color:#9ca3af">Questions? Call ${SHOP_PHONE} or email orders@goldenstonetools.com</p>
+    <p style="margin:0;font-size:0.78rem;color:#9ca3af">Questions? Call ${SHOP_PHONE} or email ${BRAND.orderEmail}</p>
   </div>
 </div>
 </body></html>`;
@@ -243,7 +246,7 @@ export async function sendStatusEmail(
     body: JSON.stringify({
       from,
       to: [customerEmail],
-      reply_to: from,
+      reply_to: replyTo,
       subject: `${msg.title} — Order ${order.order_number}`,
       html,
     }),

@@ -14,6 +14,7 @@ export default function AdminHeader() {
 
   const links = [
     { href: "/admin", label: "Inventory" },
+    { href: "/admin/walk-in", label: "Walk-in" },
     { href: "/admin/orders", label: "Orders" },
     { href: "/admin/staff", label: "Staff" },
   ];

@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
+    // Walk-in orders have no user account — nothing to email.
+    if (!order.user_id) return NextResponse.json({ ok: true, skipped: "walk_in" });
     const { data: userRes } = await admin.auth.admin.getUserById(order.user_id);
     const email = userRes?.user?.email;
     const name = (userRes?.user?.user_metadata?.full_name as string) ?? "";

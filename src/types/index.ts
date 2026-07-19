@@ -84,12 +84,14 @@ export interface OrderItem {
 export interface Order {
   id: string;
   order_number: string;
-  user_id: string;
+  user_id: string | null;
   status: OrderStatus;
   total: number;
   fulfillment: "pickup" | "delivery";
   delivery_address: string;
   delivery_fee: number;
+  source?: "online" | "walk_in";
+  walk_in_customer_id?: string | null;
   notes: string;
   attention_note: string;
   created_at: string;

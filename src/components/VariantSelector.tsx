@@ -69,8 +69,8 @@ export default function VariantSelector({ product }: { product: InventoryItem })
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="font-black text-slate-900">{formatPrice(price)}</p>
-                  <p className={`mt-0.5 text-xs italic ${out ? "text-slate-400" : "text-slate-500"}`}>
-                    {out ? "On order. Ships when back in stock" : `${v.amount} available in-store`}
+                  <p className={`mt-0.5 text-xs italic ${out ? "text-slate-400" : v.amount < 10 ? "text-amber-600" : "text-emerald-600"}`}>
+                    {out ? "On order. Ships when back in stock" : v.amount < 10 ? "Low stock" : "In stock"}
                   </p>
                 </div>
               </button>

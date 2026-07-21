@@ -6,6 +6,7 @@ import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { createOrder, formatPrice } from "@/lib/utils";
 import { OrderStatusBadge } from "@/components/ui";
+import SquareCardForm from "@/components/SquareCardForm";
 
 export default function CheckoutPage() {
   const { cart, total, refresh } = useCart();
@@ -13,6 +14,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const [notes, setNotes] = useState("");
   const [fulfillment, setFulfillment] = useState<"pickup" | "delivery">("pickup");
+  const [payMethod, setPayMethod] = useState<"pay_now" | "pay_later">("pay_later");
   const [address, setAddress] = useState("");
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
@@ -29,7 +31,7 @@ export default function CheckoutPage() {
     </div>
   );
 
-  async function handlePlaceOrder() {
+  async function placeOrder(paymentId?: string) {
     if (!user || !cart) return;
     if (fulfillment === "delivery" && !address.trim()) {
       setError("Please enter a delivery address.");
@@ -37,7 +39,8 @@ export default function CheckoutPage() {
     }
     setPlacing(true); setError("");
     try {
-      const order = await createOrder(user.id, cart, notes, fulfillment, address);
+      const orderNotes = paymentId ? `${notes}${notes ? " · " : ""}[Paid online · Square ${paymentId}]` : notes;
+      const order = await createOrder(user.id, cart, orderNotes, fulfillment, address);
       await refresh();
       fetch("/api/orders/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order_id: order.id }) }).catch(() => {});
       router.push(`/account/orders?placed=${order.order_number}`);
@@ -45,6 +48,11 @@ export default function CheckoutPage() {
       setError(e instanceof Error ? e.message : "Failed. Please try again.");
       setPlacing(false);
     }
+  }
+
+  function handlePlaceOrder() {
+    // Pay-later flow: create the order directly.
+    placeOrder();
   }
 
   return (
@@ -146,10 +154,40 @@ export default function CheckoutPage() {
             </div>
           </div>
           {error && <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
-          <button type="button" onClick={handlePlaceOrder} disabled={placing}
-            className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-wait disabled:opacity-70">
-            {placing ? "Placing Order..." : "Place Order"}
-          </button>
+
+          {/* Payment method */}
+          <div className="mt-6 space-y-2">
+            <p className="text-sm font-semibold text-slate-800">Payment</p>
+            <button type="button" onClick={() => setPayMethod("pay_later")}
+              className={`flex w-full items-center justify-between rounded-xl border p-3 text-left text-sm transition ${payMethod === "pay_later" ? "border-brand-navy bg-brand-navy/5 ring-1 ring-brand-navy" : "border-slate-200 hover:border-slate-300"}`}>
+              <span className="font-semibold text-slate-900">Pay at pickup / on delivery</span>
+              {payMethod === "pay_later" && <span className="text-brand-navy">●</span>}
+            </button>
+            <button type="button" onClick={() => setPayMethod("pay_now")}
+              className={`flex w-full items-center justify-between rounded-xl border p-3 text-left text-sm transition ${payMethod === "pay_now" ? "border-brand-navy bg-brand-navy/5 ring-1 ring-brand-navy" : "border-slate-200 hover:border-slate-300"}`}>
+              <span className="font-semibold text-slate-900">💳 Pay now by card</span>
+              {payMethod === "pay_now" && <span className="text-brand-navy">●</span>}
+            </button>
+          </div>
+
+          {payMethod === "pay_now" ? (
+            <div className="mt-4">
+              {fulfillment === "delivery" && !address.trim() ? (
+                <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">Enter your delivery address above to pay by card.</p>
+              ) : (
+                <SquareCardForm
+                  amountCents={Math.round(total * 100)}
+                  disabled={placing}
+                  onPaid={(paymentId) => placeOrder(paymentId)}
+                />
+              )}
+            </div>
+          ) : (
+            <button type="button" onClick={handlePlaceOrder} disabled={placing}
+              className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-wait disabled:opacity-70">
+              {placing ? "Placing Order..." : "Place Order"}
+            </button>
+          )}
           <Link href="/cart" className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">
             Back to Cart
           </Link>

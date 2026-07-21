@@ -14,7 +14,7 @@ function squareClient() {
 // POST { sourceId, amountCents }  → charges the card token via Square.
 export async function POST(request: NextRequest) {
   try {
-    const { sourceId, amountCents } = await request.json();
+    const { sourceId, amountCents, billing } = await request.json();
 
     if (!sourceId || typeof amountCents !== "number" || amountCents <= 0) {
       return NextResponse.json({ error: "Missing card token or invalid amount." }, { status: 400 });
@@ -29,6 +29,19 @@ export async function POST(request: NextRequest) {
         currency: "USD",
       },
       locationId: process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID!,
+      note: billing?.name ? `Web order — ${billing.name}` : "Web order",
+      billingAddress: billing
+        ? {
+            firstName: billing.name?.split(" ")[0],
+            lastName: billing.name?.split(" ").slice(1).join(" "),
+            addressLine1: billing.line1,
+            addressLine2: billing.line2 || undefined,
+            locality: billing.city,
+            administrativeDistrictLevel1: billing.state,
+            postalCode: billing.postalCode,
+            country: "US",
+          }
+        : undefined,
     });
 
     if (payment?.status !== "COMPLETED" && payment?.status !== "APPROVED") {

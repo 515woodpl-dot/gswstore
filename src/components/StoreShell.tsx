@@ -134,7 +134,7 @@ export function StoreShell({ children, categories = [] }: { children: ReactNode;
                     <input name="q" type="search" placeholder="Search…" className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" />
                   </label>
                 </form>
-                <Link href="/" onClick={() => setMobileMenuOpen(false)} className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Shop</Link>
+                <Link href="/shop" onClick={() => setMobileMenuOpen(false)} className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Shop</Link>
                 <a href={`tel:${SHOP_PHONE_RAW}`} onClick={() => setMobileMenuOpen(false)} className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">📞 Call Us</a>
                 {user ? (
                   <>
@@ -171,9 +171,9 @@ export function StoreShell({ children, categories = [] }: { children: ReactNode;
       <footer className="border-t border-slate-200 bg-slate-50">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-3 lg:px-8">
           <div>
-            <p className="text-lg font-bold text-brand-navy">{BRAND.name}</p>
+            <p className="text-lg font-bold text-brand-navy">Golden Stone Supply</p>
             <p className="mt-3 max-w-md text-sm leading-6 text-slate-600">
-              Professional tools and equipment for crews, trades, and service teams. Order online and pick up in store.
+              Tools, hardware, and supply essentials for crews, trades, and service teams.
             </p>
           </div>
           <div>
@@ -181,7 +181,7 @@ export function StoreShell({ children, categories = [] }: { children: ReactNode;
             <div className="mt-4 flex flex-wrap gap-2">
               {categories.length > 0
                 ? categories.map((cat) => (
-                    <Link key={cat.id} href={`/?cat=${encodeURIComponent(cat.name)}`}
+                    <Link key={cat.id} href={`/shop?cat=${encodeURIComponent(cat.name)}`}
                       className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700 hover:border-slate-300">
                       {cat.name}
                     </Link>

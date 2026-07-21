@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { addToCart } from "@/lib/cart";
+import { useCart } from "@/hooks/useCart";
 import type { OrderItem } from "@/types";
 
 export default function ReorderButton({ items, userId }: { items: OrderItem[]; userId: string }) {
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const sb = createClient();
+  const { refresh } = useCart();
 
   async function reorder() {
     setState("loading");
@@ -29,6 +31,7 @@ export default function ReorderButton({ items, userId }: { items: OrderItem[]; u
           return addToCart(userId, invItem as any, oi.quantity);
         })
       );
+      await refresh();
       setState("done");
       // Reset after 3s
       setTimeout(() => setState("idle"), 3000);

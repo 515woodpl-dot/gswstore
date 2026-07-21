@@ -92,7 +92,7 @@ function ProductCard({ item }: { item: InventoryItem }) {
 
 const PAGE_SIZE = 10;
 
-export default function ShopGrid({ items, cat, q }: { items: InventoryItem[]; cat?: string; q?: string }) {
+export default function ShopGrid({ items, cat, q, basePath = "/" }: { items: InventoryItem[]; cat?: string; q?: string; basePath?: "/" | "/shop" }) {
   const [page, setPage] = useState(1);
 
   let filtered = items;
@@ -117,7 +117,7 @@ export default function ShopGrid({ items, cat, q }: { items: InventoryItem[]; ca
       <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
         <p className="text-lg font-semibold text-slate-900">No products match that search.</p>
         <p className="mt-2 text-sm text-slate-600">Try a different category or a shorter keyword.</p>
-        {(cat || q) && <Link href="/" className="mt-4 inline-flex rounded-xl bg-brand-navy px-4 py-2 text-sm font-semibold text-white">Clear filters</Link>}
+        {(cat || q) && <Link href={basePath} className="mt-4 inline-flex rounded-xl bg-brand-navy px-4 py-2 text-sm font-semibold text-white">Clear filters</Link>}
       </div>
     );
   }

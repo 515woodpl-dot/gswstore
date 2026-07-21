@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getUserOrders, formatPrice, customerStatusMessage, SHOP_PHONE, SHOP_PHONE_RAW } from "@/lib/utils";
 import { OrderStatusBadge } from "@/components/ui";
+import ReorderButton from "@/components/ReorderButton";
 import type { Order } from "@/types";
 
 interface Props { searchParams: Promise<{ placed?: string }> }
@@ -50,6 +51,7 @@ export default async function OrdersPage({ searchParams }: Props) {
                 <div className="flex items-center gap-3">
                   <OrderStatusBadge status={order.status} />
                   <p className="text-xl font-black tracking-tight text-slate-950">{formatPrice(order.total)}</p>
+                  <ReorderButton items={order.items} userId={user.id} />
                 </div>
               </div>
               <div className="mt-4 space-y-3">

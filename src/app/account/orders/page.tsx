@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getUserOrders, formatPrice, customerStatusMessage, SHOP_PHONE, SHOP_PHONE_RAW } from "@/lib/utils";
 import { OrderStatusBadge } from "@/components/ui";
+import ReorderButton from "@/components/ReorderButton";
 import type { Order } from "@/types";
 
 interface Props { searchParams: Promise<{ placed?: string }> }
@@ -18,14 +19,19 @@ export default async function OrdersPage({ searchParams }: Props) {
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">Account</p>
           <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">My Orders</h1>
         </div>
-        <Link href="/" className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-          ← Shop
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/account/payment-methods" className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+            💳 Payment methods
+          </Link>
+          <Link href="/" className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+            ← Shop
+          </Link>
+        </div>
       </div>
 
       {placed && (
@@ -63,9 +69,10 @@ export default async function OrdersPage({ searchParams }: Props) {
                       {new Date(order.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
                     </p>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
+                  <div className="flex flex-col items-end gap-1.5">
                     <OrderStatusBadge status={order.status} />
                     <p className="text-base font-black text-slate-950">{formatPrice(order.total)}</p>
+                    <ReorderButton items={order.items} userId={user.id} />
                   </div>
                 </div>
 

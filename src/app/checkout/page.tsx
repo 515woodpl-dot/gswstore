@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { createOrder, formatPrice } from "@/lib/utils";
@@ -14,13 +14,31 @@ export default function CheckoutPage() {
   const router = useRouter();
   const [notes, setNotes] = useState("");
   const [fulfillment, setFulfillment] = useState<"pickup" | "delivery">("pickup");
-  const [payMethod, setPayMethod] = useState<"pay_now" | "pay_later">("pay_later");
+  const [payMethod, setPayMethod] = useState<"pay_now" | "pay_later" | "saved_card">("pay_later");
+  const [savedCards, setSavedCards] = useState<{ square_card_id: string; brand: string; last_4: string; exp_month: number; exp_year: number }[]>([]);
+  const [selectedCard, setSelectedCard] = useState<string>("");
+  const [cardPayError, setCardPayError] = useState("");
   const [address, setAddress] = useState("");
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
   const items = cart?.items ?? [];
   const FREE_DELIVERY_THRESHOLD = 100;
   const qualifiesFreeDelivery = total >= FREE_DELIVERY_THRESHOLD;
+
+  // Load saved cards when user is available
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/square/cards")
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.cards?.length) {
+          setSavedCards(j.cards);
+          setSelectedCard(j.cards[0].square_card_id);
+          setPayMethod("saved_card");
+        }
+      })
+      .catch(() => {});
+  }, [user]);
   const PLACEHOLDER = "https://placehold.co/64x64/1e3a5f/ffffff?text=GST";
 
   if (items.length === 0) return (
@@ -37,7 +55,7 @@ export default function CheckoutPage() {
       setError("Please enter a delivery address.");
       return;
     }
-    setPlacing(true); setError("");
+    setPlacing(true); setError(""); setCardPayError("");
     try {
       const orderNotes = paymentId ? `${notes}${notes ? " · " : ""}[Paid online · Square ${paymentId}]` : notes;
       const order = await createOrder(user.id, cart, orderNotes, fulfillment, address);
@@ -50,8 +68,25 @@ export default function CheckoutPage() {
     }
   }
 
+  async function handleSavedCardPay() {
+    if (!selectedCard || !cart) return;
+    setCardPayError(""); setPlacing(true);
+    try {
+      const res = await fetch("/api/square/charge-saved", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ squareCardId: selectedCard, amountCents: Math.round(total * 100) }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setCardPayError(json.error || "Payment failed."); setPlacing(false); return; }
+      await placeOrder(json.paymentId);
+    } catch {
+      setCardPayError("Payment failed. Please try again.");
+      setPlacing(false);
+    }
+  }
+
   function handlePlaceOrder() {
-    // Pay-later flow: create the order directly.
     placeOrder();
   }
 
@@ -158,15 +193,26 @@ export default function CheckoutPage() {
           {/* Payment method */}
           <div className="mt-6 space-y-2">
             <p className="text-sm font-semibold text-slate-800">Payment</p>
+
+            {/* Saved cards */}
+            {savedCards.length > 0 && savedCards.map((card) => (
+              <button key={card.square_card_id} type="button"
+                onClick={() => { setPayMethod("saved_card"); setSelectedCard(card.square_card_id); }}
+                className={`flex w-full items-center justify-between rounded-xl border p-3 text-left text-sm transition ${payMethod === "saved_card" && selectedCard === card.square_card_id ? "border-brand-navy bg-brand-navy/5 ring-1 ring-brand-navy" : "border-slate-200 hover:border-slate-300"}`}>
+                <span className="font-semibold text-slate-900">💳 {card.brand} ···· {card.last_4} <span className="text-xs text-slate-400">exp {card.exp_month}/{card.exp_year}</span></span>
+                {payMethod === "saved_card" && selectedCard === card.square_card_id && <span className="text-brand-navy">●</span>}
+              </button>
+            ))}
+
+            <button type="button" onClick={() => setPayMethod("pay_now")}
+              className={`flex w-full items-center justify-between rounded-xl border p-3 text-left text-sm transition ${payMethod === "pay_now" ? "border-brand-navy bg-brand-navy/5 ring-1 ring-brand-navy" : "border-slate-200 hover:border-slate-300"}`}>
+              <span className="font-semibold text-slate-900">💳 Pay with a new card</span>
+              {payMethod === "pay_now" && <span className="text-brand-navy">●</span>}
+            </button>
             <button type="button" onClick={() => setPayMethod("pay_later")}
               className={`flex w-full items-center justify-between rounded-xl border p-3 text-left text-sm transition ${payMethod === "pay_later" ? "border-brand-navy bg-brand-navy/5 ring-1 ring-brand-navy" : "border-slate-200 hover:border-slate-300"}`}>
               <span className="font-semibold text-slate-900">Pay at pickup / on delivery</span>
               {payMethod === "pay_later" && <span className="text-brand-navy">●</span>}
-            </button>
-            <button type="button" onClick={() => setPayMethod("pay_now")}
-              className={`flex w-full items-center justify-between rounded-xl border p-3 text-left text-sm transition ${payMethod === "pay_now" ? "border-brand-navy bg-brand-navy/5 ring-1 ring-brand-navy" : "border-slate-200 hover:border-slate-300"}`}>
-              <span className="font-semibold text-slate-900">💳 Pay now by card</span>
-              {payMethod === "pay_now" && <span className="text-brand-navy">●</span>}
             </button>
           </div>
 
@@ -181,6 +227,17 @@ export default function CheckoutPage() {
                   onPaid={(paymentId) => placeOrder(paymentId)}
                 />
               )}
+            </div>
+          ) : payMethod === "saved_card" ? (
+            <div className="mt-4">
+              {cardPayError && <p className="mb-2 text-sm text-rose-600">{cardPayError}</p>}
+              <button type="button" onClick={handleSavedCardPay} disabled={placing}
+                className="w-full rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-70">
+                {placing ? "Processing…" : `Pay $${total.toFixed(2)} with saved card`}
+              </button>
+              <p className="mt-2 text-center text-xs text-slate-400">
+                Or <button onClick={() => setPayMethod("pay_now")} className="underline">use a different card</button>
+              </p>
             </div>
           ) : (
             <button type="button" onClick={handlePlaceOrder} disabled={placing}

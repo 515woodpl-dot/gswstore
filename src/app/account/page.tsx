@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserOrders, formatPrice, customerStatusMessage, SHOP_PHONE, SHOP_PHONE_RAW } from "@/lib/utils";
 import { OrderStatusBadge } from "@/components/ui";
 import ReorderButton from "@/components/ReorderButton";
+import CloseAccount from "@/components/CloseAccount";
 import type { Order } from "@/types";
 
 interface Props { searchParams: Promise<{ placed?: string }> }
@@ -15,6 +16,10 @@ export default async function OrdersPage({ searchParams }: Props) {
   const { placed } = await searchParams;
   let orders: Order[] = [];
   try { orders = await getUserOrders(user.id, sb); } catch {}
+
+  const hasPendingOrders = orders.some((o) =>
+    ["pending", "confirmed", "ready"].includes(o.status)
+  );
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -93,6 +98,8 @@ export default async function OrdersPage({ searchParams }: Props) {
           ))}
         </div>
       )}
+
+      <CloseAccount hasPendingOrders={hasPendingOrders} userEmail={user.email ?? ""} />
     </div>
   );
 }

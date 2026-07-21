@@ -8,10 +8,10 @@ import NewsletterSignup from "@/components/NewsletterSignup";
 
 export const revalidate = 60;
 
-interface Props { searchParams: Promise<{ q?: string; cat?: string }> }
+interface Props { searchParams: Promise<{ q?: string; cat?: string; account?: string }> }
 
 export default async function HomePage({ searchParams }: Props) {
-  const { q, cat } = await searchParams;
+  const { q, cat, account } = await searchParams;
   const [items, cats, heroItems, featuredItems, newArrivals, deals] = await Promise.all([
     getStoreItems(),
     getStoreCategories(),
@@ -23,6 +23,11 @@ export default async function HomePage({ searchParams }: Props) {
 
   return (
     <div>
+      {account === "closed" && (
+        <div className="bg-emerald-50 border-b border-emerald-200 px-4 py-3 text-center text-sm text-emerald-800">
+          Your account has been closed. Thanks for shopping with us.
+        </div>
+      )}
       {/* Hero */}
       <section className="bg-white px-4 pt-6 pb-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { SquareClient, SquareEnvironment } from "square";
+import { SquareClient, SquareEnvironment, SquareError } from "square";
 
-// Server-only Square client. Uses the sandbox token from env.
 function squareClient() {
   return new SquareClient({
     token: process.env.SQUARE_ACCESS_TOKEN!,
@@ -11,7 +10,19 @@ function squareClient() {
   });
 }
 
-// POST { sourceId, amountCents }  → charges the card token via Square.
+// Friendly decline messages keyed by Square error code.
+const DECLINE_MESSAGES: Record<string, string> = {
+  GENERIC_DECLINE:          "Your card was declined. Please try a different card.",
+  INSUFFICIENT_FUNDS:       "Your card has insufficient funds.",
+  TRANSACTION_LIMIT:        "This transaction exceeds your card limit.",
+  CVV_FAILURE:              "The CVV you entered is incorrect.",
+  ADDRESS_VERIFICATION_FAILURE: "The billing address didn't match. Please check and try again.",
+  CARD_EXPIRED:             "Your card has expired. Please use a different card.",
+  CARD_NOT_SUPPORTED:       "This card type is not supported.",
+  INVALID_ACCOUNT:          "This card account is invalid. Please try a different card.",
+  VOICE_FAILURE:            "Your card was declined. Please contact your bank.",
+};
+
 export async function POST(request: NextRequest) {
   try {
     const { sourceId, amountCents, billing } = await request.json();
@@ -45,13 +56,34 @@ export async function POST(request: NextRequest) {
     });
 
     if (payment?.status !== "COMPLETED" && payment?.status !== "APPROVED") {
-      return NextResponse.json({ error: `Payment ${payment?.status ?? "failed"}.` }, { status: 402 });
+      // Payment object returned but not approved — shouldn't normally happen,
+      // but handle gracefully.
+      console.warn("[Square] unexpected payment status:", payment?.status);
+      return NextResponse.json(
+        { error: "Your payment could not be processed. Please try again." },
+        { status: 402 }
+      );
     }
 
+    // Log only non-sensitive confirmation info.
+    console.log(`[Square] payment ${payment.id} COMPLETED for ${amountCents} cents`);
     return NextResponse.json({ ok: true, paymentId: payment.id, status: payment.status });
+
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Payment failed.";
-    console.error("[Square] payment error:", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    // Square throws SquareError on declines — extract the human-readable code.
+    if (err instanceof SquareError) {
+      const firstError = err.errors?.[0];
+      const code = firstError?.code ?? "GENERIC_DECLINE";
+      const friendly = DECLINE_MESSAGES[code] ?? "Your card was declined. Please try a different card.";
+      // Log only the code, not the full response.
+      console.warn("[Square] card declined:", code);
+      return NextResponse.json({ error: friendly }, { status: 402 });
+    }
+    // Unexpected error (network, config, etc.)
+    console.error("[Square] unexpected error:", err instanceof Error ? err.message : "unknown");
+    return NextResponse.json(
+      { error: "Payment failed due to a system error. Please try again." },
+      { status: 500 }
+    );
   }
 }

@@ -68,7 +68,12 @@ export default function VariantSelector({ product }: { product: InventoryItem })
                   </div>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="font-black text-slate-900">{formatPrice(price)}</p>
+                  <p className="font-black text-slate-900">
+                    {formatPrice(price)}
+                    {v.sale_price != null && v.sale_price < v.store_price && (
+                      <span className="ml-1.5 text-xs font-semibold text-slate-400 line-through">{formatPrice(v.store_price)}</span>
+                    )}
+                  </p>
                   <p className={`mt-0.5 text-xs italic ${out ? "text-slate-400" : v.amount < 10 ? "text-amber-600" : "text-emerald-600"}`}>
                     {out ? "On order. Ships when back in stock" : v.amount < 10 ? "Low stock" : "In stock"}
                   </p>

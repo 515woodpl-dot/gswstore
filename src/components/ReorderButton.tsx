@@ -16,7 +16,7 @@ export default function ReorderButton({ items, userId }: { items: OrderItem[]; u
       const ids = items.map((i) => i.item_id);
       const { data: inv } = await sb
         .from("inventory")
-        .select("id,name,sku,image_url,store_price,sale_price,amount,category_name,brand,model_number,voltage,description,images,featured,new_arrival,stock_status,attributes,tax_enabled,tax_rate_percent")
+        .select("id,name,sku,image_url,store_price,sale_price,amount,category_name,brand,model_number,voltage,description,images,featured,new_arrival,attributes,tax_enabled,tax_rate_percent")
         .in("id", ids);
 
       if (!inv || inv.length === 0) { setState("error"); return; }

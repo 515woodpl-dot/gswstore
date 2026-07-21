@@ -65,8 +65,9 @@ export default function InventoryManager({ initialItems, categories }: { initial
   const galleryRef  = useRef<HTMLInputElement>(null);
   const sb = createClient();
 
-  function startNew() { setEditing({ ...BLANK }); setError(""); }
-  function startEdit(row: Row) { setEditing({ ...row }); setError(""); }
+  const [originalId, setOriginalId] = useState<string | null>(null);
+  function startNew() { setEditing({ ...BLANK }); setOriginalId(null); setError(""); }
+  function startEdit(row: Row) { setEditing({ ...row }); setOriginalId(row.id); setError(""); }
 
   // ── Auto-SKU generation ──────────────────────────────────────────────────
   // Regular product: <CATEGORY_PREFIX>-<next 4-digit sequence>  e.g. CTR-0001
@@ -163,13 +164,21 @@ export default function InventoryManager({ initialItems, categories }: { initial
       variant_dimension: editing.variant_dimension || "Color",
       part_number: editing.part_number ?? "",
     };
-    const { error: err } = await sb.from("inventory").upsert(payload);
+    let err = null as { message: string } | null;
+    if (originalId) {
+      const { error: e } = await sb.from("inventory").update(payload).eq("id", originalId);
+      err = e;
+    } else {
+      const { error: e } = await sb.from("inventory").insert(payload);
+      err = e;
+    }
     if (err) { setError(err.message); setSaving(false); return; }
     setItems((prev) => {
-      const exists = prev.some((p) => p.id === payload.id);
-      return exists ? prev.map((p) => (p.id === payload.id ? payload : p)) : [...prev, payload];
+      const withoutOld = originalId ? prev.filter((p) => p.id !== originalId) : prev;
+      const exists = withoutOld.some((p) => p.id === payload.id);
+      return exists ? withoutOld.map((p) => (p.id === payload.id ? payload : p)) : [...withoutOld, payload];
     });
-    setEditing(null); setSaving(false);
+    setEditing(null); setOriginalId(null); setSaving(false);
   }
 
   async function remove(id: string) {

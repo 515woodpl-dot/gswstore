@@ -33,7 +33,7 @@ function CartGlyph() {
   );
 }
 
-export function StoreShell({ children }: { children: ReactNode }) {
+export function StoreShell({ children, categories = [] }: { children: ReactNode; categories?: { id: string; name: string }[] }) {
   const pathname = usePathname();
   const { itemCount } = useCart();
   const { user, signOut } = useAuth();
@@ -179,15 +179,19 @@ export function StoreShell({ children }: { children: ReactNode }) {
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Shop Categories</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              {["Power Tools", "Hand Tools", "Measuring", "Safety"].map((name) => (
-                <Link
-                  key={name}
-                  href={`/?cat=${encodeURIComponent(name)}`}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700 hover:border-slate-300"
-                >
-                  {name}
-                </Link>
-              ))}
+              {categories.length > 0
+                ? categories.map((cat) => (
+                    <Link key={cat.id} href={`/?cat=${encodeURIComponent(cat.name)}`}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700 hover:border-slate-300">
+                      {cat.name}
+                    </Link>
+                  ))
+                : (
+                    <Link href="/shop"
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700 hover:border-slate-300">
+                      Browse all products
+                    </Link>
+                  )}
             </div>
           </div>
           <div>

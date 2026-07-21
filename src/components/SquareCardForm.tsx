@@ -11,18 +11,22 @@ interface SquareCardFormProps {
 }
 
 interface TokenizeOptions {
+  amount?: string;
+  currencyCode?: string;
+  intent?: string;
+  customerInitiated?: boolean;
+  sellerKeyedIn?: boolean;
   billingContact?: {
     givenName?: string;
     familyName?: string;
+    email?: string;
+    phone?: string;
     addressLines?: string[];
     city?: string;
     state?: string;
     postalCode?: string;
     countryCode?: string;
   };
-  intent?: string;
-  amount?: string;
-  currencyCode?: string;
 }
 interface SquareCard {
   attach: (selector: string) => Promise<void>;
@@ -104,9 +108,11 @@ export default function SquareCardForm({ amountCents, onPaid, disabled }: Square
     setProcessing(true); setError("");
     try {
       const result = await cardRef.current.tokenize({
-        intent: "CHARGE",
         amount: (amountCents / 100).toFixed(2),
         currencyCode: "USD",
+        intent: "CHARGE",
+        customerInitiated: true,
+        sellerKeyedIn: false,
         billingContact: {
           givenName: given.trim(),
           familyName: family.trim(),

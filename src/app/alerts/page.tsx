@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
 import AlertsScreen from "@/components/AlertsScreen";
+import RegisterSW from "@/components/RegisterSW";
 import type { Order } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -23,5 +24,10 @@ export default async function AlertsPage() {
 
   const recent: Order[] = (data ?? []).map((o) => ({ ...o, items: o.order_items }));
 
-  return <AlertsScreen initialOrders={recent} />;
+  return (
+    <>
+      <RegisterSW />
+      <AlertsScreen initialOrders={recent} />
+    </>
+  );
 }

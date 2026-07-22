@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createUserClient } from "@/lib/supabase/server";
-import { SquareClient, SquareEnvironment } from "square";
+import { getSquareModule } from "@/lib/square";
 
 function adminClient() {
   return createClient(
@@ -11,10 +11,12 @@ function adminClient() {
   );
 }
 
-function sq() {
-  return new SquareClient({
+async function sq() {
+  const square = await getSquareModule();
+  if (!square) return null;
+  return new square.SquareClient({
     token: process.env.SQUARE_ACCESS_TOKEN!,
-    environment: SquareEnvironment.Sandbox, // switch to Production when going live
+    environment: square.SquareEnvironment.Sandbox, // switch to Production when going live
   });
 }
 
@@ -34,8 +36,11 @@ export async function DELETE() {
       .eq("user_id", user.id);
 
     if (cards && cards.length > 0) {
+      const client = await sq();
       await Promise.allSettled(
-        cards.map((c) => sq().cards.disable(c.square_card_id).catch(() => {}))
+        client
+          ? cards.map((c) => client.cards.disable(c.square_card_id).catch(() => {}))
+          : []
       );
     }
 

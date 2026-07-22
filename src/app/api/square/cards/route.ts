@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { SquareClient, SquareEnvironment } from "square";
 import { createClient } from "@/lib/supabase/server";
+import { getSquareModule } from "@/lib/square";
 
-function sq() {
-  return new SquareClient({
+async function sq() {
+  const square = await getSquareModule();
+  if (!square) throw new Error("Square SDK unavailable");
+  return new square.SquareClient({
     token: process.env.SQUARE_ACCESS_TOKEN!,
-    environment: SquareEnvironment.Sandbox, // switch to Production when going live
+    environment: square.SquareEnvironment.Sandbox, // switch to Production when going live
   });
 }
 
@@ -35,7 +37,7 @@ export async function POST(request: NextRequest) {
     const { sourceId, cardholderName } = await request.json();
     if (!sourceId) return NextResponse.json({ error: "Missing card token." }, { status: 400 });
 
-    const client = sq();
+    const client = await sq();
 
     // Get or create the Square Customer for this user.
     let squareCustomerId: string | undefined;
@@ -87,6 +89,9 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (err: unknown) {
+    if (err instanceof Error && err.message === "Square SDK unavailable") {
+      return NextResponse.json({ error: "Card saving is temporarily unavailable." }, { status: 503 });
+    }
     const msg = err instanceof Error ? err.message : "Failed to save card.";
     console.error("[Square] save card error:", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -113,7 +118,8 @@ export async function DELETE(request: NextRequest) {
     if (!card) return NextResponse.json({ error: "Card not found." }, { status: 404 });
 
     // Disable in Square first.
-    await sq().cards.disable(squareCardId);
+    const client = await sq();
+    await client.cards.disable(squareCardId);
 
     // Remove from our DB.
     await sb.from("saved_cards").delete().eq("square_card_id", squareCardId).eq("user_id", user.id);
@@ -121,6 +127,9 @@ export async function DELETE(request: NextRequest) {
     console.log(`[Square] card removed for user ${user.id}: ${squareCardId}`);
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
+    if (err instanceof Error && err.message === "Square SDK unavailable") {
+      return NextResponse.json({ error: "Card removal is temporarily unavailable." }, { status: 503 });
+    }
     const msg = err instanceof Error ? err.message : "Failed to remove card.";
     console.error("[Square] delete card error:", msg);
     return NextResponse.json({ error: msg }, { status: 500 });

@@ -1,6 +1,6 @@
-import StorefrontPage, { revalidate } from "@/components/StorefrontPage";
+import StorefrontPage from "@/components/StorefrontPage";
 
-export { revalidate };
+export const revalidate = 60;
 
 interface Props {
   searchParams: Promise<{ q?: string; cat?: string; account?: string }>;

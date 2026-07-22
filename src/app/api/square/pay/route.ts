@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { SquareClient, SquareEnvironment, SquareError } from "square";
+import { getSquareModule } from "@/lib/square";
 
-function squareClient() {
-  return new SquareClient({
+async function squareClient() {
+  const square = await getSquareModule();
+  if (!square) throw new Error("Square SDK unavailable");
+  return new square.SquareClient({
     token: process.env.SQUARE_ACCESS_TOKEN!,
     // Switch to SquareEnvironment.Production when going live.
-    environment: SquareEnvironment.Sandbox,
+    environment: square.SquareEnvironment.Sandbox,
   });
 }
 
@@ -31,7 +33,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing card token or invalid amount." }, { status: 400 });
     }
 
-    const client = squareClient();
+    const client = await squareClient();
     const { payment } = await client.payments.create({
       sourceId,
       idempotencyKey: randomUUID(),
@@ -70,9 +72,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, paymentId: payment.id, status: payment.status });
 
   } catch (err: unknown) {
+    if (err instanceof Error && err.message === "Square SDK unavailable") {
+      return NextResponse.json({ error: "Payment service is temporarily unavailable." }, { status: 503 });
+    }
     // Square throws SquareError on declines — extract the human-readable code.
-    if (err instanceof SquareError) {
-      const firstError = err.errors?.[0];
+    const square = await getSquareModule();
+    if (square && err instanceof square.SquareError) {
+      const firstError = (err as Error & { errors?: Array<{ code?: string }> }).errors?.[0];
       const code = firstError?.code ?? "GENERIC_DECLINE";
       const friendly = DECLINE_MESSAGES[code] ?? "Your card was declined. Please try a different card.";
       // Log only the code, not the full response.

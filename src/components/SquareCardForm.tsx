@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const SQUARE_SDK_URL = "https://sandbox.web.squarecdn.com/v1/square.js";
+const SQUARE_SDK_URL = "https://web.squarecdn.com/v1/square.js";
 
 interface SquareCardFormProps {
   amountCents: number;
@@ -183,7 +183,7 @@ export default function SquareCardForm({ amountCents, onPaid, disabled }: Square
       >
         {processing ? "Processing payment…" : ready ? `Pay $${(amountCents / 100).toFixed(2)}` : "Loading card form…"}
       </button>
-      <p className="text-center text-xs text-slate-400">Secured by Square. Sandbox test mode.</p>
+      <p className="text-center text-xs text-slate-400">Secured by Square.</p>
     </div>
   );
 }

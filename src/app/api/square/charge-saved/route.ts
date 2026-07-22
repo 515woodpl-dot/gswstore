@@ -8,7 +8,7 @@ async function sq() {
   if (!square) throw new Error("Square SDK unavailable");
   return new square.SquareClient({
     token: process.env.SQUARE_ACCESS_TOKEN!,
-    environment: square.SquareEnvironment.Sandbox,
+    environment: square.SquareEnvironment.Production,
   });
 }
 

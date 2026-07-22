@@ -8,7 +8,7 @@ async function squareClient() {
   return new square.SquareClient({
     token: process.env.SQUARE_ACCESS_TOKEN!,
     // Switch to SquareEnvironment.Production when going live.
-    environment: square.SquareEnvironment.Sandbox,
+    environment: square.SquareEnvironment.Production,
   });
 }
 

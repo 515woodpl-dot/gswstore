@@ -25,6 +25,10 @@ export default function CheckoutPage() {
   const FREE_DELIVERY_THRESHOLD = 100;
   const qualifiesFreeDelivery = total >= FREE_DELIVERY_THRESHOLD;
 
+  // 3% + $0.30 processing fee — only applied when paying by card
+  const cardFee = payMethod !== "pay_later" ? Math.round((total * 0.03 + 0.30) * 100) / 100 : 0;
+  const chargeTotal = total + cardFee;
+
   // Load saved cards when user is available
   useEffect(() => {
     if (!user) return;
@@ -57,7 +61,9 @@ export default function CheckoutPage() {
     }
     setPlacing(true); setError(""); setCardPayError("");
     try {
-      const orderNotes = paymentId ? `${notes}${notes ? " · " : ""}[Paid online · Square ${paymentId}]` : notes;
+      const orderNotes = paymentId
+        ? `${notes}${notes ? " · " : ""}[Paid online · Square ${paymentId}${cardFee > 0 ? ` · incl. $${cardFee.toFixed(2)} processing fee` : ""}]`
+        : notes;
       const order = await createOrder(user.id, cart, orderNotes, fulfillment, address);
       await refresh();
       fetch("/api/orders/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order_id: order.id }) }).catch(() => {});
@@ -75,7 +81,7 @@ export default function CheckoutPage() {
       const res = await fetch("/api/square/charge-saved", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ squareCardId: selectedCard, amountCents: Math.round(total * 100) }),
+        body: JSON.stringify({ squareCardId: selectedCard, amountCents: Math.round(chargeTotal * 100) }),
       });
       const json = await res.json();
       if (!res.ok) { setCardPayError(json.error || "Payment failed."); setPlacing(false); return; }
@@ -174,6 +180,12 @@ export default function CheckoutPage() {
               <span>Subtotal</span>
               <span className="font-semibold text-slate-950">{formatPrice(total)}</span>
             </div>
+            {cardFee > 0 && (
+              <div className="flex items-center justify-between text-sm text-slate-600">
+                <span>Processing fee (3% + $0.30)</span>
+                <span className="font-semibold text-slate-950">{formatPrice(cardFee)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-sm text-slate-600">
               <span>{fulfillment === "delivery" ? "Delivery" : "Pickup"}</span>
               <span className="font-semibold text-emerald-700">
@@ -185,7 +197,7 @@ export default function CheckoutPage() {
             )}
             <div className="flex items-center justify-between border-t border-slate-200 pt-4">
               <span className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Grand total</span>
-              <span className="text-2xl font-black tracking-tight text-slate-950">{formatPrice(total)}</span>
+              <span className="text-2xl font-black tracking-tight text-slate-950">{formatPrice(chargeTotal)}</span>
             </div>
           </div>
           {error && <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
@@ -222,7 +234,7 @@ export default function CheckoutPage() {
                 <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">Enter your delivery address above to pay by card.</p>
               ) : (
                 <SquareCardForm
-                  amountCents={Math.round(total * 100)}
+                  amountCents={Math.round(chargeTotal * 100)}
                   disabled={placing}
                   onPaid={(paymentId) => placeOrder(paymentId)}
                 />
@@ -233,7 +245,7 @@ export default function CheckoutPage() {
               {cardPayError && <p className="mb-2 text-sm text-rose-600">{cardPayError}</p>}
               <button type="button" onClick={handleSavedCardPay} disabled={placing}
                 className="w-full rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-70">
-                {placing ? "Processing…" : `Pay $${total.toFixed(2)} with saved card`}
+                {placing ? "Processing…" : `Pay $${chargeTotal.toFixed(2)} with saved card`}
               </button>
               <p className="mt-2 text-center text-xs text-slate-400">
                 Or <button onClick={() => setPayMethod("pay_now")} className="underline">use a different card</button>

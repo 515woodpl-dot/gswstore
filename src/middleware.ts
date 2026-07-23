@@ -9,6 +9,16 @@ export async function middleware(request: NextRequest) {
   const sub = host.split(":")[0].split(".")[0];
   const path = request.nextUrl.pathname;
 
+  // Never rewrite PWA assets — they must resolve at the root on every subdomain.
+  const isPwaAsset =
+    path === "/manifest.webmanifest" ||
+    path === "/sw.js" ||
+    path === "/offline" ||
+    path.startsWith("/icon-") ||
+    path === "/apple-touch-icon.png";
+
+  if (isPwaAsset) return NextResponse.next();
+
   if (sub === "alerts" && !path.startsWith("/alerts") && !path.startsWith("/auth") && !path.startsWith("/_next")) {
     const url = request.nextUrl.clone();
     url.pathname = `/alerts${path === "/" ? "" : path}`;
@@ -52,5 +62,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js)$).*)"],
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|offline|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js|json|webmanifest)$).*)",
+  ],
 };

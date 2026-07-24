@@ -25,7 +25,7 @@ export default function AdminHeader() {
     <header className="border-b border-slate-200 bg-white/95 text-slate-900 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
-          <BrandLogo href="/admin" className="rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200" compact />
+          <BrandLogo href="/staff" className="rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200" compact />
           <span className="rounded-full bg-brand-gold px-2 py-0.5 text-xs font-bold uppercase text-white">Admin</span>
         </div>
 

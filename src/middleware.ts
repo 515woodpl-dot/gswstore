@@ -9,15 +9,19 @@ export async function middleware(request: NextRequest) {
   const sub = host.split(":")[0].split(".")[0];
   const path = request.nextUrl.pathname;
 
-  // Never rewrite PWA assets — they must resolve at the root on every subdomain.
-  const isPwaAsset =
+  // Never rewrite PWA assets or shared staff routes — they must resolve
+  // at the root path on every subdomain.
+  const isSharedRoute =
     path === "/manifest.webmanifest" ||
     path === "/sw.js" ||
     path === "/offline" ||
     path.startsWith("/icon-") ||
-    path === "/apple-touch-icon.png";
+    path === "/apple-touch-icon.png" ||
+    path === "/favicon.png" ||
+    path.startsWith("/staff") ||
+    path.startsWith("/brand/");
 
-  if (isPwaAsset) return NextResponse.next();
+  if (isSharedRoute) return NextResponse.next();
 
   if (sub === "alerts" && !path.startsWith("/alerts") && !path.startsWith("/auth") && !path.startsWith("/_next")) {
     const url = request.nextUrl.clone();
@@ -50,7 +54,8 @@ export async function middleware(request: NextRequest) {
 
   const needsAuth =
     path.startsWith("/account") || path.startsWith("/checkout") ||
-    path.startsWith("/admin") || path.startsWith("/alerts");
+    path.startsWith("/admin") || path.startsWith("/alerts") ||
+    path.startsWith("/staff");
 
   if (needsAuth && !user) {
     const url = request.nextUrl.clone();

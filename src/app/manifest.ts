@@ -4,13 +4,14 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Golden Stone Supply — Staff",
     short_name: "GSW Staff",
-    description: "Admin and alerts panel for Golden Stone Supply staff.",
-    start_url: "/admin",
+    description: "Staff portal: alerts, inventory, walk-in sales, and orders.",
+    // Landing page lets staff choose Alerts or Admin after opening the app.
+    start_url: "/staff",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
     background_color: "#ffffff",
-    theme_color: "#1e3a5f",
+    theme_color: "#435d69",
     categories: ["business", "productivity"],
     icons: [
       {
@@ -31,25 +32,26 @@ export default function manifest(): MetadataRoute.Manifest {
         type: "image/png",
       },
     ],
+    // Long-press the home screen icon to jump straight to a section.
     shortcuts: [
       {
         name: "Alerts",
         short_name: "Alerts",
-        description: "View incoming orders and alerts",
+        description: "Incoming orders and live queue",
         url: "/alerts",
         icons: [{ src: "/icon-192x192.png", sizes: "192x192" }],
       },
       {
         name: "Inventory",
         short_name: "Inventory",
-        description: "Manage product inventory",
+        description: "Manage products and stock",
         url: "/admin",
         icons: [{ src: "/icon-192x192.png", sizes: "192x192" }],
       },
       {
-        name: "Walk-in",
+        name: "Walk-in Sale",
         short_name: "Walk-in",
-        description: "Process walk-in sales",
+        description: "Ring up an in-store customer",
         url: "/admin/walk-in",
         icons: [{ src: "/icon-192x192.png", sizes: "192x192" }],
       },

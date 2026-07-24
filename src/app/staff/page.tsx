@@ -105,17 +105,14 @@ export default async function StaffLandingPage() {
           ))}
         </div>
 
-        {/* Footer */}
-        <div className="mt-10 flex flex-col items-center gap-2">
+        {/* Storefront link */}
+        <div className="mt-5 flex justify-center">
           <a
             href={site}
             className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
           >
             🏪 View storefront
           </a>
-          <p className="mt-1 text-center text-xs text-slate-400">
-            Golden Stone Supply · Staff
-          </p>
         </div>
       </div>
     </div>

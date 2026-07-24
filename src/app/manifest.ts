@@ -4,8 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Golden Stone Supply — Staff",
     short_name: "GSW Staff",
-    description: "Staff portal: alerts, inventory, walk-in sales, and orders.",
-    // Landing page lets staff choose Alerts or Admin after opening the app.
+    description: "Staff portal: alerts, inventory, and walk-in sales.",
     start_url: "/staff",
     scope: "/",
     display: "standalone",
@@ -14,23 +13,9 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#435d69",
     categories: ["business", "productivity"],
     icons: [
-      {
-        src: "/icon-192x192.png",
-        sizes: "192x192",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: "/icon-512x512.png",
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "maskable",
-      },
-      {
-        src: "/apple-touch-icon.png",
-        sizes: "180x180",
-        type: "image/png",
-      },
+      { src: "/icon-192x192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icon-512x512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
     // Long-press the home screen icon to jump straight to a section.
     shortcuts: [

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { requireAdmin } from "@/lib/admin";
+import { BRAND } from "@/lib/brand";
 import RegisterSW from "@/components/RegisterSW";
 
 export const dynamic = "force-dynamic";
@@ -13,34 +13,34 @@ export default async function StaffLandingPage() {
     redirect("/?error=not_authorized");
   }
 
+  // Absolute URLs so links resolve correctly no matter which subdomain
+  // the installed PWA is running on.
+  const site = BRAND.siteUrl.replace(/\/$/, "");
+
   const tiles = [
     {
-      href: "/alerts",
+      href: `${site}/alerts`,
       icon: "🔔",
       title: "Alerts",
-      desc: "Incoming orders, status updates, and live queue",
-      accent: "from-amber-500/10 to-amber-500/0 border-amber-200",
+      desc: "Incoming orders and live queue",
+      ring: "ring-amber-200",
+      bg: "bg-amber-50",
     },
     {
-      href: "/admin",
+      href: `${site}/admin`,
       icon: "📦",
       title: "Inventory",
-      desc: "Products, stock levels, pricing, and categories",
-      accent: "from-sky-500/10 to-sky-500/0 border-sky-200",
+      desc: "Products, stock, and pricing",
+      ring: "ring-sky-200",
+      bg: "bg-sky-50",
     },
     {
-      href: "/admin/walk-in",
+      href: `${site}/admin/walk-in`,
       icon: "🛒",
       title: "Walk-in Sale",
       desc: "Ring up an in-store customer",
-      accent: "from-emerald-500/10 to-emerald-500/0 border-emerald-200",
-    },
-    {
-      href: "/admin/orders",
-      icon: "📋",
-      title: "Orders",
-      desc: "Full order history and fulfillment",
-      accent: "from-violet-500/10 to-violet-500/0 border-violet-200",
+      ring: "ring-emerald-200",
+      bg: "bg-emerald-50",
     },
   ];
 
@@ -48,58 +48,73 @@ export default async function StaffLandingPage() {
     <div className="min-h-screen bg-[linear-gradient(180deg,#fffdfb_0%,#f7fbfc_100%)]">
       <RegisterSW />
 
-      <div className="mx-auto max-w-2xl px-5 py-10 sm:py-14">
+      <div className="mx-auto w-full max-w-md px-5 py-10 sm:max-w-2xl sm:py-14">
         {/* Header */}
-        <div className="mb-8 text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/brand/gst-logo-horizontal.png"
-            alt="Golden Stone Supply"
-            className="mx-auto h-10 w-auto object-contain sm:h-12"
-          />
-          <p className="mt-4 text-xs font-bold uppercase tracking-[0.24em] text-slate-400">
+        <header className="mb-8 flex flex-col items-center text-center">
+          <div className="flex w-full justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/gst-logo-horizontal.png"
+              alt="Golden Stone Supply"
+              width={1530}
+              height={348}
+              className="h-12 w-auto max-w-[240px] object-contain sm:h-14 sm:max-w-[300px]"
+            />
+          </div>
+          <p className="mt-5 text-xs font-bold uppercase tracking-[0.24em] text-slate-400">
             Staff Portal
           </p>
           <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
             Where to?
           </h1>
-        </div>
+        </header>
 
         {/* Tiles */}
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           {tiles.map((t) => (
-            <Link
+            <a
               key={t.href}
               href={t.href}
-              className={`group relative flex flex-col justify-between overflow-hidden rounded-3xl border bg-gradient-to-br ${t.accent} bg-white p-5 shadow-sm transition active:scale-[0.98] sm:hover:shadow-md`}
+              className={`group flex items-center gap-4 rounded-3xl bg-white p-5 shadow-sm ring-1 ${t.ring} transition active:scale-[0.98] sm:flex-col sm:items-start sm:gap-0 sm:hover:shadow-md`}
             >
-              <div>
-                <span className="text-3xl">{t.icon}</span>
-                <h2 className="mt-3 text-lg font-black tracking-tight text-slate-950">
-                  {t.title}
-                </h2>
-                <p className="mt-1 text-sm leading-5 text-slate-500">{t.desc}</p>
-              </div>
-              <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-brand-navy">
-                Open
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="transition group-hover:translate-x-0.5">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
+              <span
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl ${t.bg} sm:mb-3`}
+              >
+                {t.icon}
               </span>
-            </Link>
+              <span className="min-w-0 flex-1">
+                <span className="block text-lg font-black tracking-tight text-slate-950">
+                  {t.title}
+                </span>
+                <span className="mt-0.5 block text-sm leading-5 text-slate-500">
+                  {t.desc}
+                </span>
+              </span>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                className="shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-brand-navy sm:hidden"
+              >
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+            </a>
           ))}
         </div>
 
-        {/* Footer actions */}
-        <div className="mt-8 flex flex-col items-center gap-3">
-          <Link
-            href="/"
-            className="text-sm font-semibold text-slate-500 underline-offset-4 hover:text-slate-900 hover:underline"
+        {/* Footer */}
+        <div className="mt-10 flex flex-col items-center gap-2">
+          <a
+            href={site}
+            className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
           >
-            ← View storefront
-          </Link>
-          <p className="text-center text-xs text-slate-400">
-            Signed in as staff · Golden Stone Supply
+            🏪 View storefront
+          </a>
+          <p className="mt-1 text-center text-xs text-slate-400">
+            Golden Stone Supply · Staff
           </p>
         </div>
       </div>

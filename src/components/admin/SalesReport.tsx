@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { formatPrice } from "@/lib/utils";
 
 interface OrderItemRow {
+  id: string;
   name: string;
   sku: string | null;
   quantity: number;
@@ -251,23 +252,16 @@ export default function SalesReport({
                       <th className="text-right font-semibold">List</th>
                       <th className="text-right font-semibold">Sold</th>
                       <th className="text-right font-semibold">Discount</th>
+                      <th className="text-right font-semibold">Edit</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {o.order_items.map((it, i) => (
-                      <tr key={i} className="border-t border-slate-100">
-                        <td className="py-1.5 text-slate-800">
-                          {it.name}
-                          {it.discount_reason && <span className="ml-1 text-amber-700">({it.discount_reason})</span>}
-                        </td>
-                        <td className="py-1.5 text-right">{it.quantity}</td>
-                        <td className="py-1.5 text-right text-slate-500">{it.list_price != null ? formatPrice(it.list_price) : "—"}</td>
-                        <td className="py-1.5 text-right font-semibold">{formatPrice(it.unit_price)}</td>
-                        <td className="py-1.5 text-right text-amber-700">{Number(it.discount_amount) > 0 ? `−${formatPrice(it.discount_amount)}` : "—"}</td>
-                      </tr>
+                    {o.order_items.map((it) => (
+                      <EditableItemRow key={it.id} item={it} onSaved={() => router.refresh()} />
                     ))}
                   </tbody>
                 </table>
+                <p className="mt-2 text-right text-xs text-slate-400">Editing a price updates the order total and the exports.</p>
               </div>
             )}
           </div>
@@ -283,5 +277,88 @@ function StatCard({ label, value, accent = "text-slate-950" }: { label: string; 
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
       <p className={`mt-1 text-xl font-black tracking-tight ${accent}`}>{value}</p>
     </div>
+  );
+}
+
+function EditableItemRow({ item, onSaved }: { item: OrderItemRow; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [price, setPrice] = useState(item.unit_price.toFixed(2));
+  const [reason, setReason] = useState(item.discount_reason ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const list = item.list_price ?? item.unit_price;
+  const newPrice = Number(price);
+  const wouldDiscount = list - newPrice > 0;
+
+  async function save() {
+    setError("");
+    if (isNaN(newPrice) || newPrice < 0) { setError("Invalid price"); return; }
+    if (wouldDiscount && !reason.trim()) { setError("Reason required for a discount"); return; }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/edit-sale-item", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: item.id, newUnitPrice: newPrice, discountReason: reason }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error || "Failed"); setSaving(false); return; }
+      setEditing(false);
+      onSaved(); // refresh the report so totals + exports reflect the change
+    } catch {
+      setError("Failed to save");
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <tr className="border-t border-slate-100 bg-amber-50/40">
+        <td className="py-2 text-slate-800" colSpan={2}>
+          <span className="font-semibold">{item.name}</span>
+          <span className="ml-2 text-slate-400">× {item.quantity}</span>
+        </td>
+        <td className="py-2 text-right text-slate-500">{item.list_price != null ? formatPrice(item.list_price) : "—"}</td>
+        <td className="py-2 text-right">
+          <span className="text-slate-400">$</span>
+          <input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)}
+            className="ml-1 w-20 rounded border border-slate-300 px-2 py-1 text-right text-xs" autoFocus />
+        </td>
+        <td className="py-2 text-right" colSpan={2}>
+          <div className="flex flex-col items-end gap-1">
+            {wouldDiscount && (
+              <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Discount reason"
+                className="w-full max-w-[180px] rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs" />
+            )}
+            {error && <span className="text-rose-600">{error}</span>}
+            <div className="flex gap-1">
+              <button onClick={save} disabled={saving} className="rounded bg-brand-navy px-2 py-1 text-xs font-bold text-white disabled:opacity-50">
+                {saving ? "…" : "Save"}
+              </button>
+              <button onClick={() => { setEditing(false); setPrice(item.unit_price.toFixed(2)); setError(""); }} className="rounded border border-slate-200 px-2 py-1 text-xs">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className="border-t border-slate-100">
+      <td className="py-1.5 text-slate-800">
+        {item.name}
+        {item.discount_reason && <span className="ml-1 text-amber-700">({item.discount_reason})</span>}
+      </td>
+      <td className="py-1.5 text-right">{item.quantity}</td>
+      <td className="py-1.5 text-right text-slate-500">{item.list_price != null ? formatPrice(item.list_price) : "—"}</td>
+      <td className="py-1.5 text-right font-semibold">{formatPrice(item.unit_price)}</td>
+      <td className="py-1.5 text-right text-amber-700">{Number(item.discount_amount) > 0 ? `−${formatPrice(item.discount_amount)}` : "—"}</td>
+      <td className="py-1.5 text-right">
+        <button onClick={() => setEditing(true)} className="font-semibold text-brand-navy hover:underline">Edit</button>
+      </td>
+    </tr>
   );
 }

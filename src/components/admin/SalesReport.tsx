@@ -86,7 +86,7 @@ export default function SalesReport({
         rows.push([
           o.order_number,
           new Date(o.created_at).toLocaleString(),
-          o.source === "walk_in" ? "Walk-in" : "Online",
+          o.source === "walk_in" ? "Walk-in" : o.source === "manual" ? "Manual" : "Online",
           o.sold_by_name || "",
           it.name,
           it.sku ?? "",
@@ -99,12 +99,45 @@ export default function SalesReport({
         ]);
       }
     }
+    downloadCsv(rows, `gsw-sales-${from}-to-${to}.csv`);
+  }
+
+  // QuickBooks Online — Sales Receipt import format.
+  // One row per line item; rows sharing a Sales Receipt No. group into one receipt.
+  function exportQuickBooks() {
+    const rows: string[][] = [
+      ["SalesReceiptNo", "Customer", "SalesReceiptDate", "Item(Product/Service)", "ItemDescription", "ItemQuantity", "ItemRate", "ItemAmount"],
+    ];
+    for (const o of orders) {
+      const date = new Date(o.created_at);
+      const qbDate = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
+      const customer =
+        o.source === "walk_in" ? "Walk-in Customer"
+        : o.source === "manual" ? "Walk-in Customer"
+        : "Online Customer";
+      for (const it of o.order_items) {
+        rows.push([
+          o.order_number,
+          customer,
+          qbDate,
+          it.name,
+          it.discount_reason ? `${it.name} (${it.discount_reason})` : it.name,
+          String(it.quantity),
+          it.unit_price.toFixed(2),
+          (it.unit_price * it.quantity).toFixed(2),
+        ]);
+      }
+    }
+    downloadCsv(rows, `gsw-quickbooks-${from}-to-${to}.csv`);
+  }
+
+  function downloadCsv(rows: string[][], filename: string) {
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `gsw-sales-${from}-to-${to}.csv`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -116,9 +149,14 @@ export default function SalesReport({
           <h1 className="text-2xl font-black tracking-tight text-slate-950">Sales Report</h1>
           <p className="mt-1 text-sm text-slate-500">{from} → {to} · {stats.orders} orders</p>
         </div>
-        <button onClick={exportCsv} className="rounded-xl bg-brand-navy px-4 py-2 text-sm font-bold text-white hover:bg-slate-800">
-          ⬇ Export CSV
-        </button>
+        <div className="flex gap-2">
+          <button onClick={exportCsv} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+            ⬇ CSV
+          </button>
+          <button onClick={exportQuickBooks} className="rounded-xl bg-brand-navy px-4 py-2 text-sm font-bold text-white hover:bg-slate-800">
+            ⬇ QuickBooks
+          </button>
+        </div>
       </div>
 
       {/* Range filters */}
@@ -191,8 +229,8 @@ export default function SalesReport({
               className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50">
               <div>
                 <span className="font-mono text-sm font-bold text-slate-900">{o.order_number}</span>
-                <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${o.source === "walk_in" ? "bg-sky-100 text-sky-800" : "bg-violet-100 text-violet-800"}`}>
-                  {o.source === "walk_in" ? "Walk-in" : "Online"}
+                <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${o.source === "walk_in" ? "bg-sky-100 text-sky-800" : o.source === "manual" ? "bg-orange-100 text-orange-800" : "bg-violet-100 text-violet-800"}`}>
+                  {o.source === "walk_in" ? "Walk-in" : o.source === "manual" ? "Manual" : "Online"}
                 </span>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {new Date(o.created_at).toLocaleString()} · {o.sold_by_name || "—"}

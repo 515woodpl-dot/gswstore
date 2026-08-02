@@ -49,3 +49,24 @@ textarea:focus-visible {
     scroll-behavior: auto;
   }
 }
+
+/* ── Receipt print styles ────────────────────────────────────────────────────
+   When printing from the walk-in screen, hide the entire page and show
+   only the #gsw-receipt element at the correct thermal-printer width. */
+@media print {
+  body > * { display: none !important; }
+  #__next > * { display: none !important; }
+  #gsw-receipt {
+    display: block !important;
+    width: 72mm;          /* standard 80mm thermal roll, ~72mm printable */
+    margin: 0 auto;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #000;
+  }
+  /* Hide browser headers/footers */
+  @page {
+    size: 80mm auto;
+    margin: 4mm;
+  }
+}

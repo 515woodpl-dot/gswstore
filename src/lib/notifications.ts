@@ -259,3 +259,116 @@ export async function sendStatusEmail(
   if (res.ok) console.log(`[Resend] Status email (${order.status}) sent to ${customerEmail}`);
   else console.warn(`[Resend] Status email ${res.status}: ${await res.text()}`);
 }
+
+// ── Receipt email for completed in-store / walk-in / manual sales ────────────
+interface ReceiptItem {
+  name: string;
+  quantity: number;
+  unit_price: number;
+  list_price?: number | null;
+  discount_amount?: number;
+}
+interface ReceiptData {
+  orderNumber: string;
+  total: number;
+  discountTotal?: number;
+  items: ReceiptItem[];
+  soldByName?: string;
+  createdAt?: string;
+  source?: string;
+}
+
+export async function sendReceiptEmail(
+  receipt: ReceiptData,
+  customerEmail: string,
+  customerName: string
+): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM || "noreply@orders.goldenstonesupply.com";
+  const replyTo = process.env.SHOP_NOTIFY_EMAIL || BRAND.orderEmail;
+
+  if (!apiKey) {
+    console.warn("[Resend] RESEND_API_KEY not set — skipping receipt email");
+    return;
+  }
+  if (!customerEmail || !customerEmail.includes("@")) return; // no email, nothing to send
+
+  const dateStr = receipt.createdAt
+    ? new Date(receipt.createdAt).toLocaleString()
+    : new Date().toLocaleString();
+
+  const itemRows = receipt.items
+    .map((i) => {
+      const disc = i.discount_amount && i.discount_amount > 0
+        ? `<div style="font-size:0.75rem;color:#b45309">−$${i.discount_amount.toFixed(2)} discount</div>`
+        : "";
+      return `<tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0">${i.name}${disc}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:center">${i.quantity}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right">$${(i.unit_price * i.quantity).toFixed(2)}</td>
+      </tr>`;
+    })
+    .join("");
+
+  const discountRow = receipt.discountTotal && receipt.discountTotal > 0
+    ? `<tr><td colspan="2" style="padding:6px 12px;text-align:right;color:#b45309;font-size:0.85rem">Total savings</td>
+       <td style="padding:6px 12px;text-align:right;color:#b45309;font-size:0.85rem">−$${receipt.discountTotal.toFixed(2)}</td></tr>`
+    : "";
+
+  const html = `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f8f9fa;font-family:sans-serif">
+<div style="max-width:480px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
+  <div style="background:#435d69;padding:24px 28px;text-align:center">
+    <h1 style="margin:0;color:#fff;font-size:1.3rem;font-weight:700">Receipt</h1>
+    <p style="margin:6px 0 0;color:rgba(255,255,255,0.75);font-size:0.85rem">${receipt.orderNumber}</p>
+  </div>
+  <div style="padding:24px 28px">
+    <p style="margin:0 0 4px;color:#374151;font-size:0.9rem">${customerName ? `Hi ${customerName},` : "Thank you for your purchase!"}</p>
+    <p style="margin:0 0 20px;color:#9ca3af;font-size:0.8rem">${dateStr}${receipt.soldByName ? ` · Served by ${receipt.soldByName}` : ""}</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:16px">
+      <thead>
+        <tr style="background:#f9fafb">
+          <th style="padding:10px 12px;text-align:left;font-size:0.8rem;color:#6b7280">Item</th>
+          <th style="padding:10px 12px;text-align:center;font-size:0.8rem;color:#6b7280">Qty</th>
+          <th style="padding:10px 12px;text-align:right;font-size:0.8rem;color:#6b7280">Price</th>
+        </tr>
+      </thead>
+      <tbody>${itemRows}</tbody>
+      <tfoot>
+        ${discountRow}
+        <tr style="background:#f9fafb">
+          <td colspan="2" style="padding:10px 12px;font-weight:700;color:#111827">Total Paid</td>
+          <td style="padding:10px 12px;text-align:right;font-weight:700;color:#111827;font-size:1.05rem">$${receipt.total.toFixed(2)}</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <p style="margin:0;font-size:0.78rem;color:#9ca3af;text-align:center">
+      Thank you for shopping at ${BRAND.name}.<br>
+      Questions? Reply to this email.
+    </p>
+  </div>
+</div>
+</body>
+</html>`;
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: `${BRAND.name} <${from}>`,
+        to: customerEmail,
+        reply_to: replyTo,
+        subject: `Your receipt — ${receipt.orderNumber}`,
+        html,
+      }),
+    });
+    if (res.ok) console.log(`[Resend] Receipt sent to ${customerEmail} for ${receipt.orderNumber}`);
+    else console.warn(`[Resend] Receipt failed ${res.status}`);
+  } catch (e) {
+    console.warn("[Resend] Receipt error:", e);
+  }
+}

@@ -9,7 +9,7 @@ import type { InventoryItem } from "@/types";
 function genOrderNumber() {
   const d = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const r = Math.random().toString(36).slice(2).padEnd(6, "0").slice(0, 6).toUpperCase();
-  return `GSS-${d}-${r}`;
+  return `GSW-${d}-${r}`;
 }
 
 interface PosLine {
@@ -91,8 +91,7 @@ export default function WalkInPos() {
   async function completeSale() {
     setError("");
     if (lines.length === 0) { setError("Add at least one product."); return; }
-    if (!custEmail.trim() || !custEmail.includes("@")) { setError("Enter the customer's email."); return; }
-    if (!custName.trim()) { setError("Enter the customer's name."); return; }
+    if (custEmail.trim() && !custEmail.includes("@")) { setError("That email doesn't look valid."); return; }
     if (discountTotal > 0 && !discountReason.trim()) {
       setError("A discount was applied — please enter a reason.");
       return;
@@ -100,12 +99,17 @@ export default function WalkInPos() {
 
     setSaving(true);
     try {
-      const { data: cust, error: custErr } = await sb
-        .from("walk_in_customers")
-        .upsert({ email: custEmail.trim().toLowerCase(), name: custName.trim() }, { onConflict: "email" })
-        .select("id")
-        .single();
-      if (custErr || !cust) throw new Error(custErr?.message || "Failed to save customer");
+      // Only create/link a customer record if an email was provided.
+      let customerId: string | null = null;
+      if (custEmail.trim() && custEmail.includes("@")) {
+        const { data: cust, error: custErr } = await sb
+          .from("walk_in_customers")
+          .upsert({ email: custEmail.trim().toLowerCase(), name: custName.trim() || custEmail.trim() }, { onConflict: "email" })
+          .select("id")
+          .single();
+        if (custErr) throw new Error(custErr.message || "Failed to save customer");
+        customerId = cust?.id ?? null;
+      }
 
       const soldByName =
         (user?.user_metadata?.full_name as string | undefined) ||
@@ -120,7 +124,7 @@ export default function WalkInPos() {
           total,
           notes: "",
           source: "walk_in",
-          walk_in_customer_id: cust.id,
+          walk_in_customer_id: customerId,
           fulfillment: "pickup",
           sold_by_id: user?.id ?? null,
           sold_by_name: soldByName,
@@ -148,6 +152,15 @@ export default function WalkInPos() {
       await Promise.all(
         lines.map((l) => sb.rpc("decrement_inventory", { p_item_id: l.item.id, p_qty: l.qty }))
       );
+
+      // Email a receipt if the customer left an email (fire-and-forget).
+      if (customerId) {
+        fetch("/api/receipt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: order.id }),
+        }).catch(() => {});
+      }
 
       setDoneOrder(order.order_number);
       setLines([]);
@@ -255,17 +268,23 @@ export default function WalkInPos() {
         {/* Right: customer + total */}
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <h2 className="text-base font-bold text-slate-950">Customer</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Saved for purchase history, newsletter, and future discounts.</p>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-slate-950">Customer</h2>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">Optional</span>
+            </div>
+            <p className="mt-0.5 text-xs text-slate-500">Add an email to send a receipt and save for marketing. Leave blank for a quick anonymous sale.</p>
             <label className="mt-4 block">
               <span className="mb-1.5 block text-sm font-semibold text-slate-800">Name</span>
               <input value={custName} onChange={(e) => setCustName(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-brand-navy" placeholder="Customer name" />
+                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-brand-navy" placeholder="Customer name (optional)" />
             </label>
             <label className="mt-3 block">
               <span className="mb-1.5 block text-sm font-semibold text-slate-800">Email</span>
               <input type="email" value={custEmail} onChange={(e) => setCustEmail(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-brand-navy" placeholder="customer@email.com" />
+                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-brand-navy" placeholder="customer@email.com (optional)" />
+              {custEmail.trim() && custEmail.includes("@") && (
+                <span className="mt-1 block text-xs text-emerald-600">✓ A receipt will be emailed to this address.</span>
+              )}
             </label>
           </div>
 

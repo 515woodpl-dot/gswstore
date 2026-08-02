@@ -9,7 +9,7 @@ import type { InventoryItem } from "@/types";
 function genOrderNumber(dateStr: string) {
   const d = dateStr.replace(/-/g, "");
   const r = Math.random().toString(36).slice(2).padEnd(6, "0").slice(0, 6).toUpperCase();
-  return `GSS-${d}-M${r.slice(0, 5)}`;
+  return `GSW-${d}-M${r.slice(0, 5)}`;
 }
 
 interface Line {
@@ -159,6 +159,15 @@ export default function ManualSale() {
       );
 
       setDoneOrder(order.order_number);
+
+      // Email a receipt if a customer email was provided (fire-and-forget).
+      if (customerId) {
+        fetch("/api/receipt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: order.id }),
+        }).catch(() => {});
+      }
       setLines([]); setCustName(""); setCustEmail(""); setManualNote(""); setDiscountReason("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save sale");

@@ -9,7 +9,7 @@ import type { InventoryItem } from "@/types";
 function genOrderNumber(dateStr: string) {
   const d = dateStr.replace(/-/g, "");
   const r = Math.random().toString(36).slice(2).padEnd(6, "0").slice(0, 6).toUpperCase();
-  return `GSW-${d}-M${r.slice(0, 5)}`;
+  return `GSS-${d}-M${r.slice(0, 5)}`;
 }
 
 interface Line {

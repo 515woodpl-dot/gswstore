@@ -10,7 +10,7 @@
 
 export const BRAND = {
   /** Store display name — emails, titles, footer */
-  name: process.env.NEXT_PUBLIC_STORE_NAME || "Golden Stone Tools",
+  name: process.env.NEXT_PUBLIC_STORE_NAME || "Golden Stone Supply",
 
   /** Short name / abbreviation */
   shortName: process.env.NEXT_PUBLIC_STORE_SHORT_NAME || "GST",

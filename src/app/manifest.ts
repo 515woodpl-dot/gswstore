@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Golden Stone Supply — Staff",
-    short_name: "GSW Staff",
+    short_name: "GSS Staff",
     description: "Staff portal: alerts, inventory, and walk-in sales.",
     start_url: "/staff",
     scope: "/",

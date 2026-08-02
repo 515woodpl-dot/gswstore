@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           idempotency_key: randomUUID(),
           email_address: user.email,
-          note: `GSW user ${user.id}`,
+          note: `GSS user ${user.id}`,
         }),
       });
       const custData = await custRes.json();

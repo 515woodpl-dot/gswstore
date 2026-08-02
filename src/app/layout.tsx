@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "GSW Staff",
+    title: "GSS Staff",
   },
   formatDetection: { telephone: false },
 };

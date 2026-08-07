@@ -237,7 +237,10 @@ export default function InventoryManager({ initialItems, categories }: { initial
                     : <div className="h-10 w-10 rounded-lg bg-slate-100" />}
                 </td>
                 <td className="px-4 py-3">
-                  <p className="font-medium text-slate-900">{row.name}</p>
+                  <p className="font-medium text-slate-900">
+                    {row.name}
+                    {row.featured && <span className="ml-1.5 text-xs">⭐</span>}
+                  </p>
                   <p className="text-xs text-slate-400 font-mono">{row.id}</p>
                 </td>
                 <td className="px-4 py-3 text-slate-600">{row.category_name}</td>
@@ -499,7 +502,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
               </label>
               <label className="flex items-center gap-2 py-1">
                 <input type="checkbox" checked={editing.featured} onChange={(e) => setEditing({ ...editing, featured: e.target.checked })} className="h-4 w-4 rounded" />
-                <span className="text-sm font-semibold text-slate-700">Featured (homepage slideshow)</span>
+                <span className="text-sm font-semibold text-slate-700">⭐ Staff Pick <span className="font-normal text-slate-400">(shows in Staff Picks section on homepage)</span></span>
               </label>
               <label className="flex items-center gap-2 py-1">
                 <input type="checkbox" checked={editing.new_arrival} onChange={(e) => setEditing({ ...editing, new_arrival: e.target.checked })} className="h-4 w-4 rounded" />

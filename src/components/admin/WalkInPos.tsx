@@ -38,6 +38,7 @@ export default function WalkInPos() {
     taxRate: number; taxAmount: number;
   } | null>(null);
   const [taxRate, setTaxRate] = useState(0);
+  const [applyTax, setApplyTax] = useState(true);
 
   // Fetch store ZIP and its tax rate on mount
   useEffect(() => {
@@ -91,7 +92,7 @@ export default function WalkInPos() {
   const total = lines.reduce((s, l) => s + l.soldPrice * l.qty, 0);
   const listTotal = lines.reduce((s, l) => s + l.listPrice * l.qty, 0);
   const discountTotal = Math.max(0, listTotal - total);
-  const taxAmount = taxRate > 0 ? Math.round(total * taxRate * 100) / 100 : 0;
+  const taxAmount = applyTax && taxRate > 0 ? Math.round(total * taxRate * 100) / 100 : 0;
   const grandTotal = total + taxAmount;
 
   function addLine(item: InventoryItem) {
@@ -428,9 +429,17 @@ export default function WalkInPos() {
               </>
             )}
             {taxRate > 0 && (
-              <div className="mt-1 flex items-center justify-between text-sm text-slate-600">
-                <span>Tax ({(taxRate * 100).toFixed(2)}%)</span>
-                <span className="font-semibold">{formatPrice(taxAmount)}</span>
+              <div className="flex items-center justify-between text-sm">
+                <label className="flex cursor-pointer items-center gap-2 text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={applyTax}
+                    onChange={(e) => setApplyTax(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-brand-navy"
+                  />
+                  <span>Tax ({(taxRate * 100).toFixed(2)}%)</span>
+                </label>
+                <span className="font-semibold">{applyTax ? formatPrice(taxAmount) : "—"}</span>
               </div>
             )}
             <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">

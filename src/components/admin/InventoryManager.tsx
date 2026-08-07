@@ -155,7 +155,9 @@ export default function InventoryManager({ initialItems, categories }: { initial
       voltage: editing.voltage ?? "", sku: editingWithSku.sku ?? "",
       description: editing.description ?? "",
       amount: Number(editing.amount) || 0, store_price: Number(editing.store_price) || 0, sale_price: editing.sale_price ? Number(editing.sale_price) : null,
-      image_url: editing.image_url || null, images: editing.images ?? [], new_arrival: editing.new_arrival ?? false,
+      image_url: editing.image_url || null, images: editing.images ?? [],
+      featured: editing.featured ?? false,
+      new_arrival: editing.new_arrival ?? false,
       attributes: editing.attributes ?? {},
       tax_enabled: editing.tax_enabled ?? false,
       tax_rate_percent: Number(editing.tax_rate_percent) || 0,
@@ -178,6 +180,8 @@ export default function InventoryManager({ initialItems, categories }: { initial
       const exists = withoutOld.some((p) => p.id === payload.id);
       return exists ? withoutOld.map((p) => (p.id === payload.id ? payload : p)) : [...withoutOld, payload];
     });
+    // Bust the storefront cache so Staff Picks / featured changes show immediately.
+    fetch("/api/admin/revalidate", { method: "POST" }).catch(() => {});
     setEditing(null); setOriginalId(null); setSaving(false);
   }
 

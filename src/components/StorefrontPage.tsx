@@ -13,7 +13,7 @@ import PromoHero from "@/components/PromoHero";
 import ProductRow from "@/components/ProductRow";
 import NewsletterSignup from "@/components/NewsletterSignup";
 
-export const revalidate = 60;
+export const revalidate = 5;
 
 interface Props {
   searchParams: Promise<{ q?: string; cat?: string; account?: string }>;

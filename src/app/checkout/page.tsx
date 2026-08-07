@@ -19,15 +19,31 @@ export default function CheckoutPage() {
   const [selectedCard, setSelectedCard] = useState<string>("");
   const [cardPayError, setCardPayError] = useState("");
   const [address, setAddress] = useState("");
+  const [customerZip, setCustomerZip] = useState("");
+  const [taxRate, setTaxRate] = useState<number | null>(null);
+  const [taxLoading, setTaxLoading] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
   const items = cart?.items ?? [];
   const FREE_DELIVERY_THRESHOLD = 100;
   const qualifiesFreeDelivery = total >= FREE_DELIVERY_THRESHOLD;
+  const taxAmount = taxRate != null ? Math.round(total * taxRate * 100) / 100 : 0;
 
-  // 3% + $0.30 processing fee — only applied when paying by card
-  const cardFee = payMethod !== "pay_later" ? Math.round((total * 0.03 + 0.30) * 100) / 100 : 0;
-  const chargeTotal = total + cardFee;
+  // 3% + $0.30 processing fee on the taxed subtotal — only when paying by card
+  const cardFee = payMethod !== "pay_later" ? Math.round(((total + taxAmount) * 0.03 + 0.30) * 100) / 100 : 0;
+  const chargeTotal = total + taxAmount + cardFee;
+
+  async function lookupTax(zip: string) {
+    const clean = zip.trim();
+    if (clean.length !== 5 || !/^\d{5}$/.test(clean)) { setTaxRate(null); return; }
+    setTaxLoading(true);
+    try {
+      const res = await fetch(`/api/admin/tax-rates?zip=${clean}`);
+      if (res.ok) { const d = await res.json(); setTaxRate(d.combined_rate ?? null); }
+      else setTaxRate(null);
+    } catch { setTaxRate(null); }
+    setTaxLoading(false);
+  }
 
   // Load saved cards when user is available
   useEffect(() => {
@@ -61,9 +77,12 @@ export default function CheckoutPage() {
     }
     setPlacing(true); setError(""); setCardPayError("");
     try {
+      const taxNote = taxRate != null && taxAmount > 0
+        ? ` · Tax (${customerZip} ${(taxRate * 100).toFixed(2)}%): ${formatPrice(taxAmount)}`
+        : "";
       const orderNotes = paymentId
-        ? `${notes}${notes ? " · " : ""}[Paid online · Square ${paymentId}${cardFee > 0 ? ` · incl. $${cardFee.toFixed(2)} processing fee` : ""}]`
-        : notes;
+        ? `${notes}${notes ? " · " : ""}[Paid online · Square ${paymentId}${cardFee > 0 ? ` · incl. ${formatPrice(cardFee)} processing fee` : ""}${taxNote}]`
+        : `${notes}${taxNote}`;
       const order = await createOrder(user.id, cart, orderNotes, fulfillment, address);
       await refresh();
       fetch("/api/orders/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order_id: order.id }) }).catch(() => {});
@@ -171,6 +190,33 @@ export default function CheckoutPage() {
                 className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-navy" />
             </label>
           </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <h2 className="text-lg font-bold text-slate-950">Your ZIP code</h2>
+            <p className="mt-1 text-sm text-slate-500">Used to calculate Washington sales tax.</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <input
+                value={customerZip}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "").slice(0, 5);
+                  setCustomerZip(v);
+                  if (v.length === 5) lookupTax(v);
+                  else setTaxRate(null);
+                }}
+                placeholder="98198"
+                inputMode="numeric"
+                maxLength={5}
+                className="w-32 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-mono outline-none focus:border-brand-navy"
+              />
+              {taxLoading && <span className="text-xs text-slate-400">Looking up rate…</span>}
+              {!taxLoading && taxRate != null && customerZip.length === 5 && (
+                <span className="text-sm font-semibold text-emerald-700">✓ {(taxRate * 100).toFixed(2)}% sales tax</span>
+              )}
+              {!taxLoading && taxRate === null && customerZip.length === 5 && (
+                <span className="text-xs text-amber-700">ZIP not found in WA tax database — no tax applied</span>
+              )}
+            </div>
+          </section>
         </div>
 
         <aside className="h-fit rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm lg:sticky lg:top-24 sm:p-6">
@@ -185,6 +231,15 @@ export default function CheckoutPage() {
                 <span>Processing fee (3% + $0.30)</span>
                 <span className="font-semibold text-slate-950">{formatPrice(cardFee)}</span>
               </div>
+            )}
+            {taxAmount > 0 && (
+              <div className="flex items-center justify-between text-sm text-slate-600">
+                <span>Sales tax ({customerZip} · {taxRate != null ? `${(taxRate * 100).toFixed(2)}%` : ""})</span>
+                <span className="font-semibold text-slate-950">{formatPrice(taxAmount)}</span>
+              </div>
+            )}
+            {!customerZip && (
+              <p className="text-xs text-amber-700">Enter your ZIP above to calculate sales tax.</p>
             )}
             <div className="flex items-center justify-between text-sm text-slate-600">
               <span>{fulfillment === "delivery" ? "Delivery" : "Pickup"}</span>

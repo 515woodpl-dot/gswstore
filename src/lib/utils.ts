@@ -50,7 +50,18 @@ export async function getUserOrders(userId: string, client?: any): Promise<Order
   return (data || []).map((o: any) => ({ ...o, items: o.order_items }));
 }
 
-// ── Format helpers ────────────────────────────────────────────────────────────
+// ── Tax rate lookup ───────────────────────────────────────────────────────────
+export async function getTaxRateForZip(zip: string): Promise<number> {
+  try {
+    const res = await fetch(`/api/admin/tax-rates?zip=${zip}`);
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return data.combined_rate ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 
 export function formatPrice(val: number | null | undefined): string {
   const n = Number(val);

@@ -32,16 +32,36 @@ export default function WalkInPos() {
   const [error, setError] = useState("");
   const [doneOrder, setDoneOrder] = useState<string | null>(null);
   const [doneData, setDoneData] = useState<{
-    orderNumber: string;
-    lines: PosLine[];
-    custName: string;
-    custEmail: string;
-    total: number;
-    discountTotal: number;
-    discountReason: string;
-    soldBy: string;
-    date: string;
+    orderNumber: string; lines: PosLine[]; custName: string;
+    custEmail: string; total: number; discountTotal: number;
+    discountReason: string; soldBy: string; date: string;
+    taxRate: number; taxAmount: number;
   } | null>(null);
+  const [taxRate, setTaxRate] = useState(0);
+
+  // Fetch store ZIP and its tax rate on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const settingsRes = await fetch("/api/admin/tax-rates?zip=store");
+        // Get store ZIP from settings then look up rate
+        const sbClient = createClient();
+        const { data: settings } = await sbClient
+          .from("store_settings")
+          .select("value")
+          .eq("key", "store_zip")
+          .single();
+        if (settings?.value) {
+          const rateRes = await fetch(`/api/admin/tax-rates?zip=${settings.value}`);
+          if (rateRes.ok) {
+            const rateData = await rateRes.json();
+            if (rateData.combined_rate) setTaxRate(Number(rateData.combined_rate));
+          }
+        }
+      } catch { /* no tax rate available, default 0 */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -71,6 +91,8 @@ export default function WalkInPos() {
   const total = lines.reduce((s, l) => s + l.soldPrice * l.qty, 0);
   const listTotal = lines.reduce((s, l) => s + l.listPrice * l.qty, 0);
   const discountTotal = Math.max(0, listTotal - total);
+  const taxAmount = taxRate > 0 ? Math.round(total * taxRate * 100) / 100 : 0;
+  const grandTotal = total + taxAmount;
 
   function addLine(item: InventoryItem) {
     const base = item.sale_price ?? item.store_price;
@@ -128,8 +150,8 @@ export default function WalkInPos() {
           order_number: genOrderNumber(),
           user_id: null,
           status: "completed",
-          total,
-          notes: "",
+          total: grandTotal,
+          notes: taxRate > 0 ? `Tax (${(taxRate * 100).toFixed(2)}%): ${formatPrice(taxAmount)}` : "",
           source: "walk_in",
           walk_in_customer_id: cust.id,
           fulfillment: "pickup",
@@ -166,11 +188,13 @@ export default function WalkInPos() {
         lines: [...lines],
         custName: custName.trim(),
         custEmail: custEmail.trim(),
-        total,
+        total: grandTotal,
         discountTotal,
         discountReason: discountReason.trim(),
         soldBy: soldByName,
         date: new Date().toLocaleString(),
+        taxRate,
+        taxAmount,
       });
       setLines([]);
       setCustName("");
@@ -216,6 +240,9 @@ export default function WalkInPos() {
             <p className="text-xs">--------------------------------</p>
             {doneData.discountTotal > 0 && (
               <div className="flex justify-between"><span>You saved:</span><span>-${doneData.discountTotal.toFixed(2)}</span></div>
+            )}
+            {doneData.taxAmount > 0 && (
+              <div className="flex justify-between text-xs"><span>Tax ({(doneData.taxRate * 100).toFixed(2)}%):</span><span>${doneData.taxAmount.toFixed(2)}</span></div>
             )}
             <div className="flex justify-between font-bold text-[15px]">
               <span>TOTAL</span>
@@ -400,9 +427,15 @@ export default function WalkInPos() {
                 </label>
               </>
             )}
+            {taxRate > 0 && (
+              <div className="mt-1 flex items-center justify-between text-sm text-slate-600">
+                <span>Tax ({(taxRate * 100).toFixed(2)}%)</span>
+                <span className="font-semibold">{formatPrice(taxAmount)}</span>
+              </div>
+            )}
             <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
               <span className="text-base font-bold text-slate-950">Total</span>
-              <span className="text-2xl font-black text-slate-950">{formatPrice(total)}</span>
+              <span className="text-2xl font-black text-slate-950">{formatPrice(grandTotal)}</span>
             </div>
 
             {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}

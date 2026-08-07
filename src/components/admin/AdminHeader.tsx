@@ -18,6 +18,7 @@ export default function AdminHeader() {
     { href: "/admin/manual-sale", label: "Past Sale" },
     { href: "/admin/sales", label: "Sales" },
     { href: "/admin/orders", label: "Orders" },
+    { href: "/admin/tax-rates", label: "Tax Rates" },
     { href: "/admin/staff", label: "Staff" },
   ];
 

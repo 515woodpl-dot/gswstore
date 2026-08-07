@@ -28,6 +28,7 @@ export default function CheckoutPage() {
   const FREE_DELIVERY_THRESHOLD = 100;
   const qualifiesFreeDelivery = total >= FREE_DELIVERY_THRESHOLD;
   const taxAmount = taxRate != null ? Math.round(total * taxRate * 100) / 100 : 0;
+  const zipReady = customerZip.length === 5; // ZIP entered — allow checkout (tax may or may not apply)
 
   // 3% + $0.30 processing fee on the taxed subtotal — only when paying by card
   const cardFee = payMethod !== "pay_later" ? Math.round(((total + taxAmount) * 0.03 + 0.30) * 100) / 100 : 0;
@@ -181,19 +182,11 @@ export default function CheckoutPage() {
           </section>
 
           <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-            <h2 className="text-lg font-bold text-slate-950">Order note</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">Orders are collected in store only. Use the notes field below to share any counter instructions.</p>
-            <label className="mt-5 block">
-              <span className="mb-2 block text-sm font-semibold text-slate-800">Optional notes</span>
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4}
-                placeholder="Example: Please hold the order until after 3 PM."
-                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-navy" />
-            </label>
-          </section>
-
-          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-            <h2 className="text-lg font-bold text-slate-950">Your ZIP code</h2>
-            <p className="mt-1 text-sm text-slate-500">Used to calculate Washington sales tax.</p>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-950">Your ZIP code</h2>
+              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-700">Required</span>
+            </div>
+            <p className="mt-1 text-sm text-slate-500">Used to calculate Washington sales tax. Must match your card's billing ZIP.</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <input
                 value={customerZip}
@@ -206,16 +199,27 @@ export default function CheckoutPage() {
                 placeholder="98198"
                 inputMode="numeric"
                 maxLength={5}
-                className="w-32 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-mono outline-none focus:border-brand-navy"
+                className={`w-32 rounded-2xl border bg-white px-4 py-3 text-sm font-mono outline-none transition ${customerZip.length === 5 && taxRate != null ? "border-emerald-400 focus:border-emerald-500" : "border-slate-300 focus:border-brand-navy"}`}
               />
               {taxLoading && <span className="text-xs text-slate-400">Looking up rate…</span>}
               {!taxLoading && taxRate != null && customerZip.length === 5 && (
                 <span className="text-sm font-semibold text-emerald-700">✓ {(taxRate * 100).toFixed(2)}% sales tax</span>
               )}
               {!taxLoading && taxRate === null && customerZip.length === 5 && (
-                <span className="text-xs text-amber-700">ZIP not found in WA tax database — no tax applied</span>
+                <span className="text-xs text-amber-700">ZIP not found — no tax applied</span>
               )}
             </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <h2 className="text-lg font-bold text-slate-950">Order note</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Orders are collected in store only. Use the notes field below to share any counter instructions.</p>
+            <label className="mt-5 block">
+              <span className="mb-2 block text-sm font-semibold text-slate-800">Optional notes</span>
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4}
+                placeholder="Example: Please hold the order until after 3 PM."
+                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-navy" />
+            </label>
           </section>
         </div>
 
@@ -290,7 +294,8 @@ export default function CheckoutPage() {
               ) : (
                 <SquareCardForm
                   amountCents={Math.round(chargeTotal * 100)}
-                  disabled={placing}
+                  disabled={placing || !zipReady}
+                  prefillZip={customerZip}
                   onPaid={(paymentId) => placeOrder(paymentId)}
                 />
               )}
@@ -298,7 +303,7 @@ export default function CheckoutPage() {
           ) : payMethod === "saved_card" ? (
             <div className="mt-4">
               {cardPayError && <p className="mb-2 text-sm text-rose-600">{cardPayError}</p>}
-              <button type="button" onClick={handleSavedCardPay} disabled={placing}
+              <button type="button" onClick={handleSavedCardPay} disabled={placing || !zipReady}
                 className="w-full rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-70">
                 {placing ? "Processing…" : `Pay $${chargeTotal.toFixed(2)} with saved card`}
               </button>
@@ -307,10 +312,15 @@ export default function CheckoutPage() {
               </p>
             </div>
           ) : (
-            <button type="button" onClick={handlePlaceOrder} disabled={placing}
-              className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-wait disabled:opacity-70">
-              {placing ? "Placing Order..." : "Place Order"}
-            </button>
+            <>
+              <button type="button" onClick={handlePlaceOrder} disabled={placing || !zipReady}
+                className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-brand-navy px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
+                {placing ? "Placing Order..." : "Place Order"}
+              </button>
+              {!zipReady && (
+                <p className="mt-2 text-center text-xs text-amber-700">Enter your ZIP code above to continue.</p>
+              )}
+            </>
           )}
           <Link href="/cart" className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">
             Back to Cart

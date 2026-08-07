@@ -8,6 +8,7 @@ interface SquareCardFormProps {
   amountCents: number;
   onPaid: (paymentId: string) => void;
   disabled?: boolean;
+  prefillZip?: string; // pre-fill billing ZIP from checkout ZIP field
 }
 
 interface TokenizeOptions {
@@ -43,7 +44,7 @@ declare global {
 
 const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 
-export default function SquareCardForm({ amountCents, onPaid, disabled }: SquareCardFormProps) {
+export default function SquareCardForm({ amountCents, onPaid, disabled, prefillZip }: SquareCardFormProps) {
   const cardRef = useRef<SquareCard | null>(null);
   const [ready, setReady] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -55,7 +56,7 @@ export default function SquareCardForm({ amountCents, onPaid, disabled }: Square
   const [line2, setLine2] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
-  const [postal, setPostal] = useState("");
+  const [postal, setPostal] = useState(prefillZip ?? "");
 
   const appId = process.env.NEXT_PUBLIC_SQUARE_APP_ID;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
@@ -97,6 +98,9 @@ export default function SquareCardForm({ amountCents, onPaid, disabled }: Square
     if (!city.trim()) return "Enter the billing city.";
     if (!state.trim()) return "Select the billing state.";
     if (!/^\d{5}(-\d{4})?$/.test(postal.trim())) return "Enter a valid billing ZIP code.";
+    if (prefillZip && postal.trim().slice(0, 5) !== prefillZip.trim()) {
+      return `Billing ZIP (${postal.trim().slice(0, 5)}) must match the ZIP you entered for tax (${prefillZip.trim()}).`;
+    }
     return null;
   }
 
@@ -168,6 +172,12 @@ export default function SquareCardForm({ amountCents, onPaid, disabled }: Square
           {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <input value={postal} onChange={(e) => setPostal(e.target.value)} placeholder="ZIP" className={inputCls} autoComplete="postal-code" inputMode="numeric" />
+        {prefillZip && postal.trim().slice(0, 5) === prefillZip.trim() && (
+          <span className="col-span-3 text-xs text-emerald-600">✓ Billing ZIP matches your tax ZIP</span>
+        )}
+        {prefillZip && postal.trim().length === 5 && postal.trim().slice(0, 5) !== prefillZip.trim() && (
+          <span className="col-span-3 text-xs text-rose-600">⚠ Billing ZIP must match your tax ZIP ({prefillZip})</span>
+        )}
       </div>
 
       <p className="pt-1 text-sm font-semibold text-slate-800">Card</p>

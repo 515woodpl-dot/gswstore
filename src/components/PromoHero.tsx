@@ -27,16 +27,7 @@ export default function PromoHero({ items }: { items: InventoryItem[] }) {
     return () => clearInterval(t);
   }, [count, next]);
 
-  if (count === 0) {
-    return (
-      <div className="flex min-h-[280px] items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-        <div>
-          <p className="text-lg font-bold text-slate-900">No featured products yet</p>
-          <p className="mt-2 text-sm text-slate-600">Mark products as &quot;featured&quot; in the admin panel to show them here.</p>
-        </div>
-      </div>
-    );
-  }
+  if (count === 0) return null;
 
   const item = items[index];
   const img = item.image_url || item.images?.[0] || PLACEHOLDER;

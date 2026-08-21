@@ -22,17 +22,7 @@ export default function FeaturedSlideshow({ items }: { items: InventoryItem[] })
     return () => clearInterval(t);
   }, [count, next]);
 
-  if (count === 0) {
-    // Graceful fallback when nothing is featured yet
-    return (
-      <div className="flex h-full min-h-[260px] items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center sm:min-h-[320px] sm:p-8">
-        <div>
-          <p className="text-lg font-bold text-slate-900">No featured products yet</p>
-          <p className="mt-2 text-sm text-slate-600">Mark up to 5 products as “featured” in the admin panel to show them here.</p>
-        </div>
-      </div>
-    );
-  }
+  if (count === 0) return null;
 
   const item = items[index];
   const img = item.image_url || item.images?.[0] || PLACEHOLDER;

@@ -48,18 +48,40 @@ export default async function StorefrontPage({ searchParams, basePath }: Props) 
         </div>
       )}
 
-      <section className="bg-white px-4 pb-4 pt-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <PromoHero items={heroItems} />
+      {/* Hero */}
+      {heroItems.length > 0 && (
+        <section className="bg-white px-4 pb-4 pt-6 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <PromoHero items={heroItems} />
+          </div>
+        </section>
+      )}
+
+      {/* Value strip — always shows, gives the page weight even with few products */}
+      <section className="border-y border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-6 px-4 py-4 text-center text-sm sm:gap-10 sm:px-6 lg:px-8">
+          <span className="flex items-center gap-2 font-semibold text-slate-700">
+            <span className="text-lg">🏪</span> In-store pickup
+          </span>
+          <span className="flex items-center gap-2 font-semibold text-slate-700">
+            <span className="text-lg">🚚</span> Local delivery
+          </span>
+          <span className="flex items-center gap-2 font-semibold text-slate-700">
+            <span className="text-lg">💳</span> Secure checkout
+          </span>
+          <span className="flex items-center gap-2 font-semibold text-slate-700">
+            <span className="text-lg">⭐</span> Trade-grade products
+          </span>
         </div>
       </section>
 
+      {/* Staff Picks */}
       {featuredItems.length > 0 && (
-        <section className="bg-slate-900 py-8">
+        <section className="bg-[#2b353f] py-8">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="mb-4 flex items-end justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.24em] text-brand-primary">Featured</p>
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-brand-blue">Featured</p>
                 <h2 className="mt-1 text-xl font-black tracking-tight text-white sm:text-2xl">Staff Picks</h2>
               </div>
               <a href="#catalog" className="text-sm font-semibold text-slate-400 transition hover:text-white">
@@ -73,15 +95,15 @@ export default async function StorefrontPage({ searchParams, basePath }: Props) 
                   <Link
                     key={item.id}
                     href={`/shop/product/${item.id}`}
-                    className="group w-44 shrink-0 overflow-hidden rounded-2xl border border-slate-700 bg-slate-800 transition hover:border-brand-primary sm:w-52"
+                    className="group w-44 shrink-0 overflow-hidden rounded-2xl border border-slate-600 bg-slate-700 transition hover:border-brand-blue sm:w-52"
                   >
-                    <div className="relative aspect-square overflow-hidden bg-slate-700">
+                    <div className="relative aspect-square overflow-hidden bg-slate-600">
                       {img && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={img} alt={item.name} className="h-full w-full object-cover transition group-hover:scale-105" />
                       )}
                       {item.sale_price && (
-                        <span className="absolute left-2 top-2 rounded-full bg-brand-primary px-2 py-0.5 text-[0.62rem] font-bold uppercase text-white">
+                        <span className="absolute left-2 top-2 rounded-full bg-brand-blue px-2 py-0.5 text-[0.62rem] font-bold uppercase text-white">
                           Sale
                         </span>
                       )}
@@ -91,8 +113,8 @@ export default async function StorefrontPage({ searchParams, basePath }: Props) 
                       <div className="mt-1.5 flex items-baseline gap-1.5">
                         {item.sale_price ? (
                           <>
-                            <span className="text-sm font-bold text-brand-primary">${item.sale_price.toFixed(2)}</span>
-                            <span className="text-xs text-slate-500 line-through">${item.store_price.toFixed(2)}</span>
+                            <span className="text-sm font-bold text-brand-blue">${item.sale_price.toFixed(2)}</span>
+                            <span className="text-xs text-slate-400 line-through">${item.store_price.toFixed(2)}</span>
                           </>
                         ) : (
                           <span className="text-sm font-bold text-white">${item.store_price.toFixed(2)}</span>
@@ -107,16 +129,18 @@ export default async function StorefrontPage({ searchParams, basePath }: Props) 
         </section>
       )}
 
+      {/* Deals / New Arrivals rows */}
       {deals.length > 0 && <ProductRow title="Top Deals" subtitle="Limited-time savings" items={deals} accent="primary" />}
       {newArrivals.length > 0 && <ProductRow title="Just In" subtitle="New Arrivals" items={newArrivals} accent="gold" />}
 
+      {/* Catalog */}
       <section id="catalog" className="scroll-mt-16 border-t border-slate-100 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">Catalog</p>
               <h2 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
-                {q ? `Results for "${q}"` : cats.length > 0 ? `${items.length} products across ${cats.length} categories` : "All Products"}
+                {q ? `Results for "${q}"` : cat ? cat : "All Products"}
               </h2>
             </div>
             {q && (

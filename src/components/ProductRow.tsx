@@ -4,7 +4,7 @@ import Link from "next/link";
 import { formatPrice } from "@/lib/utils";
 import type { InventoryItem } from "@/types";
 
-const PLACEHOLDER = "https://placehold.co/400x400/f1f5f9/64748b?text=No+Image";
+const PLACEHOLDER = "https://placehold.co/400x400/2b353f/cac9cc?text=SPS";
 
 export default function ProductRow({
   title, subtitle, items, accent = "slate",

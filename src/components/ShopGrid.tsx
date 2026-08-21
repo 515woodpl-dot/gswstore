@@ -9,7 +9,7 @@ import { StockBadge } from "@/components/ui";
 import { formatPrice } from "@/lib/utils";
 import type { InventoryItem } from "@/types";
 
-const PLACEHOLDER = "https://placehold.co/720x540/1e3a5f/ffffff?text=Golden+Stone+Tools";
+const PLACEHOLDER = "https://placehold.co/720x540/2b353f/cac9cc?text=Stone+Product+Supply";
 
 function ProductCard({ item }: { item: InventoryItem }) {
   const { addItem } = useCart();

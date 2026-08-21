@@ -9,7 +9,7 @@ type BrandLogoProps = {
 
 // Intrinsic sizes of the source files — used to reserve exact space so the
 // logo doesn't reflow/shrink after the image loads.
-const SQUARE = { w: 450, h: 348, ratio: 450 / 348 };
+const SQUARE = { w: 344, h: 348, ratio: 344 / 348 };
 const WIDE = { w: 1530, h: 348, ratio: 1530 / 348 };
 
 export default function BrandLogo({ href, className = "", compact = false }: BrandLogoProps) {

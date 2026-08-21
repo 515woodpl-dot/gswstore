@@ -36,7 +36,7 @@ export default async function AdminDashboardPage() {
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header */}
       <div className="mb-8">
-        <p className="text-xs font-bold uppercase tracking-[0.24em] text-brand-gold">Golden Stone Supply</p>
+        <p className="text-xs font-bold uppercase tracking-[0.24em] text-brand-gold">Stone Product Supply</p>
         <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">Admin Dashboard</h1>
         <p className="mt-1 text-sm text-slate-500">
           {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}

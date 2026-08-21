@@ -8,8 +8,8 @@
   color-scheme: light;
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --brand-primary: #ef5123;
-  --brand-secondary: #435d69;
+  --brand-primary: #355471;
+  --brand-secondary: #2b353f;
   --brand-text: #3c3c3c;
 }
 
@@ -40,7 +40,7 @@ a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #ef5123;
+  outline: 2px solid #355471;
   outline-offset: 2px;
 }
 

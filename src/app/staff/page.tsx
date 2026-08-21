@@ -55,7 +55,7 @@ export default async function StaffLandingPage() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/brand/gst-logo-horizontal.png"
-              alt="Golden Stone Supply"
+              alt="Stone Product Supply"
               width={1530}
               height={348}
               className="h-12 w-auto max-w-[240px] object-contain sm:h-14 sm:max-w-[300px]"

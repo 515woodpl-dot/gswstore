@@ -214,7 +214,7 @@ export default function WalkInPos() {
         {/* Print-only receipt — hidden on screen, shown when printing */}
         <div id="gsw-receipt" className="hidden print:block font-mono text-[13px] text-black">
           <div className="text-center">
-            <p className="text-lg font-bold">Golden Stone Supply</p>
+            <p className="text-lg font-bold">Stone Product Supply</p>
             <p className="text-xs">stoneproductsupply.com</p>
             <p className="mt-1 text-xs">================================</p>
             <p className="font-bold">RECEIPT</p>
@@ -253,7 +253,7 @@ export default function WalkInPos() {
             {doneData.custName && <p className="text-xs">Customer: {doneData.custName}</p>}
             {doneData.custEmail && <p className="text-xs">Email receipt: {doneData.custEmail}</p>}
             <p className="mt-2 text-xs">Thank you for shopping with us!</p>
-            <p className="text-xs">Golden Stone Supply</p>
+            <p className="text-xs">Stone Product Supply</p>
           </div>
         </div>
 

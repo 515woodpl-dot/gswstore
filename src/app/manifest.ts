@@ -2,15 +2,15 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Golden Stone Supply — Staff",
-    short_name: "GSS Staff",
+    name: "Stone Product Supply — Staff",
+    short_name: "SPS Staff",
     description: "Staff portal: alerts, inventory, and walk-in sales.",
     start_url: "/staff",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
     background_color: "#ffffff",
-    theme_color: "#435d69",
+    theme_color: "#2b353f",
     categories: ["business", "productivity"],
     icons: [
       { src: "/icon-192x192.png", sizes: "192x192", type: "image/png", purpose: "any" },

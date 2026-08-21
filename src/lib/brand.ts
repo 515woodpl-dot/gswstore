@@ -10,10 +10,10 @@
 
 export const BRAND = {
   /** Store display name — emails, titles, footer */
-  name: process.env.NEXT_PUBLIC_STORE_NAME || "Golden Stone Supply",
+  name: process.env.NEXT_PUBLIC_STORE_NAME || "Stone Product Supply",
 
   /** Short name / abbreviation */
-  shortName: process.env.NEXT_PUBLIC_STORE_SHORT_NAME || "GST",
+  shortName: process.env.NEXT_PUBLIC_STORE_SHORT_NAME || "SPS",
 
   /** Primary site URL (no trailing slash) */
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "https://stoneproductsupply.com",

@@ -171,7 +171,7 @@ export function StoreShell({ children, categories = [] }: { children: ReactNode;
       <footer className="border-t border-slate-200 bg-slate-50">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-3 lg:px-8">
           <div>
-            <p className="text-lg font-bold text-brand-navy">Golden Stone Supply</p>
+            <p className="text-lg font-bold text-brand-navy">Stone Product Supply</p>
             <p className="mt-3 max-w-md text-sm leading-6 text-slate-600">
               Tools, hardware, and supply essentials for crews, trades, and service teams.
             </p>

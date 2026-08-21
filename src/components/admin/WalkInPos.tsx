@@ -215,7 +215,7 @@ export default function WalkInPos() {
         <div id="gsw-receipt" className="hidden print:block font-mono text-[13px] text-black">
           <div className="text-center">
             <p className="text-lg font-bold">Golden Stone Supply</p>
-            <p className="text-xs">goldenstonesupply.com</p>
+            <p className="text-xs">stoneproductsupply.com</p>
             <p className="mt-1 text-xs">================================</p>
             <p className="font-bold">RECEIPT</p>
             <p className="text-xs">{doneData.orderNumber}</p>

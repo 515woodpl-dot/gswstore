@@ -9,7 +9,7 @@ export async function sendOrderConfirmationEmail(
   customerName: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM || "noreply@mail.goldenstonesupply.com";
+  const from = process.env.RESEND_FROM || "noreply@mail.stoneproductsupply.com";
   const replyTo = process.env.SHOP_NOTIFY_EMAIL || BRAND.orderEmail;
 
   if (!apiKey) {
@@ -113,7 +113,7 @@ async function sendShopNotification(
   customerName: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM || "noreply@mail.goldenstonesupply.com";
+  const from = process.env.RESEND_FROM || "noreply@mail.stoneproductsupply.com";
   const shopInbox = process.env.SHOP_NOTIFY_EMAIL || BRAND.orderEmail;
   if (!apiKey) return;
 
@@ -189,7 +189,7 @@ export async function sendStatusEmail(
   customerName: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM || "noreply@mail.goldenstonesupply.com";
+  const from = process.env.RESEND_FROM || "noreply@mail.stoneproductsupply.com";
   const replyTo = process.env.SHOP_NOTIFY_EMAIL || BRAND.orderEmail;
   if (!apiKey) { console.warn("[Resend] no key — skipping status email"); return; }
 
@@ -284,7 +284,7 @@ export async function sendReceiptEmail(
   customerName: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM || "noreply@orders.goldenstonesupply.com";
+  const from = process.env.RESEND_FROM || "noreply@orders.stoneproductsupply.com";
   const replyTo = process.env.SHOP_NOTIFY_EMAIL || BRAND.orderEmail;
 
   if (!apiKey) {

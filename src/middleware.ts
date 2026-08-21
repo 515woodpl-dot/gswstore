@@ -3,8 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
   // ── Subdomain routing ──────────────────────────────────────────────────────
-  // alerts.goldenstonesupply.com → /alerts
-  // admin.goldenstonesupply.com  → /admin
+  // alerts.stoneproductsupply.com → /alerts
+  // admin.stoneproductsupply.com  → /admin
   const host = request.headers.get("host") || "";
   const sub = host.split(":")[0].split(".")[0];
   const path = request.nextUrl.pathname;

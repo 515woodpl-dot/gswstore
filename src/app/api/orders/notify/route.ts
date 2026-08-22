@@ -18,7 +18,9 @@ export async function POST(request: NextRequest) {
     const customerName = (user.user_metadata?.full_name as string) ?? "";
     // Customer confirmation email. The alerts screen is notified via Supabase
     // Realtime (no webhook needed) — orders are broadcast on insert.
-    await sendOrderConfirmationEmail(order, customerEmail, customerName).catch(() => {});
+    await sendOrderConfirmationEmail(order, customerEmail, customerName).catch((e) => {
+      console.error("[Notify] email send failed:", e instanceof Error ? e.message : e);
+    });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[/api/orders/notify]", err);

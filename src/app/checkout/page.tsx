@@ -86,7 +86,9 @@ export default function CheckoutPage() {
         : `${notes}${taxNote}`;
       const order = await createOrder(user.id, cart, orderNotes, fulfillment, address);
       await refresh();
-      fetch("/api/orders/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order_id: order.id }) }).catch(() => {});
+      fetch("/api/orders/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order_id: order.id }) })
+        .then((r) => { if (!r.ok) console.error("[Checkout] notify failed:", r.status); })
+        .catch((e) => console.error("[Checkout] notify error:", e));
       router.push(`/account/orders?placed=${order.order_number}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed. Please try again.");

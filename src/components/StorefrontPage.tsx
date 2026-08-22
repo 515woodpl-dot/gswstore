@@ -57,24 +57,6 @@ export default async function StorefrontPage({ searchParams, basePath }: Props) 
         </section>
       )}
 
-      {/* Value strip — always shows, gives the page weight even with few products */}
-      <section className="border-y border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-6 px-4 py-4 text-center text-sm sm:gap-10 sm:px-6 lg:px-8">
-          <span className="flex items-center gap-2 font-semibold text-slate-700">
-            <span className="text-lg">🏪</span> In-store pickup
-          </span>
-          <span className="flex items-center gap-2 font-semibold text-slate-700">
-            <span className="text-lg">🚚</span> Local delivery
-          </span>
-          <span className="flex items-center gap-2 font-semibold text-slate-700">
-            <span className="text-lg">💳</span> Secure checkout
-          </span>
-          <span className="flex items-center gap-2 font-semibold text-slate-700">
-            <span className="text-lg">⭐</span> Trade-grade products
-          </span>
-        </div>
-      </section>
-
       {/* Staff Picks */}
       {featuredItems.length > 0 && (
         <section className="bg-[#2b353f] py-8">

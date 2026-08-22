@@ -24,17 +24,16 @@ https://supabase.com/dashboard/project/dibfrhhoslucjgvoszto
 → SQL Editor → New query
 ```
 
-### 1b. Run each schema file IN ORDER
+### 1b. Run the schema and migrations IN ORDER
 From the gswstore repo on GitHub, open each file, click "Raw", copy all,
-paste into a New query, click Run. Do them in this order:
+paste into a New query, click Run. Start with:
 ```
-1. STORE_SCHEMA.sql      (customers, carts, orders)
-2. CLOUD_SCHEMA.sql      (inventory, categories, admin roles, realtime,
-                          featured/images, item-unavailable status)
+1. supabase/schema/FULL_SCHEMA.sql
+2. supabase/migrations/20260630195304_reviews_attrs_tax.sql and every
+   later dated migration, in filename order
 ```
-> CLOUD_SCHEMA.sql already includes everything added later (featured products,
-> image galleries, the "Item Unavailable" status, and the staff note field).
-> All of it is safe to re-run if a paste gets interrupted.
+> `supabase/schema/STORE_SCHEMA.sql` and `supabase/schema/CLOUD_SCHEMA.sql` are
+> the old two-file setup and are kept for reference only.
 
 ### 1c. Confirm realtime is on
 ```
@@ -51,10 +50,10 @@ Database → Replication → confirm "orders" is listed
 > Plus: when staff change an order's status, the customer is auto-emailed.
 > ALL of this requires the domain to be verified first (below).
 
-### 2a. The API key (already issued)
+### 2a. The API key
 ```
-RESEND_API_KEY = re_BCvTtaW3_N3cfVcsoDJ6hha34EUhfSHmJ
-(You'll paste this into DigitalOcean in Step 3b.)
+Retrieve RESEND_API_KEY from the team password manager.
+(You'll paste it into DigitalOcean in Step 3b.)
 ```
 
 ### 2b. Verify your domain  ← REQUIRED or no email sends
@@ -81,7 +80,7 @@ https://cloud.digitalocean.com/apps → Create App
 NEXT_PUBLIC_SUPABASE_URL     https://dibfrhhoslucjgvoszto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY  (anon key — in repo .env.local)
 SUPABASE_SERVICE_ROLE_KEY    (service key)         ← mark Encrypted
-RESEND_API_KEY               re_BCvTtaW3_N3cfVcsoDJ6hha34EUhfSHmJ  ← Encrypted
+RESEND_API_KEY               (paste from password manager)  ← Encrypted
 RESEND_FROM                  orders@goldenstonetools.com
 SHOP_NOTIFY_EMAIL            orders@goldenstonetools.com
 NEXT_PUBLIC_SHOP_PHONE       +1 253-449-6246
@@ -252,7 +251,7 @@ cheaper and faster than regenerating files.
 | NEXT_PUBLIC_SUPABASE_URL | https://dibfrhhoslucjgvoszto.supabase.co | no |
 | NEXT_PUBLIC_SUPABASE_ANON_KEY | (anon key) | no |
 | SUPABASE_SERVICE_ROLE_KEY | (service key) | YES |
-| RESEND_API_KEY | re_BCvTtaW3_N3cfVcsoDJ6hha34EUhfSHmJ | YES |
+| RESEND_API_KEY | (password manager) | YES |
 | RESEND_FROM | orders@goldenstonetools.com | no |
 | SHOP_NOTIFY_EMAIL | orders@goldenstonetools.com | no |
 | NEXT_PUBLIC_SHOP_PHONE | +1 253-449-6246 | no |

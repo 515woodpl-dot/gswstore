@@ -5,24 +5,27 @@ One page. Tick top to bottom. Each step unlocks the next.
 
 ## ☐ 1. Database (Supabase SQL Editor — browser)
 ```
-□ Open: https://raw.githubusercontent.com/515woodpl-dot/gswstore/master/FULL_SCHEMA.sql
+□ Open: https://raw.githubusercontent.com/515woodpl-dot/gswstore/master/supabase/schema/FULL_SCHEMA.sql
 □ Ctrl+A → Ctrl+C → paste into SQL Editor → Run
+□ Run the dated files in supabase/migrations from
+  20260630195304_reviews_attrs_tax.sql onward, in filename order
 □ Database → Replication → confirm "orders" is listed
 ```
-> Use FULL_SCHEMA.sql — ONE file, ONE paste. Do NOT use the old
+> Use `supabase/schema/FULL_SCHEMA.sql` for the baseline. Do NOT use the old
 > STORE_SCHEMA.sql + CLOUD_SCHEMA.sql two-file method.
 >
 > ⚠ If you ever hit "column category_id does not exist", it means a
-> half-built table exists. Fix: run RESET_AND_BUILD.sql instead
+> half-built table exists. Fix: run `supabase/maintenance/RESET_AND_BUILD.sql`
+> instead
 > (drops + rebuilds clean — only safe before you have real data):
-> https://raw.githubusercontent.com/515woodpl-dot/gswstore/master/RESET_AND_BUILD.sql
+> https://raw.githubusercontent.com/515woodpl-dot/gswstore/master/supabase/maintenance/RESET_AND_BUILD.sql
 
 ## ☐ 2. Resend (browser) — start early, DNS is slow
 ```
 □ resend.com/domains → add goldenstonetools.com
 □ add its DNS records at your registrar → Verify
    (NO email sends until this shows Verified)
-□ Key already issued: re_BCvTtaW3_N3cfVcsoDJ6hha34EUhfSHmJ
+□ Retrieve the Resend API key from the team password manager
 ```
 
 ## ☐ 3. Deploy (DigitalOcean App Platform — browser)
@@ -36,7 +39,7 @@ One page. Tick top to bottom. Each step unlocks the next.
 NEXT_PUBLIC_SUPABASE_URL        https://dibfrhhoslucjgvoszto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY   (anon key)
 SUPABASE_SERVICE_ROLE_KEY       (service key)          ← Encrypted
-RESEND_API_KEY                  re_BCvTtaW3_N3cfVcsoDJ6hha34EUhfSHmJ  ← Encrypted
+RESEND_API_KEY                  (paste from password manager)  ← Encrypted
 RESEND_FROM                     orders@goldenstonetools.com
 SHOP_NOTIFY_EMAIL               orders@goldenstonetools.com
 NEXT_PUBLIC_SHOP_PHONE          +1 253-449-6246
@@ -89,16 +92,16 @@ NEXT_PUBLIC_SITE_URL            https://goldenstonetools.com
 ## Schema files — which is which
 | File | Use it for |
 |------|-----------|
-| **FULL_SCHEMA.sql** | First-time setup. One paste, builds everything. |
-| **RESET_AND_BUILD.sql** | Only if you hit the category_id error — wipes & rebuilds. Pre-data only. |
-| STORE_SCHEMA.sql / CLOUD_SCHEMA.sql | Old two-file method — DON'T use, kept for reference only. |
+| `supabase/schema/FULL_SCHEMA.sql` | First-time baseline setup. Follow it with the later dated migrations. |
+| `supabase/maintenance/RESET_AND_BUILD.sql` | Only if you hit the category_id error — wipes & rebuilds. Pre-data only. |
+| `supabase/schema/STORE_SCHEMA.sql` / `CLOUD_SCHEMA.sql` | Old two-file method — DON'T use, kept for reference only. |
 
 ## The one trap
 Can't become owner (Step 4) until deployed AND signed up once — your admin
 row points at your account, which doesn't exist until you register.
 
 ## Common issues
-- "column category_id does not exist" → run RESET_AND_BUILD.sql (Step 1 note)
+- "column category_id does not exist" → run `supabase/maintenance/RESET_AND_BUILD.sql` (Step 1 note)
 - Empty store? → no products yet, or schema didn't finish
 - Can't reach /admin? → not an owner yet (Step 4), or not signed in
 - Alerts blank? → realtime not enabled (Step 1)

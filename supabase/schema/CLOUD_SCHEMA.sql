@@ -1,6 +1,6 @@
 -- ============================================================
 -- GSW — Cloud-Only Schema (Phase 2: drop the Pi)
--- Run this AFTER STORE_SCHEMA.sql in Supabase SQL Editor.
+-- Run this AFTER supabase/schema/STORE_SCHEMA.sql in Supabase SQL Editor.
 -- Adds: inventory + categories tables (source of truth in Supabase),
 --       admin roles, staff order access, and Realtime for alerts.
 -- ============================================================

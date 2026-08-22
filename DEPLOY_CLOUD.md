@@ -34,13 +34,13 @@ No Pi. No Tailscale. No webhook. No SSE bridge. Every part talks to Supabase.
 ### Step 1 — Run the customer schema (if not already done)
 ```
 Supabase dashboard → SQL Editor → New query
-Paste contents of: gswstore/STORE_SCHEMA.sql → Run
+Paste contents of: gswstore/supabase/schema/STORE_SCHEMA.sql → Run
 ```
 
 ### Step 2 — Run the cloud schema
 ```
 SQL Editor → New query
-Paste contents of: gswstore/CLOUD_SCHEMA.sql → Run
+Paste contents of: gswstore/supabase/schema/CLOUD_SCHEMA.sql → Run
 ```
 This creates: inventory, categories, admin_users tables + Realtime on orders.
 

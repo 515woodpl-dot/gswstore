@@ -12,7 +12,7 @@ Customer → DigitalOcean (Next.js) → Tailscale VPN → Raspberry Pi (Flask :7
 ## Step 1 — Run the Supabase schema
 
 1. Open your Supabase project → SQL Editor
-2. Run `STORE_SCHEMA.sql` (this file is in the repo root)
+2. Run `supabase/schema/STORE_SCHEMA.sql`
 3. The existing inventory tables (`inventory`, `categories`, etc.) are untouched
 
 ---

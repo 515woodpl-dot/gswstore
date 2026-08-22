@@ -262,6 +262,11 @@ export default function SalesReport({
                   </tbody>
                 </table>
                 <p className="mt-2 text-right text-xs text-slate-400">Editing a price updates the order total and the exports.</p>
+                {(o.source === "walk_in" || o.source === "manual") && (
+                  <div className="mt-3 border-t border-slate-200 pt-3 text-right">
+                    <DeleteSaleButton orderId={o.id} orderNumber={o.order_number} onDeleted={() => router.refresh()} />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -360,5 +365,54 @@ function EditableItemRow({ item, onSaved }: { item: OrderItemRow; onSaved: () =>
         <button onClick={() => setEditing(true)} className="font-semibold text-brand-navy hover:underline">Edit</button>
       </td>
     </tr>
+  );
+}
+
+function DeleteSaleButton({ orderId, orderNumber, onDeleted }: { orderId: string; orderNumber: string; onDeleted: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/admin/delete-sale", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        alert(json.error || "Could not delete the sale.");
+        setDeleting(false);
+        return;
+      }
+      onDeleted();
+    } catch {
+      alert("Could not delete the sale.");
+      setDeleting(false);
+    }
+  }
+
+  if (!confirming) {
+    return (
+      <button onClick={() => setConfirming(true)}
+        className="text-xs font-semibold text-rose-600 hover:text-rose-800">
+        🗑 Remove this sale
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-2">
+      <span className="text-xs text-rose-700">Delete {orderNumber}? Inventory will be restored.</span>
+      <button onClick={handleDelete} disabled={deleting}
+        className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50">
+        {deleting ? "Deleting…" : "Yes, delete"}
+      </button>
+      <button onClick={() => setConfirming(false)}
+        className="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+        Cancel
+      </button>
+    </div>
   );
 }

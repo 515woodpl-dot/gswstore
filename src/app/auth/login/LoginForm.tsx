@@ -3,6 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
@@ -36,9 +37,8 @@ export default function LoginForm() {
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-800">Password</span>
-            <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
-              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-navy"
-              placeholder="••••••••" />
+            <PasswordInput value={password} onChange={e => setPassword(e.target.value)} required
+              className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-navy" />
           </label>
           {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
           <button type="submit" disabled={loading}

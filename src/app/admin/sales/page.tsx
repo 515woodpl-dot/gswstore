@@ -36,7 +36,7 @@ export default async function SalesPage({ searchParams }: Props) {
   const sb = await createClient();
   const { data: orders } = await sb
     .from("orders")
-    .select("id,order_number,created_at,total,discount_total,status,source,sold_by_name,walk_in_customer_id,order_items(id,name,sku,quantity,unit_price,list_price,discount_amount,discount_reason)")
+    .select("id,order_number,created_at,total,discount_total,status,source,sold_by_name,walk_in_customer_id,order_items(id,name,sku,quantity,unit_price,list_price,cost_price,discount_amount,discount_reason)")
     .gte("created_at", start.toISOString())
     .lte("created_at", end.toISOString())
     .neq("status", "cancelled")

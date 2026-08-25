@@ -9,7 +9,7 @@ interface Row {
   id: string; name: string; category_id: number | null; category_name: string;
   brand: string | null; model_number: string | null; voltage: string | null;
   sku: string | null; description: string | null; amount: number;
-  store_price: number; sale_price: number | null; image_url: string | null; images: string[] | null;
+  store_price: number; sale_price: number | null; cost_price: number; image_url: string | null; images: string[] | null;
   featured: boolean; new_arrival: boolean; store_visible: boolean;
   attributes: Record<string, string> | null;
   tax_enabled: boolean; tax_rate_percent: number;
@@ -26,7 +26,7 @@ const PRODUCT_ATTR_FIELDS = [
 
 const BLANK: Row = {
   id: "", name: "", category_id: null, category_name: "", brand: "", model_number: "",
-  voltage: "", sku: "", description: "", amount: 0, store_price: 0, sale_price: null, image_url: "", images: [], featured: false, new_arrival: false, store_visible: true,
+  voltage: "", sku: "", description: "", amount: 0, store_price: 0, sale_price: null, cost_price: 0, image_url: "", images: [], featured: false, new_arrival: false, store_visible: true,
   attributes: {}, tax_enabled: false, tax_rate_percent: 0,
   parent_id: null, variant_label: "", variant_dimension: "Color", part_number: "",
 };
@@ -154,7 +154,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
       brand: editing.brand ?? "", model_number: editing.model_number ?? "",
       voltage: editing.voltage ?? "", sku: editingWithSku.sku ?? "",
       description: editing.description ?? "",
-      amount: Number(editing.amount) || 0, store_price: Number(editing.store_price) || 0, sale_price: editing.sale_price ? Number(editing.sale_price) : null,
+      amount: Number(editing.amount) || 0, store_price: Number(editing.store_price) || 0, sale_price: editing.sale_price ? Number(editing.sale_price) : null, cost_price: Number(editing.cost_price) || 0,
       image_url: editing.image_url || null, images: editing.images ?? [],
       featured: editing.featured ?? false,
       new_arrival: editing.new_arrival ?? false,
@@ -365,6 +365,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
               <Field label="Voltage" value={editing.voltage ?? ""} onChange={(v) => setEditing({ ...editing, voltage: v })} />
               <Field label="Regular Price ($)" type="number" value={String(editing.store_price)} onChange={(v) => setEditing({ ...editing, store_price: Number(v) })} />
               <Field label="Sale Price ($)" type="number" value={String(editing.sale_price ?? "")} onChange={(v) => setEditing({ ...editing, sale_price: v ? Number(v) : null })} placeholder="Leave empty if no sale" />
+              <Field label="Cost Price ($)" type="number" value={String(editing.cost_price || "")} onChange={(v) => setEditing({ ...editing, cost_price: Number(v) || 0 })} placeholder="What you paid for it" />
               <Field label="Stock amount" type="number" value={String(editing.amount)} onChange={(v) => setEditing({ ...editing, amount: Number(v) })} />
 
               {/* Tax controls */}

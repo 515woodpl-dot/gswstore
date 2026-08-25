@@ -78,6 +78,8 @@ export interface OrderItem {
   sku: string;
   image_url: string | null;
   unit_price: number;
+  list_price?: number;
+  cost_price?: number;
   quantity: number;
 }
 

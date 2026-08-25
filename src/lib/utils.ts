@@ -29,7 +29,7 @@ export async function createOrder(
     delivery_address: fulfillment === "delivery" ? deliveryAddress : "",
   }).select().single();
   if (error) throw new Error(error.message);
-  const items = cart.items.map(ci => ({ order_id: order.id, item_id: ci.item_id, name: ci.name, sku: ci.sku, image_url: ci.image_url, unit_price: ci.sale_price ?? ci.store_price, quantity: ci.quantity }));
+  const items = cart.items.map(ci => ({ order_id: order.id, item_id: ci.item_id, name: ci.name, sku: ci.sku, image_url: ci.image_url, unit_price: ci.sale_price ?? ci.store_price, list_price: ci.store_price, cost_price: 0, quantity: ci.quantity }));
   await sb.from("order_items").insert(items);
 
   // Decrement inventory stock for each purchased item (atomic via RPC).

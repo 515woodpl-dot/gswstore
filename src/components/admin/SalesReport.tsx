@@ -11,6 +11,7 @@ interface OrderItemRow {
   quantity: number;
   unit_price: number;
   list_price: number | null;
+  cost_price: number;
   discount_amount: number;
   discount_reason: string;
 }
@@ -46,28 +47,46 @@ export default function SalesReport({
 }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [showItems, setShowItems] = useState(false);
 
   // Totals
   const stats = useMemo(() => {
-    let revenue = 0, discounts = 0, units = 0, walkIn = 0, online = 0;
-    const byStaff: Record<string, { revenue: number; discounts: number; count: number }> = {};
+    let revenue = 0, cost = 0, discounts = 0, units = 0, walkIn = 0, online = 0;
+    const byStaff: Record<string, { revenue: number; cost: number; discounts: number; count: number }> = {};
+    const byItem: Record<string, { name: string; qty: number; revenue: number; cost: number; profit: number }> = {};
 
     for (const o of orders) {
       revenue += Number(o.total);
       discounts += Number(o.discount_total);
-      for (const it of o.order_items) units += it.quantity;
+      for (const it of o.order_items) {
+        units += it.quantity;
+        const itemCost = Number(it.cost_price || 0) * it.quantity;
+        const itemRev = Number(it.unit_price) * it.quantity;
+        cost += itemCost;
+
+        const key = it.name;
+        if (!byItem[key]) byItem[key] = { name: it.name, qty: 0, revenue: 0, cost: 0, profit: 0 };
+        byItem[key].qty += it.quantity;
+        byItem[key].revenue += itemRev;
+        byItem[key].cost += itemCost;
+        byItem[key].profit += itemRev - itemCost;
+      }
       if (o.source === "walk_in") walkIn += Number(o.total); else online += Number(o.total);
 
       const staff = o.sold_by_name || (o.source === "walk_in" ? "Unknown staff" : "Online");
-      if (!byStaff[staff]) byStaff[staff] = { revenue: 0, discounts: 0, count: 0 };
+      if (!byStaff[staff]) byStaff[staff] = { revenue: 0, cost: 0, discounts: 0, count: 0 };
       byStaff[staff].revenue += Number(o.total);
       byStaff[staff].discounts += Number(o.discount_total);
       byStaff[staff].count += 1;
+      for (const it of o.order_items) byStaff[staff].cost += Number(it.cost_price || 0) * it.quantity;
     }
+    const profit = revenue - cost;
+    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     return {
-      revenue, discounts, units, walkIn, online,
+      revenue, cost, profit, margin, discounts, units, walkIn, online,
       orders: orders.length,
       byStaff: Object.entries(byStaff).sort((a, b) => b[1].revenue - a[1].revenue),
+      byItem: Object.values(byItem).sort((a, b) => b.revenue - a.revenue),
     };
   }, [orders]);
 
@@ -80,10 +99,12 @@ export default function SalesReport({
 
   function exportCsv() {
     const rows: string[][] = [
-      ["Order", "Date", "Source", "Sold by", "Item", "SKU", "Qty", "List price", "Sold price", "Discount", "Discount reason", "Line total"],
+      ["Order", "Date", "Source", "Sold by", "Item", "SKU", "Qty", "List price", "Sold price", "Cost price", "Discount", "Discount reason", "Line total", "Line profit"],
     ];
     for (const o of orders) {
       for (const it of o.order_items) {
+        const lineTotal = it.unit_price * it.quantity;
+        const lineCost = Number(it.cost_price || 0) * it.quantity;
         rows.push([
           o.order_number,
           new Date(o.created_at).toLocaleString(),
@@ -94,13 +115,15 @@ export default function SalesReport({
           String(it.quantity),
           it.list_price != null ? it.list_price.toFixed(2) : "",
           it.unit_price.toFixed(2),
+          Number(it.cost_price || 0).toFixed(2),
           Number(it.discount_amount).toFixed(2),
           it.discount_reason ?? "",
-          (it.unit_price * it.quantity).toFixed(2),
+          lineTotal.toFixed(2),
+          (lineTotal - lineCost).toFixed(2),
         ]);
       }
     }
-    downloadCsv(rows, `gsw-sales-${from}-to-${to}.csv`);
+    downloadCsv(rows, `sps-sales-${from}-to-${to}.csv`);
   }
 
   // QuickBooks Online — Sales Receipt import format.
@@ -187,15 +210,80 @@ export default function SalesReport({
       {/* Stat cards */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label="Revenue" value={formatPrice(stats.revenue)} accent="text-emerald-700" />
-        <StatCard label="Discounts given" value={formatPrice(stats.discounts)} accent="text-amber-700" />
-        <StatCard label="Units sold" value={String(stats.units)} />
-        <StatCard label="Orders" value={String(stats.orders)} />
+        <StatCard label="Cost" value={formatPrice(stats.cost)} accent="text-slate-700" />
+        <StatCard label="Profit" value={formatPrice(stats.profit)} accent={stats.profit >= 0 ? "text-emerald-700" : "text-rose-700"} />
+        <StatCard label="Margin" value={`${stats.margin.toFixed(1)}%`} accent={stats.margin >= 20 ? "text-emerald-700" : "text-amber-700"} />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3">
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Discounts given" value={formatPrice(stats.discounts)} accent="text-amber-700" />
+        <StatCard label="Units sold" value={String(stats.units)} />
         <StatCard label="Walk-in revenue" value={formatPrice(stats.walkIn)} />
         <StatCard label="Online revenue" value={formatPrice(stats.online)} />
       </div>
+
+      {/* Item profit breakdown button */}
+      <div className="mt-4 flex justify-end">
+        <button onClick={() => setShowItems(!showItems)}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+          {showItems ? "Hide item breakdown" : "📦 View profit by item"}
+        </button>
+      </div>
+
+      {/* Per-item profit breakdown */}
+      {showItems && stats.byItem.length > 0 && (
+        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 className="text-base font-bold text-slate-950">Profit by item</h2>
+          <p className="mt-1 text-xs text-slate-400">Sorted by revenue. Cost = what you paid × qty sold.</p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-xs text-slate-400">
+                  <th className="pb-2 text-left font-semibold">Item</th>
+                  <th className="pb-2 text-right font-semibold">Qty</th>
+                  <th className="pb-2 text-right font-semibold">Revenue</th>
+                  <th className="pb-2 text-right font-semibold">Cost</th>
+                  <th className="pb-2 text-right font-semibold">Profit</th>
+                  <th className="pb-2 text-right font-semibold">Margin</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.byItem.map((item) => {
+                  const margin = item.revenue > 0 ? (item.profit / item.revenue) * 100 : 0;
+                  return (
+                    <tr key={item.name} className="border-b border-slate-100 last:border-0">
+                      <td className="py-2 font-semibold text-slate-800">{item.name}</td>
+                      <td className="py-2 text-right text-slate-600">{item.qty}</td>
+                      <td className="py-2 text-right font-semibold text-slate-900">{formatPrice(item.revenue)}</td>
+                      <td className="py-2 text-right text-slate-500">{formatPrice(item.cost)}</td>
+                      <td className={`py-2 text-right font-bold ${item.profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                        {formatPrice(item.profit)}
+                      </td>
+                      <td className={`py-2 text-right text-xs font-semibold ${margin >= 20 ? "text-emerald-600" : margin >= 0 ? "text-amber-600" : "text-rose-600"}`}>
+                        {margin.toFixed(1)}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-slate-300">
+                  <td className="pt-2 font-bold text-slate-950">Totals</td>
+                  <td className="pt-2 text-right font-semibold">{stats.units}</td>
+                  <td className="pt-2 text-right font-bold text-slate-900">{formatPrice(stats.revenue)}</td>
+                  <td className="pt-2 text-right font-semibold text-slate-500">{formatPrice(stats.cost)}</td>
+                  <td className={`pt-2 text-right font-black ${stats.profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                    {formatPrice(stats.profit)}
+                  </td>
+                  <td className={`pt-2 text-right text-xs font-bold ${stats.margin >= 20 ? "text-emerald-600" : "text-amber-600"}`}>
+                    {stats.margin.toFixed(1)}%
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* By staff */}
       {stats.byStaff.length > 0 && (

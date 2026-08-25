@@ -68,7 +68,7 @@ export default function WalkInPos() {
     (async () => {
       const { data } = await sb
         .from("inventory")
-        .select("id,name,sku,brand,category_name,amount,store_price,sale_price,image_url")
+        .select("id,name,sku,brand,category_name,amount,store_price,sale_price,cost_price,image_url")
         .gt("amount", 0)
         .order("name");
       if (data) setItems(data as unknown as InventoryItem[]);
@@ -172,6 +172,7 @@ export default function WalkInPos() {
         image_url: l.item.image_url,
         unit_price: l.soldPrice,
         list_price: l.listPrice,
+        cost_price: (l.item as any).cost_price ?? 0,
         discount_amount: Math.max(0, (l.listPrice - l.soldPrice) * l.qty),
         discount_reason: (l.listPrice - l.soldPrice) > 0 ? discountReason.trim() : "",
         quantity: l.qty,

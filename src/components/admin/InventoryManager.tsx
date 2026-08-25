@@ -211,9 +211,14 @@ export default function InventoryManager({ initialItems, categories }: { initial
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-navy w-48" />
         </div>
-        <button onClick={startNew} className="rounded-xl bg-brand-navy px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 shrink-0">
-          + Add Product
-        </button>
+        <div className="flex gap-2">
+          <a href="/admin/receiving" className="rounded-xl border border-brand-navy px-4 py-2 text-center text-sm font-semibold text-brand-navy hover:bg-brand-navy/5">
+            Receive Stock
+          </a>
+          <button onClick={startNew} className="rounded-xl bg-brand-navy px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 shrink-0">
+            + Add Product
+          </button>
+        </div>
       </div>
 
       {error && !editing && <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
@@ -365,8 +370,11 @@ export default function InventoryManager({ initialItems, categories }: { initial
               <Field label="Voltage" value={editing.voltage ?? ""} onChange={(v) => setEditing({ ...editing, voltage: v })} />
               <Field label="Regular Price ($)" type="number" value={String(editing.store_price)} onChange={(v) => setEditing({ ...editing, store_price: Number(v) })} />
               <Field label="Sale Price ($)" type="number" value={String(editing.sale_price ?? "")} onChange={(v) => setEditing({ ...editing, sale_price: v ? Number(v) : null })} placeholder="Leave empty if no sale" />
-              <Field label="Cost Price ($)" type="number" value={String(editing.cost_price || "")} onChange={(v) => setEditing({ ...editing, cost_price: Number(v) || 0 })} placeholder="What you paid for it" />
+              <Field label="Average Landed Cost ($)" type="number" value={String(editing.cost_price || "")} onChange={(v) => setEditing({ ...editing, cost_price: Number(v) || 0 })} placeholder="Updated automatically by receiving" />
               <Field label="Stock amount" type="number" value={String(editing.amount)} onChange={(v) => setEditing({ ...editing, amount: Number(v) })} />
+              <p className="-mt-2 text-xs leading-5 text-slate-400 sm:col-span-2">
+                For normal deliveries, use Receive Stock so quantity and true landed cost update together. These fields remain editable for corrections.
+              </p>
 
               {/* Tax controls */}
               <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">

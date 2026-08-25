@@ -56,6 +56,12 @@ export const ADMIN_NAV: NavGroup[] = [
         icon: "📦",
       },
       {
+        href: "/admin/receiving",
+        label: "Receive Stock",
+        description: "Create batches and calculate true landed item costs",
+        icon: "🚚",
+      },
+      {
         href: "/admin/orders",
         label: "Orders",
         description: "Full order history, status updates, and fulfillment",

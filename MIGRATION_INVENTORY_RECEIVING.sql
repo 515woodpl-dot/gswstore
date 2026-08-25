@@ -1,0 +1,342 @@
+-- ============================================================
+-- GSW - Inventory receiving batches and landed cost allocation
+-- Run this entire file in the Supabase SQL Editor.
+-- Additive and safe to re-run.
+-- ============================================================
+
+ALTER TABLE inventory
+  ADD COLUMN IF NOT EXISTS cost_price NUMERIC NOT NULL DEFAULT 0;
+
+ALTER TABLE order_items
+  ADD COLUMN IF NOT EXISTS cost_price NUMERIC NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS inventory_receipts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  receipt_code TEXT NOT NULL UNIQUE,
+  supplier_name TEXT NOT NULL DEFAULT '',
+  supplier_invoice TEXT NOT NULL DEFAULT '',
+  received_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  notes TEXT NOT NULL DEFAULT '',
+  allocation_mode TEXT NOT NULL DEFAULT 'automatic'
+    CHECK (allocation_mode IN ('automatic', 'manual')),
+  item_subtotal NUMERIC NOT NULL DEFAULT 0 CHECK (item_subtotal >= 0),
+  shared_expenses NUMERIC NOT NULL DEFAULT 0 CHECK (shared_expenses >= 0),
+  landed_total NUMERIC NOT NULL DEFAULT 0 CHECK (landed_total >= 0),
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL DEFAULT auth.uid(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS inventory_receipt_expenses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  receipt_id UUID NOT NULL REFERENCES inventory_receipts(id) ON DELETE CASCADE,
+  expense_type TEXT NOT NULL
+    CHECK (expense_type IN ('freight', 'tariff', 'tax', 'handling', 'other')),
+  label TEXT NOT NULL DEFAULT '',
+  amount NUMERIC NOT NULL DEFAULT 0 CHECK (amount >= 0),
+  allocation_method TEXT NOT NULL
+    CHECK (allocation_method IN ('value', 'quantity', 'weight', 'manual')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS inventory_receipt_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  receipt_id UUID NOT NULL REFERENCES inventory_receipts(id) ON DELETE CASCADE,
+  inventory_id TEXT NOT NULL REFERENCES inventory(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  quantity_received INTEGER NOT NULL CHECK (quantity_received > 0),
+  supplier_unit_cost NUMERIC NOT NULL CHECK (supplier_unit_cost >= 0),
+  unit_weight NUMERIC NOT NULL DEFAULT 0 CHECK (unit_weight >= 0),
+  allocated_expense NUMERIC NOT NULL DEFAULT 0 CHECK (allocated_expense >= 0),
+  landed_unit_cost NUMERIC NOT NULL DEFAULT 0 CHECK (landed_unit_cost >= 0),
+  previous_quantity INTEGER NOT NULL DEFAULT 0,
+  previous_average_cost NUMERIC NOT NULL DEFAULT 0,
+  new_average_cost NUMERIC NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (receipt_id, inventory_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_inventory_receipts_date
+  ON inventory_receipts(received_date DESC, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_inventory_receipt_items_receipt
+  ON inventory_receipt_items(receipt_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_receipt_items_inventory
+  ON inventory_receipt_items(inventory_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_receipt_expenses_receipt
+  ON inventory_receipt_expenses(receipt_id);
+
+ALTER TABLE inventory_receipts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_receipt_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_receipt_expenses ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS inventory_receipts_admin_all ON inventory_receipts;
+CREATE POLICY inventory_receipts_admin_all ON inventory_receipts
+  FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+
+DROP POLICY IF EXISTS inventory_receipt_items_admin_all ON inventory_receipt_items;
+CREATE POLICY inventory_receipt_items_admin_all ON inventory_receipt_items
+  FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+
+DROP POLICY IF EXISTS inventory_receipt_expenses_admin_all ON inventory_receipt_expenses;
+CREATE POLICY inventory_receipt_expenses_admin_all ON inventory_receipt_expenses
+  FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON inventory_receipts TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON inventory_receipt_items TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON inventory_receipt_expenses TO authenticated;
+
+-- Always capture the current catalog cost when a catalog item is sold.
+-- This applies to online, walk-in, and manual sales and preserves history.
+CREATE OR REPLACE FUNCTION snapshot_order_item_cost()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_cost NUMERIC;
+BEGIN
+  SELECT cost_price INTO v_cost
+  FROM inventory
+  WHERE id = NEW.item_id;
+
+  IF FOUND THEN
+    NEW.cost_price := COALESCE(v_cost, 0);
+  ELSE
+    NEW.cost_price := COALESCE(NEW.cost_price, 0);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS order_item_cost_snapshot ON order_items;
+CREATE TRIGGER order_item_cost_snapshot
+  BEFORE INSERT ON order_items
+  FOR EACH ROW EXECUTE FUNCTION snapshot_order_item_cost();
+
+-- Receive a whole supplier shipment in one transaction. Shared costs are
+-- allocated by value, quantity, or weight and inventory gets a weighted-average
+-- cost. If any validation fails, the entire receipt is rolled back.
+CREATE OR REPLACE FUNCTION receive_inventory_batch(
+  p_receipt_code TEXT,
+  p_supplier_name TEXT,
+  p_supplier_invoice TEXT,
+  p_received_date DATE,
+  p_notes TEXT,
+  p_allocation_mode TEXT,
+  p_expenses JSONB,
+  p_items JSONB
+)
+RETURNS TABLE(batch_id UUID, batch_code TEXT)
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_batch_id UUID;
+  v_batch_code TEXT;
+  v_received_date DATE := COALESCE(p_received_date, CURRENT_DATE);
+  v_mode TEXT := COALESCE(NULLIF(p_allocation_mode, ''), 'automatic');
+  v_item JSONB;
+  v_expense JSONB;
+  v_inventory_id TEXT;
+  v_quantity INTEGER;
+  v_supplier_cost NUMERIC;
+  v_unit_weight NUMERIC;
+  v_manual_allocation NUMERIC;
+  v_previous_quantity INTEGER;
+  v_previous_cost NUMERIC;
+  v_expense_type TEXT;
+  v_expense_amount NUMERIC;
+  v_expense_method TEXT;
+  v_total_quantity NUMERIC;
+  v_total_value NUMERIC;
+  v_total_weight NUMERIC;
+  v_weighted_line_count INTEGER;
+  v_line_count INTEGER;
+  v_item_subtotal NUMERIC;
+  v_expense_total NUMERIC;
+  v_manual_total NUMERIC;
+  v_allocation_delta NUMERIC;
+BEGIN
+  IF NOT is_admin() THEN
+    RAISE EXCEPTION 'Only an admin can receive inventory.';
+  END IF;
+  IF v_mode NOT IN ('automatic', 'manual') THEN
+    RAISE EXCEPTION 'Allocation mode must be automatic or manual.';
+  END IF;
+  IF NULLIF(TRIM(p_supplier_name), '') IS NULL THEN
+    RAISE EXCEPTION 'A supplier name is required.';
+  END IF;
+  IF p_items IS NULL OR jsonb_typeof(p_items) <> 'array' OR jsonb_array_length(p_items) = 0 THEN
+    RAISE EXCEPTION 'Add at least one inventory item to the receipt.';
+  END IF;
+  IF p_expenses IS NOT NULL AND jsonb_typeof(p_expenses) <> 'array' THEN
+    RAISE EXCEPTION 'Expenses must be an array.';
+  END IF;
+
+  v_batch_code := UPPER(COALESCE(NULLIF(TRIM(p_receipt_code), ''),
+    'RCV-' || TO_CHAR(v_received_date, 'YYYYMMDD') || '-' ||
+    UPPER(SUBSTRING(REPLACE(gen_random_uuid()::TEXT, '-', '') FROM 1 FOR 6))));
+
+  INSERT INTO inventory_receipts (
+    receipt_code, supplier_name, supplier_invoice, received_date, notes,
+    allocation_mode, created_by
+  ) VALUES (
+    v_batch_code, COALESCE(TRIM(p_supplier_name), ''),
+    COALESCE(TRIM(p_supplier_invoice), ''), v_received_date,
+    COALESCE(TRIM(p_notes), ''), v_mode, auth.uid()
+  ) RETURNING id INTO v_batch_id;
+
+  FOR v_item IN SELECT value FROM jsonb_array_elements(p_items)
+  LOOP
+    v_inventory_id := NULLIF(TRIM(v_item->>'inventory_id'), '');
+    v_quantity := COALESCE(NULLIF(v_item->>'quantity', '')::INTEGER, 0);
+    v_supplier_cost := COALESCE(NULLIF(v_item->>'supplier_unit_cost', '')::NUMERIC, 0);
+    v_unit_weight := COALESCE(NULLIF(v_item->>'unit_weight', '')::NUMERIC, 0);
+    v_manual_allocation := COALESCE(NULLIF(v_item->>'manual_allocated_expense', '')::NUMERIC, 0);
+
+    IF v_inventory_id IS NULL THEN RAISE EXCEPTION 'Every receipt line needs an inventory item.'; END IF;
+    IF v_quantity <= 0 THEN RAISE EXCEPTION 'Quantity for item % must be greater than zero.', v_inventory_id; END IF;
+    IF v_supplier_cost < 0 THEN RAISE EXCEPTION 'Supplier cost for item % cannot be negative.', v_inventory_id; END IF;
+    IF v_unit_weight < 0 THEN RAISE EXCEPTION 'Weight for item % cannot be negative.', v_inventory_id; END IF;
+    IF v_manual_allocation < 0 THEN RAISE EXCEPTION 'Manual allocation for item % cannot be negative.', v_inventory_id; END IF;
+
+    SELECT amount, cost_price
+      INTO v_previous_quantity, v_previous_cost
+    FROM inventory
+    WHERE id = v_inventory_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN RAISE EXCEPTION 'Inventory item % does not exist.', v_inventory_id; END IF;
+
+    INSERT INTO inventory_receipt_items (
+      receipt_id, inventory_id, quantity_received, supplier_unit_cost,
+      unit_weight, allocated_expense, previous_quantity, previous_average_cost
+    ) VALUES (
+      v_batch_id, v_inventory_id, v_quantity, v_supplier_cost,
+      v_unit_weight, CASE WHEN v_mode = 'manual' THEN v_manual_allocation ELSE 0 END,
+      v_previous_quantity, COALESCE(v_previous_cost, 0)
+    );
+  END LOOP;
+
+  SELECT COUNT(*), COALESCE(SUM(quantity_received), 0),
+    COALESCE(SUM(quantity_received * supplier_unit_cost), 0),
+    COALESCE(SUM(quantity_received * unit_weight), 0),
+    COUNT(*) FILTER (WHERE unit_weight > 0)
+  INTO v_line_count, v_total_quantity, v_total_value, v_total_weight, v_weighted_line_count
+  FROM inventory_receipt_items
+  WHERE receipt_id = v_batch_id;
+
+  FOR v_expense IN SELECT value FROM jsonb_array_elements(COALESCE(p_expenses, '[]'::JSONB))
+  LOOP
+    v_expense_type := COALESCE(NULLIF(v_expense->>'type', ''), 'other');
+    v_expense_amount := COALESCE(NULLIF(v_expense->>'amount', '')::NUMERIC, 0);
+    IF v_expense_type NOT IN ('freight', 'tariff', 'tax', 'handling', 'other') THEN
+      RAISE EXCEPTION 'Unknown expense type: %.', v_expense_type;
+    END IF;
+    IF v_expense_amount < 0 THEN RAISE EXCEPTION 'Expense amounts cannot be negative.'; END IF;
+    IF v_expense_amount = 0 THEN CONTINUE; END IF;
+
+    v_expense_method := CASE
+      WHEN v_mode = 'manual' THEN 'manual'
+      WHEN v_expense_type = 'handling' THEN 'quantity'
+      WHEN v_expense_type = 'freight' AND v_weighted_line_count = v_line_count AND v_total_weight > 0 THEN 'weight'
+      WHEN v_total_value > 0 THEN 'value'
+      ELSE 'quantity'
+    END;
+
+    INSERT INTO inventory_receipt_expenses (
+      receipt_id, expense_type, label, amount, allocation_method
+    ) VALUES (
+      v_batch_id, v_expense_type,
+      COALESCE(NULLIF(TRIM(v_expense->>'label'), ''), INITCAP(REPLACE(v_expense_type, '_', ' '))),
+      v_expense_amount, v_expense_method
+    );
+  END LOOP;
+
+  SELECT COALESCE(SUM(amount), 0) INTO v_expense_total
+  FROM inventory_receipt_expenses WHERE receipt_id = v_batch_id;
+
+  IF v_mode = 'manual' THEN
+    SELECT COALESCE(SUM(allocated_expense), 0) INTO v_manual_total
+    FROM inventory_receipt_items WHERE receipt_id = v_batch_id;
+    IF ABS(v_manual_total - v_expense_total) > 0.009 THEN
+      RAISE EXCEPTION 'Manual allocations (%) must equal shared expenses (%).', v_manual_total, v_expense_total;
+    END IF;
+  ELSE
+    UPDATE inventory_receipt_items ri
+    SET allocated_expense = ROUND(COALESCE((
+      SELECT SUM(
+        CASE e.allocation_method
+          WHEN 'weight' THEN e.amount * (ri.quantity_received * ri.unit_weight) / NULLIF(v_total_weight, 0)
+          WHEN 'quantity' THEN e.amount * ri.quantity_received / NULLIF(v_total_quantity, 0)
+          ELSE e.amount * (ri.quantity_received * ri.supplier_unit_cost) / NULLIF(v_total_value, 0)
+        END
+      )
+      FROM inventory_receipt_expenses e
+      WHERE e.receipt_id = v_batch_id
+    ), 0), 2)
+    WHERE ri.receipt_id = v_batch_id;
+
+    SELECT v_expense_total - COALESCE(SUM(allocated_expense), 0)
+      INTO v_allocation_delta
+    FROM inventory_receipt_items WHERE receipt_id = v_batch_id;
+
+    IF v_allocation_delta <> 0 THEN
+      UPDATE inventory_receipt_items
+      SET allocated_expense = allocated_expense + v_allocation_delta
+      WHERE id = (
+        SELECT id FROM inventory_receipt_items
+        WHERE receipt_id = v_batch_id
+        ORDER BY (quantity_received * supplier_unit_cost) DESC, id
+        LIMIT 1
+      );
+    END IF;
+  END IF;
+
+  UPDATE inventory_receipt_items
+  SET landed_unit_cost = ROUND(
+    supplier_unit_cost + allocated_expense / quantity_received,
+    4
+  )
+  WHERE receipt_id = v_batch_id;
+
+  UPDATE inventory inv
+  SET amount = inv.amount + ri.quantity_received,
+      cost_price = ROUND(
+        ((inv.amount * COALESCE(inv.cost_price, 0)) +
+         (ri.quantity_received * ri.landed_unit_cost)) /
+        NULLIF(inv.amount + ri.quantity_received, 0),
+        4
+      )
+  FROM inventory_receipt_items ri
+  WHERE ri.receipt_id = v_batch_id
+    AND inv.id = ri.inventory_id;
+
+  UPDATE inventory_receipt_items ri
+  SET new_average_cost = inv.cost_price
+  FROM inventory inv
+  WHERE ri.receipt_id = v_batch_id
+    AND inv.id = ri.inventory_id;
+
+  SELECT COALESCE(SUM(quantity_received * supplier_unit_cost), 0)
+    INTO v_item_subtotal
+  FROM inventory_receipt_items WHERE receipt_id = v_batch_id;
+
+  UPDATE inventory_receipts
+  SET item_subtotal = v_item_subtotal,
+      shared_expenses = v_expense_total,
+      landed_total = v_item_subtotal + v_expense_total
+  WHERE id = v_batch_id;
+
+  RETURN QUERY SELECT v_batch_id, v_batch_code;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION receive_inventory_batch(TEXT, TEXT, TEXT, DATE, TEXT, TEXT, JSONB, JSONB) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION receive_inventory_batch(TEXT, TEXT, TEXT, DATE, TEXT, TEXT, JSONB, JSONB) TO authenticated;
+
+-- Best-effort backfill for old sales that do not have a cost snapshot yet.
+UPDATE order_items oi
+SET cost_price = COALESCE(inv.cost_price, 0)
+FROM inventory inv
+WHERE oi.item_id = inv.id
+  AND oi.cost_price = 0;
+
+-- ============================================================
+-- DONE. New stock should be entered through Admin > Receive Stock.
+-- ============================================================

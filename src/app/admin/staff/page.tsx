@@ -21,7 +21,7 @@ export default async function StaffPage() {
           <h1 className="text-3xl font-black tracking-tight text-slate-950">Staff Access</h1>
         </div>
         <div className="flex gap-3">
-          <Link href="/admin" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-brand-gold hover:bg-brand-gold/5">Inventory</Link>
+          <Link href="/admin/inventory" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-brand-gold hover:bg-brand-gold/5">Inventory</Link>
           <Link href="/admin/orders" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-brand-gold hover:bg-brand-gold/5">Orders</Link>
         </div>
       </div>

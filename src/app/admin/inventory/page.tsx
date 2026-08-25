@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminInventoryPage() {
   const auth = await requireAdmin();
   if (!auth.ok) {
-    if (auth.reason === "unauthenticated") redirect("/auth/login?next=/admin");
+    if (auth.reason === "unauthenticated") redirect("/auth/login?next=/admin/inventory");
     redirect("/?error=not_authorized");
   }
 
@@ -42,7 +42,7 @@ export default async function AdminInventoryPage() {
         </div>
       </div>
       <div className="mb-6 flex gap-2 border-b border-slate-200">
-        <a href="/admin" className="border-b-2 border-brand-navy pb-3 px-4 text-sm font-bold text-brand-navy">Inventory</a>
+        <a href="/admin/inventory" className="border-b-2 border-brand-navy pb-3 px-4 text-sm font-bold text-brand-navy">Inventory</a>
         <a href="/admin/categories" className="pb-3 px-4 text-sm font-semibold text-slate-500 hover:text-slate-900">Categories</a>
       </div>
       <InventoryManager

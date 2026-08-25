@@ -41,7 +41,7 @@ export default async function AdminCategoriesPage() {
       </div>
 
       <div className="mb-6 flex gap-2 border-b border-slate-200">
-        <Link href="/admin" className="pb-3 px-4 text-sm font-semibold text-slate-500 hover:text-slate-900">Inventory</Link>
+        <Link href="/admin/inventory" className="pb-3 px-4 text-sm font-semibold text-slate-500 hover:text-slate-900">Inventory</Link>
         <a href="/admin/categories" className="border-b-2 border-brand-navy pb-3 px-4 text-sm font-bold text-brand-navy">Categories</a>
       </div>
 

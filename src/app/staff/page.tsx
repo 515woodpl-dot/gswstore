@@ -27,7 +27,7 @@ export default async function StaffLandingPage() {
       bg: "bg-amber-50",
     },
     {
-      href: `${site}/admin`,
+      href: `${site}/admin/inventory`,
       icon: "📦",
       title: "Inventory",
       desc: "Products, stock, and pricing",

@@ -10,7 +10,7 @@ export default function OfflinePage() {
         <a href="/alerts" className="rounded-xl bg-brand-navy px-5 py-2.5 text-sm font-semibold text-white">
           → Alerts
         </a>
-        <a href="/admin" className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700">
+        <a href="/admin/inventory" className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700">
           → Admin
         </a>
       </div>

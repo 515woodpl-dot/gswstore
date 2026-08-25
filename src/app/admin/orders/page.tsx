@@ -30,7 +30,7 @@ export default async function AdminOrdersPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-brand-gold">Admin</p>
           <h1 className="text-3xl font-black tracking-tight text-slate-950">Orders</h1>
         </div>
-        <Link href="/admin" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-brand-gold hover:bg-brand-gold/5">
+        <Link href="/admin/inventory" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-brand-gold hover:bg-brand-gold/5">
           Manage Inventory
         </Link>
       </div>

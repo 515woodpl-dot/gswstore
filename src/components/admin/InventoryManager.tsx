@@ -3,10 +3,11 @@
 import { useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
+import { generateSmartProductIdentity, inferCategoryFromProductName } from "@/lib/productIdentity";
 import type { Category } from "@/types";
 
 interface Row {
-  id: string; name: string; category_id: number | null; category_name: string;
+  id: string; name: string; original_name: string | null; category_id: number | null; category_name: string;
   brand: string | null; model_number: string | null; voltage: string | null;
   sku: string | null; description: string | null; amount: number;
   store_price: number; sale_price: number | null; cost_price: number; image_url: string | null; images: string[] | null;
@@ -25,7 +26,7 @@ const PRODUCT_ATTR_FIELDS = [
 ];
 
 const BLANK: Row = {
-  id: "", name: "", category_id: null, category_name: "", brand: "", model_number: "",
+  id: "", name: "", original_name: "", category_id: null, category_name: "", brand: "", model_number: "",
   voltage: "", sku: "", description: "", amount: 0, store_price: 0, sale_price: null, cost_price: 0, image_url: "", images: [], featured: false, new_arrival: false, store_visible: true,
   attributes: {}, tax_enabled: false, tax_rate_percent: 0,
   parent_id: null, variant_label: "", variant_dimension: "Color", part_number: "",
@@ -61,13 +62,46 @@ export default function InventoryManager({ initialItems, categories }: { initial
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
   const [search, setSearch]     = useState("");
+  const [smartIdentity, setSmartIdentity] = useState(true);
   const mainImgRef  = useRef<HTMLInputElement>(null);
   const galleryRef  = useRef<HTMLInputElement>(null);
   const sb = createClient();
 
   const [originalId, setOriginalId] = useState<string | null>(null);
-  function startNew() { setEditing({ ...BLANK }); setOriginalId(null); setError(""); }
-  function startEdit(row: Row) { setEditing({ ...row }); setOriginalId(row.id); setError(""); }
+  function startNew() { setEditing({ ...BLANK }); setOriginalId(null); setSmartIdentity(true); setError(""); }
+  function startEdit(row: Row) { setEditing({ ...row, original_name: row.original_name || row.name }); setOriginalId(row.id); setSmartIdentity(false); setError(""); }
+
+  function smartIdentityFor(row: Row, name: string, categoryId = row.category_id) {
+    const inferred = inferCategoryFromProductName(name, categories);
+    const category = inferred ?? categories.find((candidate) => candidate.id === categoryId) ?? null;
+    if (!category || row.parent_id) return { ...row, name, category_id: inferred?.id ?? categoryId };
+
+    const identity = generateSmartProductIdentity(category, items);
+    return {
+      ...row,
+      name,
+      category_id: category.id,
+      id: identity.id,
+      sku: identity.sku,
+    };
+  }
+
+  function updateProductName(name: string) {
+    if (!editing) return;
+    setEditing(!originalId && smartIdentity ? smartIdentityFor(editing, name) : { ...editing, name });
+  }
+
+  function updateProductCategory(categoryId: number | null) {
+    if (!editing) return;
+    const next = { ...editing, category_id: categoryId };
+    setEditing(!originalId && smartIdentity ? smartIdentityFor(next, editing.name, categoryId) : next);
+  }
+
+  function forceSmartIdentity() {
+    if (!editing) return;
+    setSmartIdentity(true);
+    setEditing(smartIdentityFor(editing, editing.name));
+  }
 
   // ── Auto-SKU generation ──────────────────────────────────────────────────
   // Regular product: <CATEGORY_PREFIX>-<next 4-digit sequence>  e.g. CTR-0001
@@ -150,6 +184,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
     const payload: Row = {
       ...editingWithSku,
       id: editing.id.trim(), name: editing.name.trim(),
+      original_name: editing.original_name?.trim() || editing.name.trim(),
       category_name: cat?.name ?? editing.category_name ?? "",
       brand: editing.brand ?? "", model_number: editing.model_number ?? "",
       voltage: editing.voltage ?? "", sku: editingWithSku.sku ?? "",
@@ -199,7 +234,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
   }
 
   const filtered = search
-    ? items.filter(i => [i.name, i.id, i.sku, i.category_name].join(" ").toLowerCase().includes(search.toLowerCase()))
+    ? items.filter(i => [i.name, i.original_name, i.id, i.sku, i.category_name].join(" ").toLowerCase().includes(search.toLowerCase()))
     : items;
 
   return (
@@ -250,6 +285,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
                     {row.name}
                     {row.featured && <span className="ml-1.5 text-xs">⭐</span>}
                   </p>
+                  {row.original_name && row.original_name !== row.name && <p className="max-w-xs truncate text-xs text-slate-500">Original: {row.original_name}</p>}
                   <p className="text-xs text-slate-400 font-mono">{row.id}</p>
                 </td>
                 <td className="px-4 py-3 text-slate-600">{row.category_name}</td>
@@ -306,7 +342,20 @@ export default function InventoryManager({ initialItems, categories }: { initial
             <h2 className="mb-5 text-lg font-black text-slate-950">{items.some((i) => i.id === editing.id) ? "Edit" : "New"} Product</h2>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="ID *" value={editing.id} onChange={(v) => setEditing({ ...editing, id: v })} placeholder="P001" mono />
+              <label className="block">
+                <span className="mb-1 block text-sm font-semibold text-slate-700">Smart ID *</span>
+                <div className="flex gap-2">
+                  <input type="text" value={editing.id} onChange={(event) => {
+                    setSmartIdentity(false);
+                    setEditing({ ...editing, id: event.target.value.toUpperCase() });
+                  }} placeholder="SNK001" className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-mono uppercase" />
+                  <button type="button" onClick={forceSmartIdentity}
+                    className="shrink-0 rounded-xl border border-brand-navy px-3 py-2.5 text-sm font-semibold text-brand-navy hover:bg-brand-navy/5">
+                    Smart
+                  </button>
+                </div>
+                <span className="mt-1 block text-xs text-slate-400">Reads the product name and category prefix. Typing here switches to manual ID.</span>
+              </label>
               <label className="block">
                 <span className="mb-1 block text-sm font-semibold text-slate-700">SKU</span>
                 <div className="flex gap-2">
@@ -325,8 +374,9 @@ export default function InventoryManager({ initialItems, categories }: { initial
                   </button>
                 </div>
               </label>
-              <div className="sm:col-span-2">
-                <Field label="Name *" value={editing.name} onChange={(v) => setEditing({ ...editing, name: v })} />
+              <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+                <Field label="New Store Name *" value={editing.name} onChange={updateProductName} placeholder="Customer-facing product name" />
+                <Field label="Original Supplier Name" value={editing.original_name ?? ""} onChange={(v) => setEditing({ ...editing, original_name: v })} placeholder="Name shown on supplier invoice" />
               </div>
 
               {/* Variant configuration */}
@@ -359,7 +409,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
               </div>
               <label className="block">
                 <span className="mb-1 block text-sm font-semibold text-slate-700">Category</span>
-                <select value={editing.category_id ?? ""} onChange={(e) => setEditing({ ...editing, category_id: e.target.value ? Number(e.target.value) : null })}
+                <select value={editing.category_id ?? ""} onChange={(e) => updateProductCategory(e.target.value ? Number(e.target.value) : null)}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
                   <option value="">— none —</option>
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}

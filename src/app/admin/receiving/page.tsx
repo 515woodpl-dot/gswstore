@@ -15,12 +15,15 @@ export default async function AdminReceivingPage() {
   }
 
   const sb = await createClient();
-  const [productsResult, receiptsResult] = await Promise.all([
+  const [productsResult, categoriesResult, receiptsResult] = await Promise.all([
     sb.from("inventory")
-      .select("id,name,sku,amount,cost_price")
+      .select("id,name,original_name,sku,amount,cost_price")
+      .order("name", { ascending: true }),
+    sb.from("categories")
+      .select("id,name,prefix,color")
       .order("name", { ascending: true }),
     sb.from("inventory_receipts")
-      .select("id,receipt_code,supplier_name,supplier_invoice,received_date,shared_expenses,landed_total,inventory_receipt_items(id,inventory_id,quantity_received,landed_unit_cost)")
+      .select("id,receipt_code,supplier_name,supplier_invoice,received_date,shared_expenses,landed_total,inventory_receipt_items(id,inventory_id,original_name_snapshot,quantity_received,landed_unit_cost)")
       .order("received_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(12),
@@ -50,9 +53,11 @@ export default async function AdminReceivingPage() {
       <ReceivingManager
         initialProducts={(productsResult.data ?? []).map((product) => ({
           ...product,
+          original_name: product.original_name || product.name,
           amount: Number(product.amount) || 0,
           cost_price: Number(product.cost_price) || 0,
         }))}
+        categories={categoriesResult.data ?? []}
         recentReceipts={(receiptsResult.data ?? []).map((receipt) => ({
           ...receipt,
           shared_expenses: Number(receipt.shared_expenses) || 0,
@@ -63,7 +68,7 @@ export default async function AdminReceivingPage() {
             landed_unit_cost: Number(item.landed_unit_cost) || 0,
           })),
         }))}
-        setupError={receiptsResult.error?.message}
+        setupError={productsResult.error?.message || categoriesResult.error?.message || receiptsResult.error?.message}
       />
     </main>
   );

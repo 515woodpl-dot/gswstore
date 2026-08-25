@@ -108,7 +108,7 @@ export default function CategoryManager({ initialCategories }: { initialCategori
               </label>
               <label className="block">
                 <span className="mb-1 block text-sm font-semibold text-slate-700">
-                  Prefix <span className="font-normal text-slate-400">(used in order/item codes)</span>
+                  Prefix <span className="font-normal text-slate-400">(used for smart product IDs and SKUs)</span>
                 </span>
                 <input type="text" value={editing.prefix} maxLength={6}
                   onChange={e => setEditing({ ...editing, prefix: e.target.value.toUpperCase() })}

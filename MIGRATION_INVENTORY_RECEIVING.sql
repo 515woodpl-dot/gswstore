@@ -7,6 +7,15 @@
 ALTER TABLE inventory
   ADD COLUMN IF NOT EXISTS cost_price NUMERIC NOT NULL DEFAULT 0;
 
+ALTER TABLE inventory
+  ADD COLUMN IF NOT EXISTS original_name TEXT NOT NULL DEFAULT '';
+
+-- Existing products start with their current name as the best-known original.
+-- Staff can replace this with the supplier's exact name in Products.
+UPDATE inventory
+SET original_name = name
+WHERE NULLIF(TRIM(original_name), '') IS NULL;
+
 ALTER TABLE order_items
   ADD COLUMN IF NOT EXISTS cost_price NUMERIC NOT NULL DEFAULT 0;
 
@@ -42,6 +51,7 @@ CREATE TABLE IF NOT EXISTS inventory_receipt_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   receipt_id UUID NOT NULL REFERENCES inventory_receipts(id) ON DELETE CASCADE,
   inventory_id TEXT NOT NULL REFERENCES inventory(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  original_name_snapshot TEXT NOT NULL DEFAULT '',
   quantity_received INTEGER NOT NULL CHECK (quantity_received > 0),
   supplier_unit_cost NUMERIC NOT NULL CHECK (supplier_unit_cost >= 0),
   unit_weight NUMERIC NOT NULL DEFAULT 0 CHECK (unit_weight >= 0),
@@ -53,6 +63,9 @@ CREATE TABLE IF NOT EXISTS inventory_receipt_items (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (receipt_id, inventory_id)
 );
+
+ALTER TABLE inventory_receipt_items
+  ADD COLUMN IF NOT EXISTS original_name_snapshot TEXT NOT NULL DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS idx_inventory_receipts_date
   ON inventory_receipts(received_date DESC, created_at DESC);
@@ -139,6 +152,15 @@ DECLARE
   v_manual_allocation NUMERIC;
   v_previous_quantity INTEGER;
   v_previous_cost NUMERIC;
+  v_original_name TEXT;
+  v_new_product JSONB;
+  v_new_name TEXT;
+  v_new_original_name TEXT;
+  v_new_sku TEXT;
+  v_new_category_id BIGINT;
+  v_new_category_name TEXT;
+  v_new_store_price NUMERIC;
+  v_new_store_visible BOOLEAN;
   v_expense_type TEXT;
   v_expense_amount NUMERIC;
   v_expense_method TEXT;
@@ -195,19 +217,54 @@ BEGIN
     IF v_unit_weight < 0 THEN RAISE EXCEPTION 'Weight for item % cannot be negative.', v_inventory_id; END IF;
     IF v_manual_allocation < 0 THEN RAISE EXCEPTION 'Manual allocation for item % cannot be negative.', v_inventory_id; END IF;
 
-    SELECT amount, cost_price
-      INTO v_previous_quantity, v_previous_cost
+    SELECT amount, cost_price, COALESCE(NULLIF(TRIM(original_name), ''), name)
+      INTO v_previous_quantity, v_previous_cost, v_original_name
     FROM inventory
     WHERE id = v_inventory_id
     FOR UPDATE;
 
-    IF NOT FOUND THEN RAISE EXCEPTION 'Inventory item % does not exist.', v_inventory_id; END IF;
+    IF NOT FOUND THEN
+      v_new_product := v_item->'new_product';
+      IF v_new_product IS NULL OR jsonb_typeof(v_new_product) <> 'object' THEN
+        RAISE EXCEPTION 'Inventory item % does not exist.', v_inventory_id;
+      END IF;
+
+      v_new_name := NULLIF(TRIM(v_new_product->>'name'), '');
+      v_new_original_name := COALESCE(NULLIF(TRIM(v_new_product->>'original_name'), ''), v_new_name);
+      v_new_sku := COALESCE(NULLIF(UPPER(TRIM(v_new_product->>'sku')), ''), v_inventory_id);
+      v_new_category_id := NULLIF(v_new_product->>'category_id', '')::BIGINT;
+      v_new_store_price := COALESCE(NULLIF(v_new_product->>'store_price', '')::NUMERIC, 0);
+      v_new_store_visible := COALESCE(NULLIF(v_new_product->>'store_visible', '')::BOOLEAN, FALSE);
+
+      IF v_new_name IS NULL THEN RAISE EXCEPTION 'A new store name is required for item %.', v_inventory_id; END IF;
+      IF v_new_original_name IS NULL THEN RAISE EXCEPTION 'An original supplier name is required for item %.', v_inventory_id; END IF;
+      IF v_new_category_id IS NULL THEN RAISE EXCEPTION 'A category is required for new item %.', v_inventory_id; END IF;
+      IF v_new_store_price < 0 THEN RAISE EXCEPTION 'Selling price for item % cannot be negative.', v_inventory_id; END IF;
+
+      SELECT name INTO v_new_category_name
+      FROM categories
+      WHERE id = v_new_category_id;
+      IF NOT FOUND THEN RAISE EXCEPTION 'Category % does not exist.', v_new_category_id; END IF;
+
+      INSERT INTO inventory (
+        id, name, original_name, category_id, category_name, sku,
+        amount, store_price, cost_price, store_visible
+      ) VALUES (
+        v_inventory_id, v_new_name, v_new_original_name,
+        v_new_category_id, v_new_category_name, v_new_sku,
+        0, v_new_store_price, 0, v_new_store_visible
+      );
+
+      v_previous_quantity := 0;
+      v_previous_cost := 0;
+      v_original_name := v_new_original_name;
+    END IF;
 
     INSERT INTO inventory_receipt_items (
-      receipt_id, inventory_id, quantity_received, supplier_unit_cost,
+      receipt_id, inventory_id, original_name_snapshot, quantity_received, supplier_unit_cost,
       unit_weight, allocated_expense, previous_quantity, previous_average_cost
     ) VALUES (
-      v_batch_id, v_inventory_id, v_quantity, v_supplier_cost,
+      v_batch_id, v_inventory_id, v_original_name, v_quantity, v_supplier_cost,
       v_unit_weight, CASE WHEN v_mode = 'manual' THEN v_manual_allocation ELSE 0 END,
       v_previous_quantity, COALESCE(v_previous_cost, 0)
     );

@@ -11,13 +11,38 @@ import {
   type ExpenseKind,
   type LandedCostExpense,
 } from "@/lib/landedCost";
+import { generateSmartProductIdentity, inferCategoryFromProductName } from "@/lib/productIdentity";
+import type { Category } from "@/types";
+
+interface PendingNewProduct {
+  categoryId: number;
+  categoryName: string;
+  storePrice: number;
+  storeVisible: boolean;
+}
 
 interface ReceivingProduct {
   id: string;
   name: string;
+  original_name: string;
   sku: string | null;
   amount: number;
   cost_price: number;
+  pendingNew?: PendingNewProduct;
+}
+
+interface NewProductDraft {
+  id: string;
+  sku: string;
+  name: string;
+  originalName: string;
+  categoryId: number | null;
+  storePrice: number;
+  supplierUnitCost: number;
+  quantity: number;
+  unitWeight: number;
+  storeVisible: boolean;
+  smartIdentity: boolean;
 }
 
 interface ReceiptLine {
@@ -31,6 +56,7 @@ interface ReceiptLine {
 interface RecentReceiptItem {
   id: string;
   inventory_id: string;
+  original_name_snapshot: string;
   quantity_received: number;
   landed_unit_cost: number;
 }
@@ -53,6 +79,7 @@ interface SavedReceipt {
   lines: Array<{
     inventoryId: string;
     name: string;
+    originalName: string;
     sku: string;
     quantity: number;
     landedUnitCost: number;
@@ -86,10 +113,12 @@ function today() {
 
 export default function ReceivingManager({
   initialProducts,
+  categories,
   recentReceipts,
   setupError,
 }: {
   initialProducts: ReceivingProduct[];
+  categories: Category[];
   recentReceipts: RecentReceipt[];
   setupError?: string;
 }) {
@@ -109,6 +138,8 @@ export default function ReceivingManager({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [savedReceipt, setSavedReceipt] = useState<SavedReceipt | null>(null);
+  const [newProduct, setNewProduct] = useState<NewProductDraft | null>(null);
+  const [newProductError, setNewProductError] = useState("");
 
   const activeExpenses: LandedCostExpense[] = EXPENSE_FIELDS.map((field) => ({
     kind: field.kind,
@@ -128,12 +159,118 @@ export default function ReceivingManager({
     const selected = new Set(lines.map((line) => line.id));
     return products.filter((product) =>
       !selected.has(product.id) &&
-      [product.name, product.id, product.sku ?? ""].join(" ").toLowerCase().includes(q)
+      [product.name, product.original_name, product.id, product.sku ?? ""].join(" ").toLowerCase().includes(q)
     ).slice(0, 8);
   }, [lines, products, query]);
 
   function productFor(id: string) {
     return products.find((product) => product.id === id);
+  }
+
+  function identityForNewProduct(name: string, categoryId: number | null) {
+    const inferred = inferCategoryFromProductName(name, categories);
+    const category = inferred ?? categories.find((candidate) => candidate.id === categoryId) ?? null;
+    if (!category) return { category: null, id: "", sku: "" };
+    const identity = generateSmartProductIdentity(category, products);
+    return { category, id: identity.id, sku: identity.sku };
+  }
+
+  function openNewProduct() {
+    const startingName = query.trim();
+    const identity = identityForNewProduct(startingName, null);
+    setNewProduct({
+      id: identity.id,
+      sku: identity.sku,
+      name: startingName,
+      originalName: startingName,
+      categoryId: identity.category?.id ?? null,
+      storePrice: 0,
+      supplierUnitCost: 0,
+      quantity: 1,
+      unitWeight: 0,
+      storeVisible: false,
+      smartIdentity: true,
+    });
+    setNewProductError(categories.length === 0 ? "Create at least one category before creating a product." : "");
+  }
+
+  function updateNewProductName(name: string) {
+    setNewProduct((current) => {
+      if (!current) return current;
+      if (!current.smartIdentity) return { ...current, name };
+      const identity = identityForNewProduct(name, current.categoryId);
+      return {
+        ...current,
+        name,
+        categoryId: identity.category?.id ?? current.categoryId,
+        id: identity.id || current.id,
+        sku: identity.sku || current.sku,
+      };
+    });
+  }
+
+  function updateNewProductCategory(categoryId: number | null) {
+    setNewProduct((current) => {
+      if (!current) return current;
+      if (!current.smartIdentity) return { ...current, categoryId };
+      const identity = identityForNewProduct(current.name, categoryId);
+      return { ...current, categoryId, id: identity.id, sku: identity.sku };
+    });
+  }
+
+  function forceNewProductIdentity() {
+    setNewProduct((current) => {
+      if (!current) return current;
+      const identity = identityForNewProduct(current.name, current.categoryId);
+      return {
+        ...current,
+        smartIdentity: true,
+        categoryId: identity.category?.id ?? current.categoryId,
+        id: identity.id,
+        sku: identity.sku,
+      };
+    });
+  }
+
+  function queueNewProduct() {
+    if (!newProduct) return;
+    setNewProductError("");
+    const id = newProduct.id.trim().toUpperCase();
+    const sku = newProduct.sku.trim().toUpperCase();
+    const category = categories.find((candidate) => candidate.id === newProduct.categoryId);
+    if (!newProduct.name.trim()) { setNewProductError("Enter the new customer-facing store name."); return; }
+    if (!newProduct.originalName.trim()) { setNewProductError("Enter the original name from the supplier."); return; }
+    if (!category) { setNewProductError("Select a category."); return; }
+    if (!id) { setNewProductError("Generate or enter a product ID."); return; }
+    if (products.some((product) => product.id.toUpperCase() === id)) { setNewProductError(`Product ID ${id} already exists.`); return; }
+    if (sku && products.some((product) => product.sku?.toUpperCase() === sku)) { setNewProductError(`SKU ${sku} already exists.`); return; }
+    if (newProduct.quantity <= 0 || !Number.isInteger(newProduct.quantity)) { setNewProductError("Received quantity must be a whole number greater than zero."); return; }
+    if (newProduct.supplierUnitCost < 0 || newProduct.storePrice < 0) { setNewProductError("Prices cannot be negative."); return; }
+
+    const product: ReceivingProduct = {
+      id,
+      sku: sku || id,
+      name: newProduct.name.trim(),
+      original_name: newProduct.originalName.trim(),
+      amount: 0,
+      cost_price: 0,
+      pendingNew: {
+        categoryId: category.id,
+        categoryName: category.name,
+        storePrice: newProduct.storePrice,
+        storeVisible: newProduct.storeVisible,
+      },
+    };
+    setProducts((current) => [...current, product]);
+    setLines((current) => [...current, {
+      id,
+      quantity: newProduct.quantity,
+      supplierUnitCost: newProduct.supplierUnitCost,
+      unitWeight: newProduct.unitWeight,
+      manualAllocation: 0,
+    }]);
+    setNewProduct(null);
+    setQuery("");
   }
 
   function addProduct(product: ReceivingProduct) {
@@ -153,6 +290,7 @@ export default function ReceivingManager({
 
   function removeLine(id: string) {
     setLines((current) => current.filter((line) => line.id !== id));
+    setProducts((current) => current.filter((product) => product.id !== id || !product.pendingNew));
   }
 
   function resetForm() {
@@ -163,6 +301,7 @@ export default function ReceivingManager({
     setReceivedDate(nextDate);
     setNotes("");
     setLines([]);
+    setProducts((current) => current.filter((product) => !product.pendingNew));
     setExpenses(emptyExpenses());
     setAllocationMode("automatic");
     setError("");
@@ -200,6 +339,16 @@ export default function ReceivingManager({
           amount: expense.amount,
         })),
         p_items: calculation.lines.map((line) => ({
+          ...(productFor(line.id)?.pendingNew ? {
+            new_product: {
+              name: productFor(line.id)?.name,
+              original_name: productFor(line.id)?.original_name,
+              sku: productFor(line.id)?.sku,
+              category_id: productFor(line.id)?.pendingNew?.categoryId,
+              store_price: productFor(line.id)?.pendingNew?.storePrice,
+              store_visible: productFor(line.id)?.pendingNew?.storeVisible,
+            },
+          } : {}),
           inventory_id: line.id,
           quantity: line.quantity,
           supplier_unit_cost: line.supplierUnitCost,
@@ -216,6 +365,7 @@ export default function ReceivingManager({
         return {
           inventoryId: line.id,
           name: product?.name ?? line.id,
+          originalName: product?.original_name ?? product?.name ?? line.id,
           sku: product?.sku ?? "",
           quantity: line.quantity,
           landedUnitCost: line.landedUnitCost,
@@ -227,6 +377,7 @@ export default function ReceivingManager({
         if (!received) return product;
         return {
           ...product,
+          pendingNew: undefined,
           amount: product.amount + received.quantity,
           cost_price: weightedAverageCost(
             product.amount,
@@ -276,6 +427,7 @@ export default function ReceivingManager({
               <div key={line.inventoryId} className="flex items-center justify-between gap-4 border-b border-slate-100 px-4 py-3 last:border-0">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-slate-900">{line.name}</p>
+                  {line.originalName !== line.name && <p className="truncate text-xs text-slate-500">Original: {line.originalName}</p>}
                   <p className="text-xs text-slate-500">{line.sku || line.inventoryId} · Qty {line.quantity}</p>
                 </div>
                 <div className="text-right">
@@ -295,6 +447,7 @@ export default function ReceivingManager({
               <p className="tag-name">{line.name}</p>
               <div className="tag-grid">
                 <span>SKU / ID</span><strong>{line.sku || line.inventoryId}</strong>
+                <span>Original name</span><strong>{line.originalName}</strong>
                 <span>Quantity</span><strong>{line.quantity}</strong>
                 <span>Received</span><strong>{savedReceipt.receivedDate}</strong>
                 <span>Supplier</span><strong>{savedReceipt.supplier}</strong>
@@ -362,24 +515,31 @@ export default function ReceivingManager({
           <p className="mt-1 text-sm text-slate-500">Enter the supplier price before freight, tariffs, and other shared costs.</p>
         </div>
 
-        <div className="relative">
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search product name, SKU, or ID"
-            className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-brand-blue focus:bg-white" />
-          {query.trim() && (
-            <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
-              {availableProducts.map((product) => (
-                <button key={product.id} type="button" onClick={() => addProduct(product)}
-                  className="flex w-full items-center justify-between gap-4 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-slate-50">
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-bold text-slate-900">{product.name}</span>
-                    <span className="block font-mono text-xs text-slate-500">{product.sku || product.id}</span>
-                  </span>
-                  <span className="shrink-0 text-xs font-semibold text-slate-500">In stock: {product.amount}</span>
-                </button>
-              ))}
-              {availableProducts.length === 0 && <p className="px-4 py-5 text-center text-sm text-slate-500">No unselected products found.</p>}
-            </div>
-          )}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="relative min-w-0 flex-1">
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search new name, original name, SKU, or ID"
+              className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-brand-blue focus:bg-white" />
+            {query.trim() && (
+              <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
+                {availableProducts.map((product) => (
+                  <button key={product.id} type="button" onClick={() => addProduct(product)}
+                    className="flex w-full items-center justify-between gap-4 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-slate-50">
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-bold text-slate-900">{product.name}</span>
+                      {product.original_name !== product.name && <span className="block truncate text-xs text-slate-500">Original: {product.original_name}</span>}
+                      <span className="block font-mono text-xs text-slate-500">{product.sku || product.id}</span>
+                    </span>
+                    <span className="shrink-0 text-xs font-semibold text-slate-500">In stock: {product.amount}</span>
+                  </button>
+                ))}
+                {availableProducts.length === 0 && <p className="px-4 py-5 text-center text-sm text-slate-500">No existing product found. Use Create New Product.</p>}
+              </div>
+            )}
+          </div>
+          <button type="button" onClick={openNewProduct}
+            className="shrink-0 rounded-2xl bg-brand-blue px-5 py-3 text-sm font-black text-white hover:bg-brand-navy">
+            + Create New Product
+          </button>
         </div>
 
         <div className="mt-4 space-y-3">
@@ -391,7 +551,11 @@ export default function ReceivingManager({
               <div key={line.id} className="rounded-2xl border border-slate-200 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate font-bold text-slate-950">{product?.name ?? line.id}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-bold text-slate-950">{product?.name ?? line.id}</p>
+                      {product?.pendingNew && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-sky-700">New product</span>}
+                    </div>
+                    {product?.original_name && product.original_name !== product.name && <p className="truncate text-xs text-slate-500">Original: {product.original_name}</p>}
                     <p className="font-mono text-xs text-slate-500">{product?.sku || line.id}</p>
                   </div>
                   <button type="button" onClick={() => removeLine(line.id)} className="rounded-lg px-2 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50">Remove</button>
@@ -498,7 +662,10 @@ export default function ReceivingManager({
                 {receipt.supplier_invoice && <p className="mb-2 text-xs text-slate-500">Invoice / PO: <strong>{receipt.supplier_invoice}</strong></p>}
                 {(receipt.inventory_receipt_items ?? []).map((item) => (
                   <div key={item.id} className="flex justify-between gap-3 py-1 text-xs">
-                    <span className="font-mono text-slate-600">{item.inventory_id} · Qty {item.quantity_received}</span>
+                    <span className="min-w-0 text-slate-600">
+                      <span className="block font-mono">{item.inventory_id} · Qty {item.quantity_received}</span>
+                      {item.original_name_snapshot && <span className="block truncate text-slate-400">Original: {item.original_name_snapshot}</span>}
+                    </span>
                     <span className="font-bold text-slate-800">{formatPrice(item.landed_unit_cost)} each</span>
                   </div>
                 ))}
@@ -509,6 +676,63 @@ export default function ReceivingManager({
           {recentReceipts.length === 0 && <p className="rounded-2xl border border-dashed border-slate-300 py-8 text-center text-sm text-slate-500">No receiving batches yet.</p>}
         </div>
       </section>
+
+      {newProduct && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 sm:items-center sm:p-4" onClick={() => setNewProduct(null)}>
+          <div className="max-h-[94vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:max-w-2xl sm:rounded-3xl sm:p-6" onClick={(event) => event.stopPropagation()}>
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-200 sm:hidden" />
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-brand-blue">Receive Stock</p>
+                <h2 className="mt-1 text-xl font-black text-slate-950">Create New Product</h2>
+                <p className="mt-1 text-sm leading-5 text-slate-500">It will be created with this shipment and hidden from the store until you choose to publish it.</p>
+              </div>
+              <button type="button" onClick={() => setNewProduct(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Close new product form">Close</button>
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <Field label="New Store Name" value={newProduct.name} onChange={updateNewProductName} placeholder="Customer-facing product name" required />
+              <Field label="Original Supplier Name" value={newProduct.originalName} onChange={(value) => setNewProduct({ ...newProduct, originalName: value })} placeholder="Name on supplier invoice" required />
+
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">Category *</span>
+                <select value={newProduct.categoryId ?? ""} onChange={(event) => updateNewProductCategory(event.target.value ? Number(event.target.value) : null)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-brand-blue">
+                  <option value="">Select category</option>
+                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name} ({category.prefix})</option>)}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">Smart Product ID *</span>
+                <div className="flex gap-2">
+                  <input value={newProduct.id} onChange={(event) => setNewProduct({ ...newProduct, id: event.target.value.toUpperCase(), smartIdentity: false })}
+                    placeholder="SNK001" className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-mono uppercase outline-none focus:border-brand-blue" />
+                  <button type="button" onClick={forceNewProductIdentity} className="rounded-xl border border-brand-blue px-3 py-2 text-sm font-bold text-brand-blue hover:bg-brand-blue/5">Smart</button>
+                </div>
+              </label>
+
+              <Field label="SKU" value={newProduct.sku} onChange={(value) => setNewProduct({ ...newProduct, sku: value.toUpperCase(), smartIdentity: false })} placeholder="SNK-0001" mono />
+              <NumberField label="Selling price" value={newProduct.storePrice} onChange={(value) => setNewProduct({ ...newProduct, storePrice: value })} prefix="$" />
+              <NumberField label="Received quantity" value={newProduct.quantity} onChange={(value) => setNewProduct({ ...newProduct, quantity: value })} min={1} step={1} />
+              <NumberField label="Supplier cost each" value={newProduct.supplierUnitCost} onChange={(value) => setNewProduct({ ...newProduct, supplierUnitCost: value })} prefix="$" />
+              <NumberField label="Weight each (optional)" value={newProduct.unitWeight} onChange={(value) => setNewProduct({ ...newProduct, unitWeight: value })} suffix="lb" />
+
+              <label className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-3 sm:col-span-2">
+                <input type="checkbox" checked={newProduct.storeVisible} onChange={(event) => setNewProduct({ ...newProduct, storeVisible: event.target.checked })} className="h-4 w-4 rounded" />
+                <span className="text-sm font-bold text-slate-700">Publish this item in the store immediately</span>
+              </label>
+            </div>
+
+            <p className="mt-3 text-xs leading-5 text-slate-500">The category prefix controls the automatic ID: Sinks / SNK creates SNK001, Silicone / SIL creates SIL001, and Brackets / BRK creates BRK001.</p>
+            {newProductError && <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{newProductError}</p>}
+            <div className="mt-6 flex gap-3">
+              <button type="button" onClick={() => setNewProduct(null)} className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Cancel</button>
+              <button type="button" onClick={queueNewProduct} disabled={categories.length === 0} className="flex-1 rounded-xl bg-brand-navy px-4 py-3 text-sm font-black text-white hover:bg-slate-800 disabled:opacity-50">Add to This Shipment</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

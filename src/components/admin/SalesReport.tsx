@@ -57,9 +57,10 @@ export default function SalesReport({
   const stats = useMemo(() => {
     let revenue = 0, cost = 0, discounts = 0, units = 0, walkIn = 0, online = 0;
     const byStaff: Record<string, { revenue: number; cost: number; discounts: number; count: number }> = {};
-    const byItem: Record<string, { name: string; qty: number; stock: number; revenue: number; cost: number; profit: number }> = {};
+    let missingCostUnits = 0;
+    const byItem: Record<string, { name: string; qty: number; stock: number; listRevenue: number; discounts: number; revenue: number; cost: number; profit: number; costMissing: boolean }> = {};
     for (const item of inventory) {
-      byItem[item.id] = { name: item.name, qty: 0, stock: Number(item.amount) || 0, revenue: 0, cost: 0, profit: 0 };
+      byItem[item.id] = { name: item.name, qty: 0, stock: Number(item.amount) || 0, listRevenue: 0, discounts: 0, revenue: 0, cost: 0, profit: 0, costMissing: false };
     }
 
     for (const o of orders) {
@@ -69,14 +70,22 @@ export default function SalesReport({
         units += it.quantity;
         const itemCost = Number(it.cost_price || 0) * it.quantity;
         const itemRev = Number(it.unit_price) * it.quantity;
+        const itemListRevenue = Number(it.list_price ?? it.unit_price) * it.quantity;
+        const itemDiscount = Number(it.discount_amount || 0);
         cost += itemCost;
 
         const key = it.item_id || `sold-${it.id}`;
-        if (!byItem[key]) byItem[key] = { name: it.name, qty: 0, stock: 0, revenue: 0, cost: 0, profit: 0 };
+        if (!byItem[key]) byItem[key] = { name: it.name, qty: 0, stock: 0, listRevenue: 0, discounts: 0, revenue: 0, cost: 0, profit: 0, costMissing: false };
         byItem[key].qty += it.quantity;
+        byItem[key].listRevenue += itemListRevenue;
+        byItem[key].discounts += itemDiscount;
         byItem[key].revenue += itemRev;
         byItem[key].cost += itemCost;
         byItem[key].profit += itemRev - itemCost;
+        if (Number(it.cost_price || 0) <= 0 && itemRev > 0) {
+          byItem[key].costMissing = true;
+          missingCostUnits += it.quantity;
+        }
       }
       if (o.source === "walk_in") walkIn += Number(o.total); else online += Number(o.total);
 
@@ -90,7 +99,7 @@ export default function SalesReport({
     const profit = revenue - cost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     return {
-      revenue, cost, profit, margin, discounts, units, walkIn, online,
+      revenue, cost, profit, margin, discounts, units, walkIn, online, missingCostUnits,
       orders: orders.length,
       byStaff: Object.entries(byStaff).sort((a, b) => b[1].revenue - a[1].revenue),
       byItem: Object.values(byItem).sort((a, b) => b.revenue - a.revenue),
@@ -217,9 +226,9 @@ export default function SalesReport({
       {/* Stat cards */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label="Revenue" value={formatPrice(stats.revenue)} accent="text-emerald-700" />
-        <StatCard label="Cost" value={formatPrice(stats.cost)} accent="text-slate-700" />
-        <StatCard label="Profit" value={formatPrice(stats.profit)} accent={stats.profit >= 0 ? "text-emerald-700" : "text-rose-700"} />
-        <StatCard label="Margin" value={`${stats.margin.toFixed(1)}%`} accent={stats.margin >= 20 ? "text-emerald-700" : "text-amber-700"} />
+        <StatCard label={stats.missingCostUnits > 0 ? "Cost (incomplete)" : "Cost"} value={formatPrice(stats.cost)} accent="text-slate-700" />
+        <StatCard label={stats.missingCostUnits > 0 ? "Profit (incomplete)" : "Profit"} value={stats.missingCostUnits > 0 ? "Unknown" : formatPrice(stats.profit)} accent={stats.missingCostUnits > 0 ? "text-amber-700" : stats.profit >= 0 ? "text-emerald-700" : "text-rose-700"} />
+        <StatCard label={stats.missingCostUnits > 0 ? "Margin (incomplete)" : "Margin"} value={stats.missingCostUnits > 0 ? "Unknown" : `${stats.margin.toFixed(1)}%`} accent={stats.missingCostUnits > 0 ? "text-amber-700" : stats.margin >= 20 ? "text-emerald-700" : "text-amber-700"} />
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -231,6 +240,7 @@ export default function SalesReport({
       <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
         Revenue is the amount actually collected after discounts. Cost is captured from inventory when the item is sold, so later receiving-cost changes do not alter past profit.
       </p>
+      {stats.missingCostUnits > 0 && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-5 text-amber-900">Cost is missing for {stats.missingCostUnits} sold unit{stats.missingCostUnits === 1 ? "" : "s"}. Profit and margin are incomplete until those historical sales are backfilled.</p>}
 
       {/* Item profit breakdown button */}
       <div className="mt-4 flex justify-end">
@@ -244,7 +254,7 @@ export default function SalesReport({
       {showItems && stats.byItem.length > 0 && (
         <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="text-base font-bold text-slate-950">Inventory and profit by item</h2>
-          <p className="mt-1 text-xs text-slate-400">All inventory products are shown. Sorted by revenue. Cost = what you paid × qty sold.</p>
+          <p className="mt-1 text-xs text-slate-400">All inventory products are shown. List sales less discounts equals net revenue. Cost = what you paid × qty sold.</p>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -252,7 +262,9 @@ export default function SalesReport({
                   <th className="pb-2 text-left font-semibold">Item</th>
                   <th className="pb-2 text-right font-semibold">Qty</th>
                   <th className="pb-2 text-right font-semibold">In stock</th>
-                  <th className="pb-2 text-right font-semibold">Revenue</th>
+                  <th className="pb-2 text-right font-semibold">List sales</th>
+                  <th className="pb-2 text-right font-semibold">Discounts</th>
+                  <th className="pb-2 text-right font-semibold">Net revenue</th>
                   <th className="pb-2 text-right font-semibold">Cost</th>
                   <th className="pb-2 text-right font-semibold">Profit</th>
                   <th className="pb-2 text-right font-semibold">Margin</th>
@@ -266,13 +278,15 @@ export default function SalesReport({
                       <td className="py-2 font-semibold text-slate-800">{item.name}</td>
                       <td className="py-2 text-right text-slate-600">{item.qty}</td>
                       <td className="py-2 text-right text-slate-600">{item.stock}</td>
+                      <td className="py-2 text-right text-slate-600">{formatPrice(item.listRevenue)}</td>
+                      <td className="py-2 text-right text-amber-700">{item.discounts > 0 ? `−${formatPrice(item.discounts)}` : "—"}</td>
                       <td className="py-2 text-right font-semibold text-slate-900">{formatPrice(item.revenue)}</td>
-                      <td className="py-2 text-right text-slate-500">{formatPrice(item.cost)}</td>
-                      <td className={`py-2 text-right font-bold ${item.profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                        {formatPrice(item.profit)}
+                      <td className={`py-2 text-right ${item.costMissing ? "font-semibold text-amber-700" : "text-slate-500"}`}>{item.costMissing ? "Missing" : formatPrice(item.cost)}</td>
+                      <td className={`py-2 text-right font-bold ${item.costMissing ? "text-amber-700" : item.profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                        {item.costMissing ? "—" : formatPrice(item.profit)}
                       </td>
-                      <td className={`py-2 text-right text-xs font-semibold ${margin >= 20 ? "text-emerald-600" : margin >= 0 ? "text-amber-600" : "text-rose-600"}`}>
-                        {margin.toFixed(1)}%
+                      <td className={`py-2 text-right text-xs font-semibold ${item.costMissing ? "text-amber-700" : margin >= 20 ? "text-emerald-600" : margin >= 0 ? "text-amber-600" : "text-rose-600"}`}>
+                        {item.costMissing ? "—" : `${margin.toFixed(1)}%`}
                       </td>
                     </tr>
                   );
@@ -283,13 +297,15 @@ export default function SalesReport({
                   <td className="pt-2 font-bold text-slate-950">Totals</td>
                   <td className="pt-2 text-right font-semibold">{stats.units}</td>
                   <td className="pt-2 text-right font-semibold">{stats.byItem.reduce((sum, item) => sum + item.stock, 0)}</td>
+                  <td className="pt-2 text-right font-semibold">{formatPrice(stats.byItem.reduce((sum, item) => sum + item.listRevenue, 0))}</td>
+                  <td className="pt-2 text-right font-semibold text-amber-700">{stats.discounts > 0 ? `−${formatPrice(stats.discounts)}` : "—"}</td>
                   <td className="pt-2 text-right font-bold text-slate-900">{formatPrice(stats.revenue)}</td>
-                  <td className="pt-2 text-right font-semibold text-slate-500">{formatPrice(stats.cost)}</td>
-                  <td className={`pt-2 text-right font-black ${stats.profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                    {formatPrice(stats.profit)}
+                  <td className={`pt-2 text-right font-semibold ${stats.missingCostUnits > 0 ? "text-amber-700" : "text-slate-500"}`}>{stats.missingCostUnits > 0 ? "Incomplete" : formatPrice(stats.cost)}</td>
+                  <td className={`pt-2 text-right font-black ${stats.missingCostUnits > 0 ? "text-amber-700" : stats.profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                    {stats.missingCostUnits > 0 ? "—" : formatPrice(stats.profit)}
                   </td>
-                  <td className={`pt-2 text-right text-xs font-bold ${stats.margin >= 20 ? "text-emerald-600" : "text-amber-600"}`}>
-                    {stats.margin.toFixed(1)}%
+                  <td className={`pt-2 text-right text-xs font-bold ${stats.missingCostUnits > 0 ? "text-amber-700" : stats.margin >= 20 ? "text-emerald-600" : "text-amber-600"}`}>
+                    {stats.missingCostUnits > 0 ? "—" : `${stats.margin.toFixed(1)}%`}
                   </td>
                 </tr>
               </tfoot>

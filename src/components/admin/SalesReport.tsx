@@ -25,6 +25,8 @@ interface OrderRow {
   status: string;
   source: string | null;
   sold_by_name: string;
+  transaction_type: "sale" | "internal_use";
+  internal_use_reason: string;
   order_items: OrderItemRow[];
 }
 interface InventoryRow { id: string; name: string; amount: number; }
@@ -55,7 +57,7 @@ export default function SalesReport({
 
   // Totals
   const stats = useMemo(() => {
-    let revenue = 0, cost = 0, discounts = 0, units = 0, walkIn = 0, online = 0;
+    let revenue = 0, cost = 0, discounts = 0, units = 0, walkIn = 0, online = 0, internalUnits = 0;
     const byStaff: Record<string, { revenue: number; cost: number; discounts: number; count: number }> = {};
     let missingCostUnits = 0;
     const byItem: Record<string, { name: string; qty: number; stock: number; listRevenue: number; discounts: number; revenue: number; cost: number; profit: number; costMissing: boolean }> = {};
@@ -64,6 +66,10 @@ export default function SalesReport({
     }
 
     for (const o of orders) {
+      if (o.transaction_type === "internal_use") {
+        internalUnits += o.order_items.reduce((sum, item) => sum + item.quantity, 0);
+        continue;
+      }
       const orderMerchandiseRevenue = o.order_items.reduce((sum, item) => sum + Number(item.unit_price) * item.quantity, 0);
       revenue += orderMerchandiseRevenue;
       discounts += Number(o.discount_total);
@@ -100,7 +106,7 @@ export default function SalesReport({
     const profit = revenue - cost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     return {
-      revenue, cost, profit, margin, discounts, units, walkIn, online, missingCostUnits,
+      revenue, cost, profit, margin, discounts, units, walkIn, online, internalUnits, missingCostUnits,
       orders: orders.length,
       byStaff: Object.entries(byStaff).sort((a, b) => b[1].revenue - a[1].revenue),
       byItem: Object.values(byItem).sort((a, b) => b.revenue - a.revenue),
@@ -237,6 +243,7 @@ export default function SalesReport({
         <StatCard label="Units sold" value={String(stats.units)} />
         <StatCard label="Walk-in revenue" value={formatPrice(stats.walkIn)} />
         <StatCard label="Online revenue" value={formatPrice(stats.online)} />
+        {stats.internalUnits > 0 && <StatCard label="Internal-use units" value={String(stats.internalUnits)} accent="text-slate-700" />}
       </div>
       <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
         Net product revenue is the item amount actually collected after discounts, excluding sales tax. Cost is captured from inventory when the item is sold, so later receiving-cost changes do not alter past profit.
@@ -348,8 +355,8 @@ export default function SalesReport({
               className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50">
               <div>
                 <span className="font-mono text-sm font-bold text-slate-900">{o.order_number}</span>
-                <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${o.source === "walk_in" ? "bg-sky-100 text-sky-800" : o.source === "manual" ? "bg-orange-100 text-orange-800" : "bg-violet-100 text-violet-800"}`}>
-                  {o.source === "walk_in" ? "Walk-in" : o.source === "manual" ? "Manual" : "Online"}
+                <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${o.transaction_type === "internal_use" ? "bg-slate-200 text-slate-700" : o.source === "walk_in" ? "bg-sky-100 text-sky-800" : o.source === "manual" ? "bg-orange-100 text-orange-800" : "bg-violet-100 text-violet-800"}`}>
+                  {o.transaction_type === "internal_use" ? "Internal use" : o.source === "walk_in" ? "Walk-in" : o.source === "manual" ? "Manual" : "Online"}
                 </span>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {new Date(o.created_at).toLocaleString()} · {o.sold_by_name || "—"}
@@ -362,6 +369,7 @@ export default function SalesReport({
             </button>
             {expanded === o.id && (
               <div className="border-t border-slate-100 bg-slate-50 px-4 py-3">
+                {o.transaction_type === "internal_use" && <p className="mb-3 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Excluded from sales, discounts, profit, and margin. {o.internal_use_reason && `Reason: ${o.internal_use_reason}`}</p>}
                 <table className="w-full text-xs">
                   <thead className="text-slate-400">
                     <tr>
@@ -384,6 +392,7 @@ export default function SalesReport({
                 <p className="mt-2 text-right text-xs text-slate-400">Editing a price updates the order total, profit, and exports.</p>
                 {(o.source === "walk_in" || o.source === "manual") && (
                   <div className="mt-3 border-t border-slate-200 pt-3 text-right">
+                    {o.transaction_type !== "internal_use" && <InternalUseButton orderId={o.id} onSaved={() => router.refresh()} />}
                     <DeleteSaleButton orderId={o.id} orderNumber={o.order_number} onDeleted={() => router.refresh()} />
                   </div>
                 )}
@@ -394,6 +403,16 @@ export default function SalesReport({
       </div>
     </div>
   );
+}
+
+function InternalUseButton({ orderId, onSaved }: { orderId: string; onSaved: () => void }) {
+  async function markInternal() {
+    const reason = window.prompt("Reason for internal use or donation:");
+    if (reason === null) return;
+    const response = await fetch("/api/admin/internal-use", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId, reason }) });
+    if (!response.ok) alert((await response.json()).error || "Could not classify this order."); else onSaved();
+  }
+  return <button onClick={markInternal} className="mr-4 text-xs font-semibold text-slate-700 hover:text-slate-950">Mark internal use</button>;
 }
 
 function StatCard({ label, value, accent = "text-slate-950" }: { label: string; value: string; accent?: string }) {

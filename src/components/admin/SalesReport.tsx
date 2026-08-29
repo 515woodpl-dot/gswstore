@@ -6,6 +6,7 @@ import { formatPrice } from "@/lib/utils";
 
 interface OrderItemRow {
   id: string;
+  item_id: string | null;
   name: string;
   sku: string | null;
   quantity: number;
@@ -26,6 +27,7 @@ interface OrderRow {
   sold_by_name: string;
   order_items: OrderItemRow[];
 }
+interface InventoryRow { id: string; name: string; amount: number; }
 
 const RANGES = [
   { key: "today", label: "Today" },
@@ -36,11 +38,13 @@ const RANGES = [
 
 export default function SalesReport({
   orders,
+  inventory,
   range,
   from,
   to,
 }: {
   orders: OrderRow[];
+  inventory: InventoryRow[];
   range: string;
   from: string;
   to: string;
@@ -53,7 +57,10 @@ export default function SalesReport({
   const stats = useMemo(() => {
     let revenue = 0, cost = 0, discounts = 0, units = 0, walkIn = 0, online = 0;
     const byStaff: Record<string, { revenue: number; cost: number; discounts: number; count: number }> = {};
-    const byItem: Record<string, { name: string; qty: number; revenue: number; cost: number; profit: number }> = {};
+    const byItem: Record<string, { name: string; qty: number; stock: number; revenue: number; cost: number; profit: number }> = {};
+    for (const item of inventory) {
+      byItem[item.id] = { name: item.name, qty: 0, stock: Number(item.amount) || 0, revenue: 0, cost: 0, profit: 0 };
+    }
 
     for (const o of orders) {
       revenue += Number(o.total);
@@ -64,8 +71,8 @@ export default function SalesReport({
         const itemRev = Number(it.unit_price) * it.quantity;
         cost += itemCost;
 
-        const key = it.name;
-        if (!byItem[key]) byItem[key] = { name: it.name, qty: 0, revenue: 0, cost: 0, profit: 0 };
+        const key = it.item_id || `sold-${it.id}`;
+        if (!byItem[key]) byItem[key] = { name: it.name, qty: 0, stock: 0, revenue: 0, cost: 0, profit: 0 };
         byItem[key].qty += it.quantity;
         byItem[key].revenue += itemRev;
         byItem[key].cost += itemCost;
@@ -88,7 +95,7 @@ export default function SalesReport({
       byStaff: Object.entries(byStaff).sort((a, b) => b[1].revenue - a[1].revenue),
       byItem: Object.values(byItem).sort((a, b) => b.revenue - a.revenue),
     };
-  }, [orders]);
+  }, [inventory, orders]);
 
   function applyRange(key: string) {
     router.push(`/admin/sales?range=${key}`);
@@ -236,14 +243,15 @@ export default function SalesReport({
       {/* Per-item profit breakdown */}
       {showItems && stats.byItem.length > 0 && (
         <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-bold text-slate-950">Profit by item</h2>
-          <p className="mt-1 text-xs text-slate-400">Sorted by revenue. Cost = what you paid × qty sold.</p>
+          <h2 className="text-base font-bold text-slate-950">Inventory and profit by item</h2>
+          <p className="mt-1 text-xs text-slate-400">All inventory products are shown. Sorted by revenue. Cost = what you paid × qty sold.</p>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-xs text-slate-400">
                   <th className="pb-2 text-left font-semibold">Item</th>
                   <th className="pb-2 text-right font-semibold">Qty</th>
+                  <th className="pb-2 text-right font-semibold">In stock</th>
                   <th className="pb-2 text-right font-semibold">Revenue</th>
                   <th className="pb-2 text-right font-semibold">Cost</th>
                   <th className="pb-2 text-right font-semibold">Profit</th>
@@ -257,6 +265,7 @@ export default function SalesReport({
                     <tr key={item.name} className="border-b border-slate-100 last:border-0">
                       <td className="py-2 font-semibold text-slate-800">{item.name}</td>
                       <td className="py-2 text-right text-slate-600">{item.qty}</td>
+                      <td className="py-2 text-right text-slate-600">{item.stock}</td>
                       <td className="py-2 text-right font-semibold text-slate-900">{formatPrice(item.revenue)}</td>
                       <td className="py-2 text-right text-slate-500">{formatPrice(item.cost)}</td>
                       <td className={`py-2 text-right font-bold ${item.profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
@@ -273,6 +282,7 @@ export default function SalesReport({
                 <tr className="border-t-2 border-slate-300">
                   <td className="pt-2 font-bold text-slate-950">Totals</td>
                   <td className="pt-2 text-right font-semibold">{stats.units}</td>
+                  <td className="pt-2 text-right font-semibold">{stats.byItem.reduce((sum, item) => sum + item.stock, 0)}</td>
                   <td className="pt-2 text-right font-bold text-slate-900">{formatPrice(stats.revenue)}</td>
                   <td className="pt-2 text-right font-semibold text-slate-500">{formatPrice(stats.cost)}</td>
                   <td className={`pt-2 text-right font-black ${stats.profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>

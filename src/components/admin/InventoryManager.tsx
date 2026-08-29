@@ -266,7 +266,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
               <th className="px-4 py-3">Image</th>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Category</th>
-              <th className="px-4 py-3">Price</th>
+              <th className="px-4 py-3">Selling price</th>
               <th className="px-4 py-3">Stock</th>
               <th className="px-4 py-3">Visible</th>
               <th className="px-4 py-3"></th>
@@ -289,7 +289,14 @@ export default function InventoryManager({ initialItems, categories }: { initial
                   <p className="text-xs text-slate-400 font-mono">{row.id}</p>
                 </td>
                 <td className="px-4 py-3 text-slate-600">{row.category_name}</td>
-                <td className="px-4 py-3 font-semibold">{formatPrice(row.store_price)}</td>
+                <td className="px-4 py-3">
+                  {row.store_price > 0 ? (
+                    <p className="font-semibold text-slate-900">{formatPrice(row.store_price)}</p>
+                  ) : (
+                    <p className="font-bold text-rose-600">Set price</p>
+                  )}
+                  <p className="mt-0.5 text-xs text-slate-400">Landed: {formatPrice(row.cost_price)}</p>
+                </td>
                 <td className="px-4 py-3">{stockBadge(row.amount)}</td>
                 <td className="px-4 py-3">{row.store_visible ? "✓" : "—"}</td>
                 <td className="px-4 py-3 text-right whitespace-nowrap">
@@ -320,10 +327,15 @@ export default function InventoryManager({ initialItems, categories }: { initial
                 <p className="font-bold text-slate-900 truncate">{row.name}</p>
                 <p className="text-xs font-mono text-slate-400">{row.id}</p>
                 <div className="mt-1 flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-bold text-brand-navy">{formatPrice(row.store_price)}</span>
+                  {row.store_price > 0 ? (
+                    <span className="text-sm font-bold text-brand-navy">Selling: {formatPrice(row.store_price)}</span>
+                  ) : (
+                    <span className="text-sm font-bold text-rose-600">Set selling price</span>
+                  )}
                   {stockBadge(row.amount)}
                   {!row.store_visible && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">Hidden</span>}
                 </div>
+                <p className="mt-1 text-xs text-slate-400">Landed cost: {formatPrice(row.cost_price)}</p>
               </div>
             </div>
             <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">

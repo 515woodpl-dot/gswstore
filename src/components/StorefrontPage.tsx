@@ -6,7 +6,6 @@ import {
   getFeaturedItems,
   getHeroItems,
   getNewArrivals,
-  getTopDeals,
 } from "@/lib/inventory";
 import ShopGrid from "@/components/ShopGrid";
 import PromoHero from "@/components/PromoHero";
@@ -22,14 +21,14 @@ interface Props {
 
 export default async function StorefrontPage({ searchParams, basePath }: Props) {
   const { q, cat, account } = await searchParams;
-  const [items, cats, heroItems, featuredItems, newArrivals, deals] = await Promise.all([
+  const [items, cats, heroItems, featuredItems, newArrivals] = await Promise.all([
     getStoreItems(),
     getStoreCategories(),
     getHeroItems(),
     getFeaturedItems(5),
     getNewArrivals(8),
-    getTopDeals(8),
   ]);
+  const promoItems = heroItems.length > 0 ? heroItems : items.slice(0, 1);
 
   const buildUrl = (params: Record<string, string | undefined>) => {
     const search = new URLSearchParams();
@@ -49,10 +48,10 @@ export default async function StorefrontPage({ searchParams, basePath }: Props) 
       )}
 
       {/* Hero */}
-      {heroItems.length > 0 && (
-        <section className="bg-white px-4 pb-4 pt-6 sm:px-6 lg:px-8">
+      {promoItems.length > 0 && (
+        <section className="bg-[#fffaf5] px-4 pb-5 pt-6 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl">
-            <PromoHero items={heroItems} />
+            <PromoHero items={promoItems} />
           </div>
         </section>
       )}
@@ -111,8 +110,7 @@ export default async function StorefrontPage({ searchParams, basePath }: Props) 
         </section>
       )}
 
-      {/* Deals / New Arrivals rows */}
-      {deals.length > 0 && <ProductRow title="Top Deals" subtitle="Limited-time savings" items={deals} accent="primary" />}
+      {/* New arrivals */}
       {newArrivals.length > 0 && <ProductRow title="Just In" subtitle="New Arrivals" items={newArrivals} accent="gold" />}
 
       {/* Catalog */}

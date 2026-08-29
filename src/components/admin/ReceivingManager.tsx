@@ -245,7 +245,11 @@ export default function ReceivingManager({
     if (products.some((product) => product.id.toUpperCase() === id)) { setNewProductError(`Product ID ${id} already exists.`); return; }
     if (sku && products.some((product) => product.sku?.toUpperCase() === sku)) { setNewProductError(`SKU ${sku} already exists.`); return; }
     if (newProduct.quantity <= 0 || !Number.isInteger(newProduct.quantity)) { setNewProductError("Received quantity must be a whole number greater than zero."); return; }
-    if (newProduct.supplierUnitCost < 0 || newProduct.storePrice < 0) { setNewProductError("Prices cannot be negative."); return; }
+    if (newProduct.supplierUnitCost < 0) { setNewProductError("Supplier cost cannot be negative."); return; }
+    if (newProduct.storePrice <= 0) {
+      setNewProductError("Enter a customer selling price greater than $0.00. Supplier cost and landed cost are internal and do not set the store price.");
+      return;
+    }
 
     const product: ReceivingProduct = {
       id,
@@ -575,7 +579,10 @@ export default function ReceivingManager({
                 </div>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs">
                   <span className="text-slate-500">Current avg. {formatPrice(currentAverage)} → New avg. <strong className="text-slate-800">{formatPrice(nextAverage)}</strong></span>
-                  <span className="rounded-full bg-brand-blue/10 px-3 py-1 font-bold text-brand-blue">Landed: {formatPrice(line.landedUnitCost)} each</span>
+                  <div className="flex flex-wrap gap-2">
+                    {product?.pendingNew && <span className="rounded-full bg-brand-navy/10 px-3 py-1 font-bold text-brand-navy">Customer price: {formatPrice(product.pendingNew.storePrice)}</span>}
+                    <span className="rounded-full bg-brand-blue/10 px-3 py-1 font-bold text-brand-blue">Landed: {formatPrice(line.landedUnitCost)} each</span>
+                  </div>
                 </div>
               </div>
             );
@@ -713,7 +720,7 @@ export default function ReceivingManager({
               </label>
 
               <Field label="SKU" value={newProduct.sku} onChange={(value) => setNewProduct({ ...newProduct, sku: value.toUpperCase(), smartIdentity: false })} placeholder="SNK-0001" mono />
-              <NumberField label="Selling price" value={newProduct.storePrice} onChange={(value) => setNewProduct({ ...newProduct, storePrice: value })} prefix="$" />
+              <NumberField label="Customer selling price *" value={newProduct.storePrice} onChange={(value) => setNewProduct({ ...newProduct, storePrice: value })} prefix="$" min={0.01} />
               <NumberField label="Received quantity" value={newProduct.quantity} onChange={(value) => setNewProduct({ ...newProduct, quantity: value })} min={1} step={1} />
               <NumberField label="Supplier cost each" value={newProduct.supplierUnitCost} onChange={(value) => setNewProduct({ ...newProduct, supplierUnitCost: value })} prefix="$" />
               <NumberField label="Weight each (optional)" value={newProduct.unitWeight} onChange={(value) => setNewProduct({ ...newProduct, unitWeight: value })} suffix="lb" />
@@ -724,7 +731,7 @@ export default function ReceivingManager({
               </label>
             </div>
 
-            <p className="mt-3 text-xs leading-5 text-slate-500">The category prefix controls the automatic ID: Sinks / SNK creates SNK001, Silicone / SIL creates SIL001, and Brackets / BRK creates BRK001.</p>
+            <p className="mt-3 text-xs leading-5 text-slate-500">Customer selling price is the price shoppers see. Supplier cost plus the shared expenses becomes the internal landed cost. The category prefix controls the automatic ID: Sinks / SNK creates SNK001, Silicone / SIL creates SIL001, and Brackets / BRK creates BRK001.</p>
             {newProductError && <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{newProductError}</p>}
             <div className="mt-6 flex gap-3">
               <button type="button" onClick={() => setNewProduct(null)} className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Cancel</button>

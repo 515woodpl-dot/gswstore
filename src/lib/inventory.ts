@@ -134,19 +134,6 @@ export async function getNewArrivals(limit = 8): Promise<InventoryItem[]> {
   return (data as InventoryRow[]).map(rowToItem);
 }
 
-export async function getTopDeals(limit = 8): Promise<InventoryItem[]> {
-  const sb = await createClient();
-  const { data, error } = await sb
-    .from("inventory").select(COLS)
-    .eq("store_visible", true)
-    .not("sale_price", "is", null)
-    .is("parent_id", null)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error || !data) return [];
-  return (data as InventoryRow[]).map(rowToItem);
-}
-
 // ── Reviews ──────────────────────────────────────────────────────────────────
 
 export async function getItemReviews(itemId: string): Promise<Review[]> {

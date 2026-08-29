@@ -59,6 +59,7 @@ interface RecentReceiptItem {
   inventory_id: string;
   original_name_snapshot: string;
   quantity_received: number;
+  remaining_quantity: number;
   landed_unit_cost: number;
 }
 
@@ -141,6 +142,12 @@ export default function ReceivingManager({
   const [savedReceipt, setSavedReceipt] = useState<SavedReceipt | null>(null);
   const [newProduct, setNewProduct] = useState<NewProductDraft | null>(null);
   const [newProductError, setNewProductError] = useState("");
+  const [correctingReceipt, setCorrectingReceipt] = useState<RecentReceipt | null>(null);
+  const [correctionType, setCorrectionType] = useState<ExpenseKind>("freight");
+  const [correctionLabel, setCorrectionLabel] = useState("");
+  const [correctionAmount, setCorrectionAmount] = useState(0);
+  const [correctionError, setCorrectionError] = useState("");
+  const [correcting, setCorrecting] = useState(false);
 
   const activeExpenses: LandedCostExpense[] = EXPENSE_FIELDS.map((field) => ({
     kind: field.kind,
@@ -331,6 +338,27 @@ export default function ReceivingManager({
     setAllocationMode("automatic");
     setError("");
     setSavedReceipt(null);
+  }
+
+  async function addMissedExpense() {
+    if (!correctingReceipt) return;
+    if (correctionAmount <= 0) { setCorrectionError("Enter an expense greater than $0.00."); return; }
+    setCorrecting(true); setCorrectionError("");
+    try {
+      const { error: rpcError } = await sb.rpc("add_receipt_expense_correction", {
+        p_receipt_id: correctingReceipt.id,
+        p_expense_type: correctionType,
+        p_label: correctionLabel.trim(),
+        p_amount: correctionAmount,
+      });
+      if (rpcError) throw new Error(rpcError.message);
+      setCorrectingReceipt(null); setCorrectionLabel(""); setCorrectionAmount(0);
+      router.refresh();
+    } catch (caught) {
+      setCorrectionError(caught instanceof Error ? caught.message : "Could not add the receipt expense.");
+    } finally {
+      setCorrecting(false);
+    }
   }
 
   async function receiveStock() {
@@ -699,13 +727,18 @@ export default function ReceivingManager({
                 {(receipt.inventory_receipt_items ?? []).map((item) => (
                   <div key={item.id} className="flex justify-between gap-3 py-1 text-xs">
                     <span className="min-w-0 text-slate-600">
-                      <span className="block font-mono">{item.inventory_id} · Qty {item.quantity_received}</span>
+                      <span className="block font-mono">{item.inventory_id} · Qty {item.quantity_received} · Remaining {item.remaining_quantity}</span>
                       {item.original_name_snapshot && <span className="block truncate text-slate-400">Original: {item.original_name_snapshot}</span>}
                     </span>
                     <span className="font-bold text-slate-800">{formatPrice(item.landed_unit_cost)} each</span>
                   </div>
                 ))}
                 <p className="mt-2 text-xs text-slate-400">Shared expenses: {formatPrice(receipt.shared_expenses)}</p>
+                {receipt.inventory_receipt_items.some((item) => item.remaining_quantity > 0) ? (
+                  <button type="button" onClick={() => { setCorrectingReceipt(receipt); setCorrectionError(""); }} className="mt-3 rounded-lg border border-brand-navy px-3 py-2 text-xs font-bold text-brand-navy hover:bg-brand-navy/5">Add missed expense</button>
+                ) : (
+                  <p className="mt-3 text-xs text-slate-400">No tracked units remain in this receipt, so its costs are locked for accounting accuracy.</p>
+                )}
               </div>
             </details>
           ))}
@@ -766,6 +799,25 @@ export default function ReceivingManager({
               <button type="button" onClick={() => setNewProduct(null)} className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Cancel</button>
               <button type="button" onClick={queueNewProduct} disabled={categories.length === 0} className="flex-1 rounded-xl bg-brand-navy px-4 py-3 text-sm font-black text-white hover:bg-slate-800 disabled:opacity-50">Add to This Shipment</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {correctingReceipt && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 sm:items-center" onClick={() => setCorrectingReceipt(null)}>
+          <div className="w-full rounded-t-3xl bg-white p-5 shadow-2xl sm:max-w-md sm:rounded-3xl" onClick={(event) => event.stopPropagation()}>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-brand-blue">Receipt correction</p>
+            <h2 className="mt-1 text-xl font-black text-slate-950">Add missed expense</h2>
+            <p className="mt-2 text-sm leading-5 text-slate-500">This adds the cost to {correctingReceipt.receipt_code} and updates only units still on hand. Completed sales stay unchanged.</p>
+            <label className="mt-5 block text-sm font-bold text-slate-700">Expense type
+              <select value={correctionType} onChange={(event) => setCorrectionType(event.target.value as ExpenseKind)} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+                {EXPENSE_FIELDS.map((field) => <option key={field.kind} value={field.kind}>{field.label}</option>)}
+              </select>
+            </label>
+            <Field label="Note (optional)" value={correctionLabel} onChange={setCorrectionLabel} placeholder="Late delivery invoice" />
+            <div className="mt-4"><NumberField label="Amount" value={correctionAmount} onChange={setCorrectionAmount} prefix="$" min={0.01} /></div>
+            {correctionError && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{correctionError}</p>}
+            <div className="mt-5 flex gap-3"><button type="button" onClick={() => setCorrectingReceipt(null)} className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-700">Cancel</button><button type="button" onClick={addMissedExpense} disabled={correcting} className="flex-1 rounded-xl bg-brand-navy px-4 py-3 text-sm font-black text-white disabled:opacity-50">{correcting ? "Saving..." : "Add expense"}</button></div>
           </div>
         </div>
       )}

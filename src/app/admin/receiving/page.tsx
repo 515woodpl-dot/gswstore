@@ -23,7 +23,7 @@ export default async function AdminReceivingPage() {
       .select("id,name,prefix,color")
       .order("name", { ascending: true }),
     sb.from("inventory_receipts")
-      .select("id,receipt_code,supplier_name,supplier_invoice,received_date,shared_expenses,landed_total,inventory_receipt_items(id,inventory_id,original_name_snapshot,quantity_received,landed_unit_cost)")
+      .select("id,receipt_code,supplier_name,supplier_invoice,received_date,shared_expenses,landed_total,inventory_receipt_items(id,inventory_id,original_name_snapshot,quantity_received,remaining_quantity,landed_unit_cost)")
       .order("received_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(12),
@@ -66,6 +66,7 @@ export default async function AdminReceivingPage() {
           inventory_receipt_items: (receipt.inventory_receipt_items ?? []).map((item) => ({
             ...item,
             quantity_received: Number(item.quantity_received) || 0,
+            remaining_quantity: Number(item.remaining_quantity) || 0,
             landed_unit_cost: Number(item.landed_unit_cost) || 0,
           })),
         }))}

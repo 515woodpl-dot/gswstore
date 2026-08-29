@@ -67,6 +67,12 @@ CREATE TABLE IF NOT EXISTS inventory_receipt_items (
 ALTER TABLE inventory_receipt_items
   ADD COLUMN IF NOT EXISTS original_name_snapshot TEXT NOT NULL DEFAULT '';
 
+-- Existing receipts have no reliable per-batch remaining quantity history, so
+-- corrections apply only to receipts created after this version is installed.
+ALTER TABLE inventory_receipt_items
+  ADD COLUMN IF NOT EXISTS remaining_quantity INTEGER NOT NULL DEFAULT 0
+    CHECK (remaining_quantity >= 0);
+
 CREATE INDEX IF NOT EXISTS idx_inventory_receipts_date
   ON inventory_receipts(received_date DESC, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_inventory_receipt_items_receipt
@@ -262,11 +268,11 @@ BEGIN
 
     INSERT INTO inventory_receipt_items (
       receipt_id, inventory_id, original_name_snapshot, quantity_received, supplier_unit_cost,
-      unit_weight, allocated_expense, previous_quantity, previous_average_cost
+      unit_weight, allocated_expense, previous_quantity, previous_average_cost, remaining_quantity
     ) VALUES (
       v_batch_id, v_inventory_id, v_original_name, v_quantity, v_supplier_cost,
       v_unit_weight, CASE WHEN v_mode = 'manual' THEN v_manual_allocation ELSE 0 END,
-      v_previous_quantity, COALESCE(v_previous_cost, 0)
+      v_previous_quantity, COALESCE(v_previous_cost, 0), v_quantity
     );
   END LOOP;
 
@@ -393,6 +399,120 @@ SET cost_price = COALESCE(inv.cost_price, 0)
 FROM inventory inv
 WHERE oi.item_id = inv.id
   AND oi.cost_price = 0;
+
+-- Mark receipt-layer units as sold. This does not change a completed order's
+-- snapshot cost; it only tells later receipt corrections what is still on hand.
+CREATE OR REPLACE FUNCTION consume_receipt_layer_units()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_left INTEGER := NEW.quantity;
+  v_layer RECORD;
+  v_used INTEGER;
+BEGIN
+  IF NEW.item_id IS NULL OR NEW.quantity <= 0 THEN RETURN NEW; END IF;
+  FOR v_layer IN
+    SELECT ri.id, ri.remaining_quantity
+    FROM inventory_receipt_items ri
+    JOIN inventory_receipts r ON r.id = ri.receipt_id
+    WHERE ri.inventory_id = NEW.item_id AND ri.remaining_quantity > 0
+    ORDER BY r.received_date, r.created_at, ri.created_at
+    FOR UPDATE OF ri
+  LOOP
+    EXIT WHEN v_left = 0;
+    v_used := LEAST(v_left, v_layer.remaining_quantity);
+    UPDATE inventory_receipt_items
+    SET remaining_quantity = remaining_quantity - v_used
+    WHERE id = v_layer.id;
+    v_left := v_left - v_used;
+  END LOOP;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS order_item_receipt_layer_consume ON order_items;
+CREATE TRIGGER order_item_receipt_layer_consume
+  AFTER INSERT ON order_items
+  FOR EACH ROW EXECUTE FUNCTION consume_receipt_layer_units();
+
+-- Add a missed receipt expense and apply it only to units still on hand from
+-- that receipt. Completed sale snapshots deliberately remain unchanged.
+CREATE OR REPLACE FUNCTION add_receipt_expense_correction(
+  p_receipt_id UUID,
+  p_expense_type TEXT,
+  p_label TEXT,
+  p_amount NUMERIC
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_line RECORD;
+  v_total_qty NUMERIC;
+  v_total_value NUMERIC;
+  v_total_weight NUMERIC;
+  v_all_weighted BOOLEAN;
+  v_method TEXT;
+  v_line_amount NUMERIC;
+  v_inventory_amount INTEGER;
+BEGIN
+  IF NOT is_admin() THEN RAISE EXCEPTION 'Only an admin can correct a receipt.'; END IF;
+  IF p_expense_type NOT IN ('freight', 'tariff', 'tax', 'handling', 'other') THEN RAISE EXCEPTION 'Unknown expense type.'; END IF;
+  IF p_amount IS NULL OR p_amount <= 0 THEN RAISE EXCEPTION 'Expense must be greater than zero.'; END IF;
+
+  SELECT COALESCE(SUM(quantity_received), 0),
+    COALESCE(SUM(quantity_received * supplier_unit_cost), 0),
+    COALESCE(SUM(quantity_received * unit_weight), 0),
+    BOOL_AND(unit_weight > 0)
+  INTO v_total_qty, v_total_value, v_total_weight, v_all_weighted
+  FROM inventory_receipt_items WHERE receipt_id = p_receipt_id;
+  IF v_total_qty = 0 THEN RAISE EXCEPTION 'Receipt not found.'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM inventory_receipt_items
+    WHERE receipt_id = p_receipt_id AND remaining_quantity > 0
+  ) THEN
+    RAISE EXCEPTION 'No tracked units remain in this receipt.';
+  END IF;
+
+  v_method := CASE
+    WHEN p_expense_type = 'handling' THEN 'quantity'
+    WHEN p_expense_type = 'freight' AND v_all_weighted AND v_total_weight > 0 THEN 'weight'
+    WHEN v_total_value > 0 THEN 'value'
+    ELSE 'quantity'
+  END;
+
+  INSERT INTO inventory_receipt_expenses (receipt_id, expense_type, label, amount, allocation_method)
+  VALUES (p_receipt_id, p_expense_type, COALESCE(NULLIF(TRIM(p_label), ''), INITCAP(p_expense_type)), p_amount, v_method);
+
+  FOR v_line IN SELECT * FROM inventory_receipt_items WHERE receipt_id = p_receipt_id FOR UPDATE
+  LOOP
+    v_line_amount := ROUND(p_amount * CASE v_method
+      WHEN 'weight' THEN (v_line.quantity_received * v_line.unit_weight) / NULLIF(v_total_weight, 0)
+      WHEN 'quantity' THEN v_line.quantity_received / NULLIF(v_total_qty, 0)
+      ELSE (v_line.quantity_received * v_line.supplier_unit_cost) / NULLIF(v_total_value, 0)
+    END, 2);
+    UPDATE inventory_receipt_items
+    SET allocated_expense = allocated_expense + v_line_amount,
+        landed_unit_cost = ROUND(supplier_unit_cost + (allocated_expense + v_line_amount) / quantity_received, 4)
+    WHERE id = v_line.id;
+
+    SELECT amount INTO v_inventory_amount FROM inventory WHERE id = v_line.inventory_id FOR UPDATE;
+    IF v_inventory_amount > 0 AND v_line.remaining_quantity > 0 THEN
+      UPDATE inventory
+      SET cost_price = ROUND(cost_price + (v_line_amount / v_line.quantity_received) * LEAST(v_line.remaining_quantity, v_inventory_amount) / v_inventory_amount, 4)
+      WHERE id = v_line.inventory_id;
+    END IF;
+  END LOOP;
+
+  UPDATE inventory_receipts
+  SET shared_expenses = shared_expenses + p_amount, landed_total = landed_total + p_amount
+  WHERE id = p_receipt_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION add_receipt_expense_correction(UUID, TEXT, TEXT, NUMERIC) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION add_receipt_expense_correction(UUID, TEXT, TEXT, NUMERIC) TO authenticated;
 
 -- ============================================================
 -- DONE. New stock should be entered through Admin > Receive Stock.

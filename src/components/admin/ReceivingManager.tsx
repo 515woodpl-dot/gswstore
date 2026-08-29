@@ -28,6 +28,7 @@ interface ReceivingProduct {
   sku: string | null;
   amount: number;
   cost_price: number;
+  store_price: number;
   pendingNew?: PendingNewProduct;
 }
 
@@ -153,6 +154,25 @@ export default function ReceivingManager({
     allocationMode,
   ]);
 
+  const forecast = useMemo(() => {
+    let potentialRevenue = 0;
+    let potentialProfit = 0;
+    let missingPriceCount = 0;
+    for (const line of calculation.lines) {
+      const product = products.find((candidate) => candidate.id === line.id);
+      const customerPrice = product?.pendingNew?.storePrice ?? Number(product?.store_price) ?? 0;
+      const landedTotal = line.landedUnitCost * line.quantity;
+      if (customerPrice <= 0) {
+        missingPriceCount += 1;
+        continue;
+      }
+      potentialRevenue += customerPrice * line.quantity;
+      potentialProfit += customerPrice * line.quantity - landedTotal;
+    }
+    const margin = potentialRevenue > 0 ? (potentialProfit / potentialRevenue) * 100 : 0;
+    return { potentialRevenue, potentialProfit, margin, missingPriceCount };
+  }, [calculation.lines, products]);
+
   const availableProducts = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
@@ -258,6 +278,7 @@ export default function ReceivingManager({
       original_name: newProduct.originalName.trim(),
       amount: 0,
       cost_price: 0,
+      store_price: newProduct.storePrice,
       pendingNew: {
         categoryId: category.id,
         categoryName: category.name,
@@ -582,6 +603,7 @@ export default function ReceivingManager({
                   <div className="flex flex-wrap gap-2">
                     {product?.pendingNew && <span className="rounded-full bg-brand-navy/10 px-3 py-1 font-bold text-brand-navy">Customer price: {formatPrice(product.pendingNew.storePrice)}</span>}
                     <span className="rounded-full bg-brand-blue/10 px-3 py-1 font-bold text-brand-blue">Landed: {formatPrice(line.landedUnitCost)} each</span>
+                    {!product?.pendingNew && <span className="rounded-full bg-slate-100 px-3 py-1 font-bold text-slate-600">Customer price: {Number(product?.store_price) > 0 ? formatPrice(Number(product?.store_price)) : "Set in Products"}</span>}
                   </div>
                 </div>
               </div>
@@ -642,6 +664,13 @@ export default function ReceivingManager({
           <Summary label="Expenses" value={formatPrice(calculation.sharedExpenses)} />
           <Summary label="Landed total" value={formatPrice(calculation.landedTotal)} strong />
         </div>
+        <div className="mt-4 grid grid-cols-3 gap-3 border-t border-white/15 pt-4">
+          <Summary label="Potential sales" value={formatPrice(forecast.potentialRevenue)} />
+          <Summary label="Potential profit" value={formatPrice(forecast.potentialProfit)} strong />
+          <Summary label="Estimated margin" value={`${forecast.margin.toFixed(1)}%`} />
+        </div>
+        <p className="mt-3 text-xs leading-5 text-slate-300">Forecast uses today&apos;s customer selling price and this receipt&apos;s landed cost. The Sales Report uses the actual price collected after any discount.</p>
+        {forecast.missingPriceCount > 0 && <p className="mt-2 rounded-xl border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-xs font-bold text-amber-100">Set a customer selling price for {forecast.missingPriceCount} receipt line{forecast.missingPriceCount === 1 ? "" : "s"} to include it in the forecast.</p>}
         {error && <div className="mt-5 rounded-xl border border-rose-300/40 bg-rose-500/15 px-4 py-3 text-sm font-semibold text-rose-50">{error}</div>}
         <button type="button" onClick={receiveStock} disabled={saving || lines.length === 0 || Boolean(setupError)}
           className="mt-5 w-full rounded-xl bg-white px-5 py-3.5 text-sm font-black text-brand-navy hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">

@@ -221,6 +221,9 @@ export default function SalesReport({
         <StatCard label="Walk-in revenue" value={formatPrice(stats.walkIn)} />
         <StatCard label="Online revenue" value={formatPrice(stats.online)} />
       </div>
+      <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
+        Revenue is the amount actually collected after discounts. Cost is captured from inventory when the item is sold, so later receiving-cost changes do not alter past profit.
+      </p>
 
       {/* Item profit breakdown button */}
       <div className="mt-4 flex justify-end">
@@ -340,6 +343,8 @@ export default function SalesReport({
                       <th className="text-right font-semibold">List</th>
                       <th className="text-right font-semibold">Sold</th>
                       <th className="text-right font-semibold">Discount</th>
+                      <th className="text-right font-semibold">Cost</th>
+                      <th className="text-right font-semibold">Profit</th>
                       <th className="text-right font-semibold">Edit</th>
                     </tr>
                   </thead>
@@ -349,7 +354,7 @@ export default function SalesReport({
                     ))}
                   </tbody>
                 </table>
-                <p className="mt-2 text-right text-xs text-slate-400">Editing a price updates the order total and the exports.</p>
+                <p className="mt-2 text-right text-xs text-slate-400">Editing a price updates the order total, profit, and exports.</p>
                 {(o.source === "walk_in" || o.source === "manual") && (
                   <div className="mt-3 border-t border-slate-200 pt-3 text-right">
                     <DeleteSaleButton orderId={o.id} orderNumber={o.order_number} onDeleted={() => router.refresh()} />
@@ -418,7 +423,7 @@ function EditableItemRow({ item, onSaved }: { item: OrderItemRow; onSaved: () =>
           <input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)}
             className="ml-1 w-20 rounded border border-slate-300 px-2 py-1 text-right text-xs" autoFocus />
         </td>
-        <td className="py-2 text-right" colSpan={2}>
+        <td className="py-2 text-right" colSpan={4}>
           <div className="flex flex-col items-end gap-1">
             {wouldDiscount && (
               <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Discount reason"
@@ -449,6 +454,10 @@ function EditableItemRow({ item, onSaved }: { item: OrderItemRow; onSaved: () =>
       <td className="py-1.5 text-right text-slate-500">{item.list_price != null ? formatPrice(item.list_price) : "—"}</td>
       <td className="py-1.5 text-right font-semibold">{formatPrice(item.unit_price)}</td>
       <td className="py-1.5 text-right text-amber-700">{Number(item.discount_amount) > 0 ? `−${formatPrice(item.discount_amount)}` : "—"}</td>
+      <td className="py-1.5 text-right text-slate-500">{formatPrice(Number(item.cost_price) * item.quantity)}</td>
+      <td className={`py-1.5 text-right font-semibold ${item.unit_price * item.quantity - Number(item.cost_price) * item.quantity >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+        {formatPrice(item.unit_price * item.quantity - Number(item.cost_price) * item.quantity)}
+      </td>
       <td className="py-1.5 text-right">
         <button onClick={() => setEditing(true)} className="font-semibold text-brand-navy hover:underline">Edit</button>
       </td>

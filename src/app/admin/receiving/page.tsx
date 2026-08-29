@@ -17,7 +17,7 @@ export default async function AdminReceivingPage() {
   const sb = await createClient();
   const [productsResult, categoriesResult, receiptsResult] = await Promise.all([
     sb.from("inventory")
-      .select("id,name,original_name,sku,amount,cost_price")
+      .select("id,name,original_name,sku,amount,cost_price,store_price")
       .order("name", { ascending: true }),
     sb.from("categories")
       .select("id,name,prefix,color")
@@ -56,6 +56,7 @@ export default async function AdminReceivingPage() {
           original_name: product.original_name || product.name,
           amount: Number(product.amount) || 0,
           cost_price: Number(product.cost_price) || 0,
+          store_price: Number(product.store_price) || 0,
         }))}
         categories={categoriesResult.data ?? []}
         recentReceipts={(receiptsResult.data ?? []).map((receipt) => ({

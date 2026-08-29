@@ -3,7 +3,6 @@ import Link from "next/link";
 import {
   getStoreItems,
   getStoreCategories,
-  getFeaturedItems,
   getHeroItems,
   getNewArrivals,
 } from "@/lib/inventory";
@@ -21,11 +20,10 @@ interface Props {
 
 export default async function StorefrontPage({ searchParams, basePath }: Props) {
   const { q, cat, account } = await searchParams;
-  const [items, cats, heroItems, featuredItems, newArrivals] = await Promise.all([
+  const [items, cats, heroItems, newArrivals] = await Promise.all([
     getStoreItems(),
     getStoreCategories(),
     getHeroItems(),
-    getFeaturedItems(5),
     getNewArrivals(8),
   ]);
   const promoItems = heroItems.length > 0 ? heroItems : items.slice(0, 1);
@@ -52,60 +50,6 @@ export default async function StorefrontPage({ searchParams, basePath }: Props) 
         <section className="bg-[#fffaf5] px-4 pb-5 pt-6 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl">
             <PromoHero items={promoItems} />
-          </div>
-        </section>
-      )}
-
-      {/* Staff Picks */}
-      {featuredItems.length > 0 && (
-        <section className="bg-[#2b353f] py-8">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="mb-4 flex items-end justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.24em] text-brand-blue">Featured</p>
-                <h2 className="mt-1 text-xl font-black tracking-tight text-white sm:text-2xl">Staff Picks</h2>
-              </div>
-              <a href="#catalog" className="text-sm font-semibold text-slate-400 transition hover:text-white">
-                View all →
-              </a>
-            </div>
-            <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0 [scrollbar-width:thin]">
-              {featuredItems.map((item) => {
-                const img = item.image_url || item.images?.[0];
-                return (
-                  <Link
-                    key={item.id}
-                    href={`/shop/product/${item.id}`}
-                    className="group w-44 shrink-0 overflow-hidden rounded-2xl border border-slate-600 bg-slate-700 transition hover:border-brand-blue sm:w-52"
-                  >
-                    <div className="relative aspect-square overflow-hidden bg-slate-600">
-                      {img && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={img} alt={item.name} className="h-full w-full object-cover transition group-hover:scale-105" />
-                      )}
-                      {item.sale_price && (
-                        <span className="absolute left-2 top-2 rounded-full bg-brand-blue px-2 py-0.5 text-[0.62rem] font-bold uppercase text-white">
-                          Sale
-                        </span>
-                      )}
-                    </div>
-                    <div className="p-3">
-                      <p className="line-clamp-2 text-sm font-semibold text-white">{item.name}</p>
-                      <div className="mt-1.5 flex items-baseline gap-1.5">
-                        {item.sale_price ? (
-                          <>
-                            <span className="text-sm font-bold text-brand-blue">${item.sale_price.toFixed(2)}</span>
-                            <span className="text-xs text-slate-400 line-through">${item.store_price.toFixed(2)}</span>
-                          </>
-                        ) : (
-                          <span className="text-sm font-bold text-white">${item.store_price.toFixed(2)}</span>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
           </div>
         </section>
       )}

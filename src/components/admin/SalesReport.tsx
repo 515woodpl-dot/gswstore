@@ -64,7 +64,8 @@ export default function SalesReport({
     }
 
     for (const o of orders) {
-      revenue += Number(o.total);
+      const orderMerchandiseRevenue = o.order_items.reduce((sum, item) => sum + Number(item.unit_price) * item.quantity, 0);
+      revenue += orderMerchandiseRevenue;
       discounts += Number(o.discount_total);
       for (const it of o.order_items) {
         units += it.quantity;
@@ -87,11 +88,11 @@ export default function SalesReport({
           missingCostUnits += it.quantity;
         }
       }
-      if (o.source === "walk_in") walkIn += Number(o.total); else online += Number(o.total);
+      if (o.source === "walk_in") walkIn += orderMerchandiseRevenue; else online += orderMerchandiseRevenue;
 
       const staff = o.sold_by_name || (o.source === "walk_in" ? "Unknown staff" : "Online");
       if (!byStaff[staff]) byStaff[staff] = { revenue: 0, cost: 0, discounts: 0, count: 0 };
-      byStaff[staff].revenue += Number(o.total);
+      byStaff[staff].revenue += orderMerchandiseRevenue;
       byStaff[staff].discounts += Number(o.discount_total);
       byStaff[staff].count += 1;
       for (const it of o.order_items) byStaff[staff].cost += Number(it.cost_price || 0) * it.quantity;
@@ -225,7 +226,7 @@ export default function SalesReport({
 
       {/* Stat cards */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Revenue" value={formatPrice(stats.revenue)} accent="text-emerald-700" />
+        <StatCard label="Net product revenue" value={formatPrice(stats.revenue)} accent="text-emerald-700" />
         <StatCard label={stats.missingCostUnits > 0 ? "Cost (incomplete)" : "Cost"} value={formatPrice(stats.cost)} accent="text-slate-700" />
         <StatCard label={stats.missingCostUnits > 0 ? "Profit (incomplete)" : "Profit"} value={stats.missingCostUnits > 0 ? "Unknown" : formatPrice(stats.profit)} accent={stats.missingCostUnits > 0 ? "text-amber-700" : stats.profit >= 0 ? "text-emerald-700" : "text-rose-700"} />
         <StatCard label={stats.missingCostUnits > 0 ? "Margin (incomplete)" : "Margin"} value={stats.missingCostUnits > 0 ? "Unknown" : `${stats.margin.toFixed(1)}%`} accent={stats.missingCostUnits > 0 ? "text-amber-700" : stats.margin >= 20 ? "text-emerald-700" : "text-amber-700"} />
@@ -238,7 +239,7 @@ export default function SalesReport({
         <StatCard label="Online revenue" value={formatPrice(stats.online)} />
       </div>
       <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
-        Revenue is the amount actually collected after discounts. Cost is captured from inventory when the item is sold, so later receiving-cost changes do not alter past profit.
+        Net product revenue is the item amount actually collected after discounts, excluding sales tax. Cost is captured from inventory when the item is sold, so later receiving-cost changes do not alter past profit.
       </p>
       {stats.missingCostUnits > 0 && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-5 text-amber-900">Cost is missing for {stats.missingCostUnits} sold unit{stats.missingCostUnits === 1 ? "" : "s"}. Profit and margin are incomplete until those historical sales are backfilled.</p>}
 

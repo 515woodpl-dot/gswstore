@@ -27,12 +27,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     .from("categories")
     .select("id,name")
     .order("sort_order");
+  const { data: promotion } = await sb.from("discount_codes").select("name,code,percent_off").eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
 
   return (
     <html lang="en">
       <body className="min-h-screen font-sans">
         <CartProvider>
-          <StoreShell categories={cats ?? []}>{children}</StoreShell>
+          <StoreShell categories={cats ?? []} promotion={promotion ? { name: promotion.name, code: promotion.code, percentOff: Number(promotion.percent_off) } : null}>{children}</StoreShell>
         </CartProvider>
       </body>
     </html>

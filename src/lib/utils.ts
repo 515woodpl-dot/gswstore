@@ -15,10 +15,12 @@ export async function createOrder(
   cart: Cart,
   notes = "",
   fulfillment: "pickup" | "delivery" = "pickup",
-  deliveryAddress = ""
+  deliveryAddress = "",
+  promo?: { code: string; percentOff: number }
 ): Promise<Order> {
   const sb = createClient();
-  const total = cartTotal(cart.items);
+  const percentOff = Math.min(100, Math.max(0, Number(promo?.percentOff) || 0));
+  const total = Math.round(cartTotal(cart.items) * (1 - percentOff / 100) * 100) / 100;
   const { data: order, error } = await sb.from("orders").insert({
     order_number: genOrderNumber(),
     user_id: userId,
@@ -27,9 +29,15 @@ export async function createOrder(
     notes,
     fulfillment,
     delivery_address: fulfillment === "delivery" ? deliveryAddress : "",
+    promo_code: promo?.code || "",
+    promo_percent: percentOff,
   }).select().single();
   if (error) throw new Error(error.message);
-  const items = cart.items.map(ci => ({ order_id: order.id, item_id: ci.item_id, name: ci.name, sku: ci.sku, image_url: ci.image_url, unit_price: ci.sale_price ?? ci.store_price, list_price: ci.store_price, cost_price: 0, quantity: ci.quantity }));
+  const items = cart.items.map(ci => {
+    const base = ci.sale_price ?? ci.store_price;
+    const unitPrice = Math.round(base * (1 - percentOff / 100) * 100) / 100;
+    return { order_id: order.id, item_id: ci.item_id, name: ci.name, sku: ci.sku, image_url: ci.image_url, unit_price: unitPrice, list_price: ci.store_price, cost_price: 0, discount_amount: Math.round((ci.store_price - unitPrice) * ci.quantity * 100) / 100, discount_reason: promo?.code ? `Code: ${promo.code}` : "", quantity: ci.quantity };
+  });
   await sb.from("order_items").insert(items);
 
   // Decrement inventory stock for each purchased item (atomic via RPC).
@@ -40,7 +48,7 @@ export async function createOrder(
   );
 
   await clearCart(cart.id);
-  return { ...order, items: items as Order["items"] };
+  return { ...order, items: items as unknown as Order["items"] };
 }
 
 export async function getUserOrders(userId: string, client?: any): Promise<Order[]> {

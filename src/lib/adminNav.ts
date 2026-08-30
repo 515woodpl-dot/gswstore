@@ -79,6 +79,7 @@ export const ADMIN_NAV: NavGroup[] = [
         description: "Upload WA DOR quarterly ZIP+4 rate file",
         icon: "🧾",
       },
+      { href: "/admin/discount-codes", label: "Discount Codes", description: "Create online percentage promotions and banner codes", icon: "🏷️" },
       {
         href: "/admin/staff",
         label: "Staff",

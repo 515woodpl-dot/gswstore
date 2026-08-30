@@ -24,15 +24,28 @@ export default function CheckoutPage() {
   const [taxLoading, setTaxLoading] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
+  const [promoInput, setPromoInput] = useState("");
+  const [promo, setPromo] = useState<{ code: string; name: string; percentOff: number } | null>(null);
+  const [promoError, setPromoError] = useState("");
   const items = cart?.items ?? [];
   const FREE_DELIVERY_THRESHOLD = 100;
   const qualifiesFreeDelivery = total >= FREE_DELIVERY_THRESHOLD;
-  const taxAmount = taxRate != null ? Math.round(total * taxRate * 100) / 100 : 0;
+  const promoDiscount = promo ? Math.round(total * (promo.percentOff / 100) * 100) / 100 : 0;
+  const discountedSubtotal = total - promoDiscount;
+  const taxAmount = taxRate != null ? Math.round(discountedSubtotal * taxRate * 100) / 100 : 0;
   const zipReady = customerZip.length === 5; // ZIP entered — allow checkout (tax may or may not apply)
 
   // 3% + $0.30 processing fee on the taxed subtotal — only when paying by card
-  const cardFee = payMethod !== "pay_later" ? Math.round(((total + taxAmount) * 0.03 + 0.30) * 100) / 100 : 0;
-  const chargeTotal = total + taxAmount + cardFee;
+  const cardFee = payMethod !== "pay_later" ? Math.round(((discountedSubtotal + taxAmount) * 0.03 + 0.30) * 100) / 100 : 0;
+  const chargeTotal = discountedSubtotal + taxAmount + cardFee;
+
+  async function applyPromo() {
+    setPromoError("");
+    const response = await fetch("/api/discount-codes/validate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: promoInput }) });
+    const data = await response.json();
+    if (!response.ok) { setPromo(null); setPromoError(data.error || "Code could not be applied."); return; }
+    setPromo({ code: data.code, name: data.name, percentOff: data.percentOff });
+  }
 
   async function lookupTax(zip: string) {
     const clean = zip.trim();
@@ -84,7 +97,7 @@ export default function CheckoutPage() {
       const orderNotes = paymentId
         ? `${notes}${notes ? " · " : ""}[Paid online · Square ${paymentId}${cardFee > 0 ? ` · incl. ${formatPrice(cardFee)} processing fee` : ""}${taxNote}]`
         : `${notes}${taxNote}`;
-      const order = await createOrder(user.id, cart, orderNotes, fulfillment, address);
+      const order = await createOrder(user.id, cart, orderNotes, fulfillment, address, promo ? { code: promo.code, percentOff: promo.percentOff } : undefined);
       await refresh();
       fetch("/api/orders/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order_id: order.id }) })
         .then((r) => { if (!r.ok) console.error("[Checkout] notify failed:", r.status); })
@@ -232,6 +245,13 @@ export default function CheckoutPage() {
               <span>Subtotal</span>
               <span className="font-semibold text-slate-950">{formatPrice(total)}</span>
             </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+              <p className="text-sm font-bold text-slate-800">Discount code</p>
+              <div className="mt-2 flex gap-2"><input value={promoInput} onChange={(e) => setPromoInput(e.target.value.toUpperCase())} placeholder="WELCOME" className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm font-mono uppercase" /><button type="button" onClick={applyPromo} className="rounded-xl bg-brand-navy px-3 py-2 text-sm font-bold text-white">Apply</button></div>
+              {promo && <p className="mt-2 text-xs font-bold text-emerald-700">{promo.name}: {promo.percentOff}% off · −{formatPrice(promoDiscount)}</p>}
+              {promoError && <p className="mt-2 text-xs font-semibold text-rose-700">{promoError}</p>}
+            </div>
+            {promo && <div className="flex items-center justify-between text-sm text-emerald-700"><span>{promo.code} ({promo.percentOff}% off)</span><span className="font-semibold">−{formatPrice(promoDiscount)}</span></div>}
             {cardFee > 0 && (
               <div className="flex items-center justify-between text-sm text-slate-600">
                 <span>Processing fee (3% + $0.30)</span>

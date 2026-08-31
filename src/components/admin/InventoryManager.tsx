@@ -14,7 +14,7 @@ interface Row {
   featured: boolean; new_arrival: boolean; store_visible: boolean;
   attributes: Record<string, string> | null;
   tax_enabled: boolean; tax_rate_percent: number;
-  parent_id: string | null; variant_label: string; variant_dimension: string; part_number: string;
+  parent_id: string | null; variant_label: string; variant_dimension: string; part_number: string; base_unit?: string; selling_unit?: string; units_per_sale?: number;
 }
 
 const PRODUCT_ATTR_FIELDS = [
@@ -29,7 +29,7 @@ const BLANK: Row = {
   id: "", name: "", original_name: "", category_id: null, category_name: "", brand: "", model_number: "",
   voltage: "", sku: "", description: "", amount: 0, store_price: 0, sale_price: null, cost_price: 0, image_url: "", images: [], featured: false, new_arrival: false, store_visible: true,
   attributes: {}, tax_enabled: false, tax_rate_percent: 0,
-  parent_id: null, variant_label: "", variant_dimension: "Color", part_number: "",
+  parent_id: null, variant_label: "", variant_dimension: "Color", part_number: "", base_unit: "Each", selling_unit: "Each", units_per_sale: 1,
 };
 
 // Compress image to max 1200px wide and ~80% quality JPEG using Canvas
@@ -200,6 +200,9 @@ export default function InventoryManager({ initialItems, categories }: { initial
       variant_label: editing.variant_label ?? "",
       variant_dimension: editing.variant_dimension || "Color",
       part_number: editing.part_number ?? "",
+      base_unit: editing.base_unit || "Each",
+      selling_unit: editing.selling_unit || "Each",
+      units_per_sale: Math.max(1, Math.floor(Number(editing.units_per_sale) || 1)),
     };
     let err = null as { message: string } | null;
     if (originalId) {
@@ -221,8 +224,8 @@ export default function InventoryManager({ initialItems, categories }: { initial
   }
 
   async function remove(id: string) {
-    if (!confirm(`Delete ${id}? This cannot be undone.`)) return;
-    const { error: err } = await sb.from("inventory").delete().eq("id", id);
+    if (!confirm(`Delete ${id}? Unsold receipt stock will also be removed. This cannot be undone.`)) return;
+    const { error: err } = await sb.rpc("delete_inventory_item", { p_item_id: id });
     if (err) { setError(err.message); return; }
     setItems((prev) => prev.filter((p) => p.id !== id));
   }
@@ -434,6 +437,10 @@ export default function InventoryManager({ initialItems, categories }: { initial
               <Field label="Sale Price ($)" type="number" value={String(editing.sale_price ?? "")} onChange={(v) => setEditing({ ...editing, sale_price: v ? Number(v) : null })} placeholder="Leave empty if no sale" />
               <Field label="Average Landed Cost ($)" type="number" value={String(editing.cost_price || "")} onChange={(v) => setEditing({ ...editing, cost_price: Number(v) || 0 })} placeholder="Updated automatically by receiving" />
               <Field label="Stock amount" type="number" value={String(editing.amount)} onChange={(v) => setEditing({ ...editing, amount: Number(v) })} />
+              <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">Base stock unit</span><select value={editing.base_unit ?? "Each"} onChange={(e) => setEditing({ ...editing, base_unit: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"><option>Each</option><option>Tube</option><option>Clip</option><option>Blade</option><option>Piece</option></select></label>
+              <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">Customer selling unit</span><select value={editing.selling_unit ?? "Each"} onChange={(e) => setEditing({ ...editing, selling_unit: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"><option>Each</option><option>Bag</option><option>Pack</option><option>Set</option><option>Case</option></select></label>
+              <Field label={`Base ${editing.base_unit ?? "units"} per ${editing.selling_unit ?? "sale"}`} type="number" value={String(editing.units_per_sale ?? 1)} onChange={(v) => setEditing({ ...editing, units_per_sale: Math.max(1, Number(v) || 1) })} />
+              <p className="-mt-2 text-xs leading-5 text-slate-400 sm:col-span-2">Example: a Bag with 100 Clips uses base unit Clip, selling unit Bag, and 100 base units per sale. Do not change existing stock quantity until its packaging is reviewed.</p>
               <p className="-mt-2 text-xs leading-5 text-slate-400 sm:col-span-2">
                 For normal deliveries, use Receive Stock so quantity and true landed cost update together. These fields remain editable for corrections.
               </p>

@@ -14,7 +14,7 @@ export async function fetchCart(userId: string): Promise<Cart | null> {
   const sb = createClient();
   const { data, error } = await sb
     .from("carts")
-    .select("id,user_id,created_at,updated_at,cart_items(id,cart_id,item_id,name,sku,image_url,store_price,sale_price,quantity)")
+    .select("id,user_id,created_at,updated_at,cart_items(id,cart_id,item_id,name,sku,image_url,store_price,sale_price,quantity,base_unit,selling_unit,units_per_sale)")
     .eq("user_id", userId)
     .single();
   if (error || !data) return null;
@@ -28,7 +28,7 @@ export async function addToCart(userId: string, item: InventoryItem, qty = 1): P
   if (ex) {
     await sb.from("cart_items").update({ quantity: ex.quantity + qty }).eq("id", ex.id);
   } else {
-    await sb.from("cart_items").insert({ cart_id: cartId, item_id: item.id, name: item.name, sku: item.sku, image_url: item.image_url, store_price: item.store_price, sale_price: item.sale_price ?? null, quantity: qty });
+    await sb.from("cart_items").insert({ cart_id: cartId, item_id: item.id, name: item.name, sku: item.sku, image_url: item.image_url, store_price: item.store_price, sale_price: item.sale_price ?? null, quantity: qty, base_unit: item.base_unit ?? "Each", selling_unit: item.selling_unit ?? "Each", units_per_sale: item.units_per_sale ?? 1 });
   }
   await sb.from("carts").update({ updated_at: new Date().toISOString() }).eq("id", cartId);
 }

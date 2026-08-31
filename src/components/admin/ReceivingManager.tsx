@@ -12,6 +12,7 @@ import {
   type LandedCostExpense,
 } from "@/lib/landedCost";
 import { generateSmartProductIdentity, inferCategoryFromProductName } from "@/lib/productIdentity";
+import { baseQuantityFromPackages, costPerBaseUnitFromPackageCost, positivePackagingFactor } from "@/lib/packaging";
 import type { Category } from "@/types";
 
 interface PendingNewProduct {
@@ -19,6 +20,9 @@ interface PendingNewProduct {
   categoryName: string;
   storePrice: number;
   storeVisible: boolean;
+  baseUnit: string;
+  sellingUnit: string;
+  unitsPerSale: number;
 }
 
 interface ReceivingProduct {
@@ -29,6 +33,9 @@ interface ReceivingProduct {
   amount: number;
   cost_price: number;
   store_price: number;
+  base_unit?: string;
+  selling_unit?: string;
+  units_per_sale?: number;
   pendingNew?: PendingNewProduct;
 }
 
@@ -41,6 +48,11 @@ interface NewProductDraft {
   storePrice: number;
   supplierUnitCost: number;
   quantity: number;
+  purchaseUnit: string;
+  baseUnitsPerPurchase: number;
+  baseUnit: string;
+  sellingUnit: string;
+  unitsPerSale: number;
   unitWeight: number;
   storeVisible: boolean;
   smartIdentity: boolean;
@@ -52,6 +64,8 @@ interface ReceiptLine {
   supplierUnitCost: number;
   unitWeight: number;
   manualAllocation: number;
+  purchaseUnit: string;
+  baseUnitsPerPurchase: number;
 }
 
 interface RecentReceiptItem {
@@ -148,6 +162,7 @@ export default function ReceivingManager({
   const [correctionAmount, setCorrectionAmount] = useState(0);
   const [correctionError, setCorrectionError] = useState("");
   const [correcting, setCorrecting] = useState(false);
+  const [reversing, setReversing] = useState(false);
 
   const activeExpenses: LandedCostExpense[] = EXPENSE_FIELDS.map((field) => ({
     kind: field.kind,
@@ -155,7 +170,12 @@ export default function ReceivingManager({
     amount: Number(expenses[field.kind]) || 0,
   })).filter((expense) => expense.amount > 0);
 
-  const calculation = useMemo(() => calculateLandedCosts(lines, activeExpenses, allocationMode), [
+  const calculation = useMemo(() => calculateLandedCosts(lines.map((line) => ({
+    ...line,
+    purchaseQuantity: line.quantity,
+    quantity: baseQuantityFromPackages(line.quantity, line.baseUnitsPerPurchase),
+    supplierUnitCost: costPerBaseUnitFromPackageCost(line.supplierUnitCost, line.baseUnitsPerPurchase),
+  })), activeExpenses, allocationMode), [
     lines,
     activeExpenses,
     allocationMode,
@@ -168,13 +188,14 @@ export default function ReceivingManager({
     for (const line of calculation.lines) {
       const product = products.find((candidate) => candidate.id === line.id);
       const customerPrice = product?.pendingNew?.storePrice ?? Number(product?.store_price) ?? 0;
+      const sellingUnits = line.quantity / positivePackagingFactor(product?.units_per_sale);
       const landedTotal = line.landedUnitCost * line.quantity;
       if (customerPrice <= 0) {
         missingPriceCount += 1;
         continue;
       }
-      potentialRevenue += customerPrice * line.quantity;
-      potentialProfit += customerPrice * line.quantity - landedTotal;
+      potentialRevenue += customerPrice * sellingUnits;
+      potentialProfit += customerPrice * sellingUnits - landedTotal;
     }
     const margin = potentialRevenue > 0 ? (potentialProfit / potentialRevenue) * 100 : 0;
     return { potentialRevenue, potentialProfit, margin, missingPriceCount };
@@ -214,6 +235,11 @@ export default function ReceivingManager({
       storePrice: 0,
       supplierUnitCost: 0,
       quantity: 1,
+      purchaseUnit: "Each",
+      baseUnitsPerPurchase: 1,
+      baseUnit: "Each",
+      sellingUnit: "Each",
+      unitsPerSale: 1,
       unitWeight: 0,
       storeVisible: false,
       smartIdentity: true,
@@ -291,6 +317,9 @@ export default function ReceivingManager({
         categoryName: category.name,
         storePrice: newProduct.storePrice,
         storeVisible: newProduct.storeVisible,
+        baseUnit: newProduct.baseUnit,
+        sellingUnit: newProduct.sellingUnit,
+        unitsPerSale: positivePackagingFactor(newProduct.unitsPerSale),
       },
     };
     setProducts((current) => [...current, product]);
@@ -300,6 +329,8 @@ export default function ReceivingManager({
       supplierUnitCost: newProduct.supplierUnitCost,
       unitWeight: newProduct.unitWeight,
       manualAllocation: 0,
+      purchaseUnit: newProduct.purchaseUnit,
+      baseUnitsPerPurchase: positivePackagingFactor(newProduct.baseUnitsPerPurchase),
     }]);
     setNewProduct(null);
     setQuery("");
@@ -312,6 +343,8 @@ export default function ReceivingManager({
       supplierUnitCost: Number(product.cost_price) || 0,
       unitWeight: 0,
       manualAllocation: 0,
+      purchaseUnit: "Each",
+      baseUnitsPerPurchase: 1,
     }]);
     setQuery("");
   }
@@ -361,6 +394,15 @@ export default function ReceivingManager({
     }
   }
 
+  async function reverseReceipt(receipt: RecentReceipt, deleteProducts: boolean) {
+    if (!confirm(`${deleteProducts ? "Reverse this receipt and delete its new products" : "Reverse this receipt"}? This cannot be undone.`)) return;
+    setReversing(true);
+    const { error: rpcError } = await sb.rpc("reverse_inventory_receipt", { p_receipt_id: receipt.id, p_delete_new_products: deleteProducts });
+    setReversing(false);
+    if (rpcError) { setError(rpcError.message); return; }
+    router.refresh();
+  }
+
   async function receiveStock() {
     setError("");
     if (setupError) {
@@ -400,6 +442,9 @@ export default function ReceivingManager({
               category_id: productFor(line.id)?.pendingNew?.categoryId,
               store_price: productFor(line.id)?.pendingNew?.storePrice,
               store_visible: productFor(line.id)?.pendingNew?.storeVisible,
+              selling_unit: productFor(line.id)?.pendingNew?.sellingUnit,
+              base_unit: productFor(line.id)?.pendingNew?.baseUnit,
+              units_per_sale: productFor(line.id)?.pendingNew?.unitsPerSale,
             },
           } : {}),
           inventory_id: line.id,
@@ -407,6 +452,9 @@ export default function ReceivingManager({
           supplier_unit_cost: line.supplierUnitCost,
           unit_weight: line.unitWeight,
           manual_allocated_expense: line.manualAllocation,
+          purchase_quantity: Math.round(line.quantity / positivePackagingFactor(line.baseUnitsPerPurchase)),
+          purchase_unit: line.purchaseUnit,
+          base_units_per_purchase: line.baseUnitsPerPurchase,
         })),
       });
       if (rpcError) throw new Error(rpcError.message);
@@ -614,8 +662,9 @@ export default function ReceivingManager({
                   <button type="button" onClick={() => removeLine(line.id)} className="rounded-lg px-2 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50">Remove</button>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  <NumberField label="Quantity" value={line.quantity} onChange={(value) => updateLine(line.id, { quantity: value })} min={1} step={1} />
-                  <NumberField label="Supplier cost each" value={line.supplierUnitCost} onChange={(value) => updateLine(line.id, { supplierUnitCost: value })} prefix="$" />
+                  <NumberField label={`Packages received (${line.purchaseUnit})`} value={line.quantity} onChange={(value) => updateLine(line.id, { quantity: value })} min={1} step={1} />
+                  <NumberField label={`Cost per ${line.purchaseUnit}`} value={line.supplierUnitCost} onChange={(value) => updateLine(line.id, { supplierUnitCost: value })} prefix="$" />
+                  <NumberField label={`Base units per ${line.purchaseUnit ?? "Each"}`} value={line.baseUnitsPerPurchase ?? 1} onChange={(value) => updateLine(line.id, { baseUnitsPerPurchase: positivePackagingFactor(value) })} min={1} step={1} />
                   <NumberField label="Weight each (optional)" value={line.unitWeight} onChange={(value) => updateLine(line.id, { unitWeight: value })} suffix="lb" />
                   {allocationMode === "manual" ? (
                     <NumberField label="Shared cost for this line" value={line.manualAllocation} onChange={(value) => updateLine(line.id, { manualAllocation: value })} prefix="$" />
@@ -739,6 +788,10 @@ export default function ReceivingManager({
                 ) : (
                   <p className="mt-3 text-xs text-slate-400">No tracked units remain in this receipt, so its costs are locked for accounting accuracy.</p>
                 )}
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                  <button type="button" disabled={reversing} onClick={() => reverseReceipt(receipt, false)} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700 disabled:opacity-50">Reverse receipt</button>
+                  <button type="button" disabled={reversing} onClick={() => reverseReceipt(receipt, true)} className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Reverse + delete new products</button>
+                </div>
               </div>
             </details>
           ))}
@@ -784,6 +837,26 @@ export default function ReceivingManager({
               <Field label="SKU" value={newProduct.sku} onChange={(value) => setNewProduct({ ...newProduct, sku: value.toUpperCase(), smartIdentity: false })} placeholder="SNK-0001" mono />
               <NumberField label="Customer selling price *" value={newProduct.storePrice} onChange={(value) => setNewProduct({ ...newProduct, storePrice: value })} prefix="$" min={0.01} />
               <NumberField label="Received quantity" value={newProduct.quantity} onChange={(value) => setNewProduct({ ...newProduct, quantity: value })} min={1} step={1} />
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">Purchase unit</span>
+                <select value={newProduct.purchaseUnit} onChange={(event) => setNewProduct({ ...newProduct, purchaseUnit: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+                  {['Each', 'Bag', 'Pack', 'Set', 'Case', 'Box'].map((unit) => <option key={unit}>{unit}</option>)}
+                </select>
+              </label>
+              <NumberField label={`Base units per ${newProduct.purchaseUnit}`} value={newProduct.baseUnitsPerPurchase} onChange={(value) => setNewProduct({ ...newProduct, baseUnitsPerPurchase: positivePackagingFactor(value) })} min={1} step={1} />
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">Base stock unit</span>
+                <select value={newProduct.baseUnit} onChange={(event) => setNewProduct({ ...newProduct, baseUnit: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+                  {['Each', 'Tube', 'Clip', 'Blade', 'Piece'].map((unit) => <option key={unit}>{unit}</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">Customer selling unit</span>
+                <select value={newProduct.sellingUnit} onChange={(event) => setNewProduct({ ...newProduct, sellingUnit: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+                  {['Each', 'Bag', 'Pack', 'Set', 'Case'].map((unit) => <option key={unit}>{unit}</option>)}
+                </select>
+              </label>
+              <NumberField label={`Base units per ${newProduct.sellingUnit}`} value={newProduct.unitsPerSale} onChange={(value) => setNewProduct({ ...newProduct, unitsPerSale: positivePackagingFactor(value) })} min={1} step={1} />
               <NumberField label="Supplier cost each" value={newProduct.supplierUnitCost} onChange={(value) => setNewProduct({ ...newProduct, supplierUnitCost: value })} prefix="$" />
               <NumberField label="Weight each (optional)" value={newProduct.unitWeight} onChange={(value) => setNewProduct({ ...newProduct, unitWeight: value })} suffix="lb" />
 

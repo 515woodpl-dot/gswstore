@@ -154,7 +154,7 @@ export default function CheckoutPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-slate-950">{item.name}</p>
-                    <p className="text-sm text-slate-500">Qty: {item.quantity}</p>
+                  <p className="text-sm text-slate-500">Qty: {item.quantity} {item.selling_unit ?? "Each"}</p>
                   </div>
                   <p className="text-sm font-semibold text-slate-950">{formatPrice(item.store_price * item.quantity)}</p>
                 </div>

@@ -32,6 +32,9 @@ interface InventoryRow {
   variant_label: string | null;
   variant_dimension: string | null;
   part_number: string | null;
+  base_unit: string | null;
+  selling_unit: string | null;
+  units_per_sale: number | null;
   created_at?: string;
 }
 
@@ -60,10 +63,13 @@ function rowToItem(r: InventoryRow): InventoryItem {
     variant_label: r.variant_label ?? "",
     variant_dimension: r.variant_dimension ?? "Option",
     part_number: r.part_number ?? "",
+    base_unit: r.base_unit || "Each",
+    selling_unit: r.selling_unit || "Each",
+    units_per_sale: Number(r.units_per_sale) || 1,
   };
 }
 
-const COLS = "id,name,category_name,brand,model_number,voltage,sku,description,amount,store_price,sale_price,image_url,images,featured,new_arrival,store_visible,attributes,tax_enabled,tax_rate_percent,parent_id,variant_label,variant_dimension,part_number,created_at";
+const COLS = "id,name,category_name,brand,model_number,voltage,sku,description,amount,store_price,sale_price,image_url,images,featured,new_arrival,store_visible,attributes,tax_enabled,tax_rate_percent,parent_id,variant_label,variant_dimension,part_number,base_unit,selling_unit,units_per_sale,created_at";
 
 // ── Public store reads (visible items only) ──────────────────────────────────
 

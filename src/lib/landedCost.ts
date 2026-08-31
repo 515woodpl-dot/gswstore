@@ -14,6 +14,8 @@ export interface LandedCostLine {
   supplierUnitCost: number;
   unitWeight: number;
   manualAllocation: number;
+  purchaseUnit?: string;
+  baseUnitsPerPurchase?: number;
 }
 
 export interface CalculatedLandedCostLine extends LandedCostLine {

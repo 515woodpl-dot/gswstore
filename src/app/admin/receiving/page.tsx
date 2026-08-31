@@ -17,7 +17,7 @@ export default async function AdminReceivingPage() {
   const sb = await createClient();
   const [productsResult, categoriesResult, receiptsResult] = await Promise.all([
     sb.from("inventory")
-      .select("id,name,original_name,sku,amount,cost_price,store_price")
+      .select("id,name,original_name,sku,amount,cost_price,store_price,base_unit,selling_unit,units_per_sale")
       .order("name", { ascending: true }),
     sb.from("categories")
       .select("id,name,prefix,color")

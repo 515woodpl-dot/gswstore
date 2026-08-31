@@ -36,14 +36,14 @@ export async function createOrder(
   const items = cart.items.map(ci => {
     const base = ci.sale_price ?? ci.store_price;
     const unitPrice = Math.round(base * (1 - percentOff / 100) * 100) / 100;
-    return { order_id: order.id, item_id: ci.item_id, name: ci.name, sku: ci.sku, image_url: ci.image_url, unit_price: unitPrice, list_price: ci.store_price, cost_price: 0, discount_amount: Math.round((ci.store_price - unitPrice) * ci.quantity * 100) / 100, discount_reason: promo?.code ? `Code: ${promo.code}` : "", quantity: ci.quantity };
+    return { order_id: order.id, item_id: ci.item_id, name: ci.name, sku: ci.sku, image_url: ci.image_url, unit_price: unitPrice, list_price: ci.store_price, cost_price: 0, discount_amount: Math.round((ci.store_price - unitPrice) * ci.quantity * 100) / 100, discount_reason: promo?.code ? `Code: ${promo.code}` : "", quantity: ci.quantity, base_units_per_sale: ci.units_per_sale ?? 1 };
   });
   await sb.from("order_items").insert(items);
 
   // Decrement inventory stock for each purchased item (atomic via RPC).
   await Promise.all(
     cart.items.map(ci =>
-      sb.rpc("decrement_inventory", { p_item_id: ci.item_id, p_qty: ci.quantity })
+      sb.rpc("decrement_inventory", { p_item_id: ci.item_id, p_qty: ci.quantity * (ci.units_per_sale ?? 1) })
     )
   );
 

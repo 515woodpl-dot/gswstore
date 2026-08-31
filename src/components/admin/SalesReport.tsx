@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatPrice } from "@/lib/utils";
+import { costForSale } from "@/lib/packaging";
 
 interface OrderItemRow {
   id: string;
@@ -13,6 +14,7 @@ interface OrderItemRow {
   unit_price: number;
   list_price: number | null;
   cost_price: number;
+  base_units_per_sale?: number;
   discount_amount: number;
   discount_reason: string;
 }
@@ -75,7 +77,7 @@ export default function SalesReport({
       discounts += Number(o.discount_total);
       for (const it of o.order_items) {
         units += it.quantity;
-        const itemCost = Number(it.cost_price || 0) * it.quantity;
+        const itemCost = costForSale(it.cost_price, it.quantity, it.base_units_per_sale);
         const itemRev = Number(it.unit_price) * it.quantity;
         const itemListRevenue = Number(it.list_price ?? it.unit_price) * it.quantity;
         const itemDiscount = Number(it.discount_amount || 0);
@@ -101,7 +103,7 @@ export default function SalesReport({
       byStaff[staff].revenue += orderMerchandiseRevenue;
       byStaff[staff].discounts += Number(o.discount_total);
       byStaff[staff].count += 1;
-      for (const it of o.order_items) byStaff[staff].cost += Number(it.cost_price || 0) * it.quantity;
+      for (const it of o.order_items) byStaff[staff].cost += costForSale(it.cost_price, it.quantity, it.base_units_per_sale);
     }
     const profit = revenue - cost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
@@ -127,7 +129,7 @@ export default function SalesReport({
     for (const o of orders) {
       for (const it of o.order_items) {
         const lineTotal = it.unit_price * it.quantity;
-        const lineCost = Number(it.cost_price || 0) * it.quantity;
+        const lineCost = costForSale(it.cost_price, it.quantity, it.base_units_per_sale);
         rows.push([
           o.order_number,
           new Date(o.created_at).toLocaleString(),
@@ -500,9 +502,9 @@ function EditableItemRow({ item, onSaved }: { item: OrderItemRow; onSaved: () =>
       <td className="py-1.5 text-right text-slate-500">{item.list_price != null ? formatPrice(item.list_price) : "—"}</td>
       <td className="py-1.5 text-right font-semibold">{formatPrice(item.unit_price)}</td>
       <td className="py-1.5 text-right text-amber-700">{Number(item.discount_amount) > 0 ? `−${formatPrice(item.discount_amount)}` : "—"}</td>
-      <td className="py-1.5 text-right text-slate-500">{formatPrice(Number(item.cost_price) * item.quantity)}</td>
-      <td className={`py-1.5 text-right font-semibold ${item.unit_price * item.quantity - Number(item.cost_price) * item.quantity >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-        {formatPrice(item.unit_price * item.quantity - Number(item.cost_price) * item.quantity)}
+      <td className="py-1.5 text-right text-slate-500">{formatPrice(costForSale(item.cost_price, item.quantity, item.base_units_per_sale))}</td>
+      <td className={`py-1.5 text-right font-semibold ${item.unit_price * item.quantity - costForSale(item.cost_price, item.quantity, item.base_units_per_sale) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+        {formatPrice(item.unit_price * item.quantity - costForSale(item.cost_price, item.quantity, item.base_units_per_sale))}
       </td>
       <td className="py-1.5 text-right">
         <button onClick={() => setEditing(true)} className="font-semibold text-brand-navy hover:underline">Edit</button>

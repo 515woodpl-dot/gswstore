@@ -10,6 +10,14 @@ ALTER TABLE inventory
 ALTER TABLE inventory
   ADD COLUMN IF NOT EXISTS original_name TEXT NOT NULL DEFAULT '';
 
+ALTER TABLE order_items
+  ADD COLUMN IF NOT EXISTS base_units_per_sale INTEGER NOT NULL DEFAULT 1;
+
+ALTER TABLE inventory
+  ADD COLUMN IF NOT EXISTS base_unit TEXT NOT NULL DEFAULT 'Each',
+  ADD COLUMN IF NOT EXISTS selling_unit TEXT NOT NULL DEFAULT 'Each',
+  ADD COLUMN IF NOT EXISTS units_per_sale INTEGER NOT NULL DEFAULT 1;
+
 -- Existing products start with their current name as the best-known original.
 -- Staff can replace this with the supplier's exact name in Products.
 UPDATE inventory
@@ -72,6 +80,11 @@ ALTER TABLE inventory_receipt_items
 ALTER TABLE inventory_receipt_items
   ADD COLUMN IF NOT EXISTS remaining_quantity INTEGER NOT NULL DEFAULT 0
     CHECK (remaining_quantity >= 0);
+
+ALTER TABLE inventory_receipt_items
+  ADD COLUMN IF NOT EXISTS purchase_unit TEXT NOT NULL DEFAULT 'Each',
+  ADD COLUMN IF NOT EXISTS base_units_per_purchase INTEGER NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS purchase_quantity_received INTEGER NOT NULL DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_inventory_receipts_date
   ON inventory_receipts(received_date DESC, created_at DESC);
@@ -156,6 +169,9 @@ DECLARE
   v_supplier_cost NUMERIC;
   v_unit_weight NUMERIC;
   v_manual_allocation NUMERIC;
+  v_purchase_unit TEXT;
+  v_base_units_per_purchase INTEGER;
+  v_purchase_quantity INTEGER;
   v_previous_quantity INTEGER;
   v_previous_cost NUMERIC;
   v_original_name TEXT;
@@ -167,6 +183,9 @@ DECLARE
   v_new_category_name TEXT;
   v_new_store_price NUMERIC;
   v_new_store_visible BOOLEAN;
+  v_new_selling_unit TEXT;
+  v_new_base_unit TEXT;
+  v_new_units_per_sale INTEGER;
   v_expense_type TEXT;
   v_expense_amount NUMERIC;
   v_expense_method TEXT;
@@ -216,6 +235,9 @@ BEGIN
     v_supplier_cost := COALESCE(NULLIF(v_item->>'supplier_unit_cost', '')::NUMERIC, 0);
     v_unit_weight := COALESCE(NULLIF(v_item->>'unit_weight', '')::NUMERIC, 0);
     v_manual_allocation := COALESCE(NULLIF(v_item->>'manual_allocated_expense', '')::NUMERIC, 0);
+    v_purchase_unit := COALESCE(NULLIF(TRIM(v_item->>'purchase_unit'), ''), 'Each');
+    v_base_units_per_purchase := GREATEST(COALESCE(NULLIF(v_item->>'base_units_per_purchase', '')::INTEGER, 1), 1);
+    v_purchase_quantity := GREATEST(COALESCE(NULLIF(v_item->>'purchase_quantity', '')::INTEGER, v_quantity / v_base_units_per_purchase), 0);
 
     IF v_inventory_id IS NULL THEN RAISE EXCEPTION 'Every receipt line needs an inventory item.'; END IF;
     IF v_quantity <= 0 THEN RAISE EXCEPTION 'Quantity for item % must be greater than zero.', v_inventory_id; END IF;
@@ -241,6 +263,9 @@ BEGIN
       v_new_category_id := NULLIF(v_new_product->>'category_id', '')::BIGINT;
       v_new_store_price := COALESCE(NULLIF(v_new_product->>'store_price', '')::NUMERIC, 0);
       v_new_store_visible := COALESCE(NULLIF(v_new_product->>'store_visible', '')::BOOLEAN, FALSE);
+      v_new_selling_unit := COALESCE(NULLIF(TRIM(v_new_product->>'selling_unit'), ''), 'Each');
+      v_new_base_unit := COALESCE(NULLIF(TRIM(v_new_product->>'base_unit'), ''), 'Each');
+      v_new_units_per_sale := GREATEST(COALESCE(NULLIF(v_new_product->>'units_per_sale', '')::INTEGER, 1), 1);
 
       IF v_new_name IS NULL THEN RAISE EXCEPTION 'A new store name is required for item %.', v_inventory_id; END IF;
       IF v_new_original_name IS NULL THEN RAISE EXCEPTION 'An original supplier name is required for item %.', v_inventory_id; END IF;
@@ -254,11 +279,11 @@ BEGIN
 
       INSERT INTO inventory (
         id, name, original_name, category_id, category_name, sku,
-        amount, store_price, cost_price, store_visible
+        amount, store_price, cost_price, store_visible, base_unit, selling_unit, units_per_sale
       ) VALUES (
         v_inventory_id, v_new_name, v_new_original_name,
         v_new_category_id, v_new_category_name, v_new_sku,
-        0, v_new_store_price, 0, v_new_store_visible
+        0, v_new_store_price, 0, v_new_store_visible, v_new_base_unit, v_new_selling_unit, v_new_units_per_sale
       );
 
       v_previous_quantity := 0;
@@ -268,11 +293,13 @@ BEGIN
 
     INSERT INTO inventory_receipt_items (
       receipt_id, inventory_id, original_name_snapshot, quantity_received, supplier_unit_cost,
-      unit_weight, allocated_expense, previous_quantity, previous_average_cost, remaining_quantity
+      unit_weight, allocated_expense, previous_quantity, previous_average_cost, remaining_quantity,
+      purchase_unit, base_units_per_purchase, purchase_quantity_received
     ) VALUES (
       v_batch_id, v_inventory_id, v_original_name, v_quantity, v_supplier_cost,
       v_unit_weight, CASE WHEN v_mode = 'manual' THEN v_manual_allocation ELSE 0 END,
-      v_previous_quantity, COALESCE(v_previous_cost, 0), v_quantity
+      v_previous_quantity, COALESCE(v_previous_cost, 0), v_quantity,
+      v_purchase_unit, v_base_units_per_purchase, v_purchase_quantity
     );
   END LOOP;
 
@@ -405,7 +432,7 @@ WHERE oi.item_id = inv.id
 CREATE OR REPLACE FUNCTION consume_receipt_layer_units()
 RETURNS TRIGGER AS $$
 DECLARE
-  v_left INTEGER := NEW.quantity;
+  v_left INTEGER := NEW.quantity * COALESCE(NEW.base_units_per_sale, 1);
   v_layer RECORD;
   v_used INTEGER;
 BEGIN
@@ -513,6 +540,62 @@ $$;
 
 REVOKE ALL ON FUNCTION add_receipt_expense_correction(UUID, TEXT, TEXT, NUMERIC) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION add_receipt_expense_correction(UUID, TEXT, TEXT, NUMERIC) TO authenticated;
+
+-- Safely undo an untouched receipt. This refuses receipts with sold units or
+-- later stock changes, so inventory and cost history cannot be corrupted.
+CREATE OR REPLACE FUNCTION reverse_inventory_receipt(p_receipt_id UUID, p_delete_new_products BOOLEAN DEFAULT FALSE)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_line RECORD;
+BEGIN
+  IF NOT is_admin() THEN RAISE EXCEPTION 'Only an admin can reverse a receipt.'; END IF;
+  FOR v_line IN SELECT * FROM inventory_receipt_items WHERE receipt_id = p_receipt_id FOR UPDATE LOOP
+    IF v_line.remaining_quantity <> v_line.quantity_received THEN RAISE EXCEPTION 'Receipt contains sold units and cannot be reversed.'; END IF;
+    IF NOT EXISTS (SELECT 1 FROM inventory WHERE id = v_line.inventory_id AND amount = v_line.previous_quantity + v_line.quantity_received) THEN RAISE EXCEPTION 'Inventory changed after this receipt; reversal is unsafe.'; END IF;
+    IF p_delete_new_products AND v_line.previous_quantity = 0 THEN
+      DELETE FROM inventory_receipt_items WHERE id = v_line.id;
+      DELETE FROM inventory WHERE id = v_line.inventory_id;
+    ELSE
+      UPDATE inventory SET amount = v_line.previous_quantity, cost_price = v_line.previous_average_cost WHERE id = v_line.inventory_id;
+    END IF;
+  END LOOP;
+  DELETE FROM inventory_receipts WHERE id = p_receipt_id;
+END; $$;
+GRANT EXECUTE ON FUNCTION reverse_inventory_receipt(UUID, BOOLEAN) TO authenticated;
+
+-- Remove an inventory product safely. A sold product is never hard-deleted;
+-- an unsold product may be removed together with its single-item receipt.
+CREATE OR REPLACE FUNCTION delete_inventory_item(p_item_id TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_receipt_id UUID;
+  v_receipt_count INTEGER;
+BEGIN
+  IF NOT is_admin() THEN RAISE EXCEPTION 'Only an admin can delete inventory.'; END IF;
+  IF EXISTS (SELECT 1 FROM order_items WHERE item_id = p_item_id) THEN
+    RAISE EXCEPTION 'This product has sales history and cannot be deleted. Set its stock to zero or hide it instead.';
+  END IF;
+
+  SELECT COUNT(*), MIN(receipt_id) INTO v_receipt_count, v_receipt_id
+  FROM inventory_receipt_items WHERE inventory_id = p_item_id;
+  IF v_receipt_count > 0 AND EXISTS (
+    SELECT 1 FROM inventory_receipt_items WHERE receipt_id = v_receipt_id AND inventory_id <> p_item_id
+  ) THEN
+    RAISE EXCEPTION 'This product belongs to a receipt with other products. Reverse the whole receipt first.';
+  END IF;
+
+  DELETE FROM cart_items WHERE item_id = p_item_id;
+  IF v_receipt_count > 0 THEN
+    DELETE FROM inventory_receipts WHERE id = v_receipt_id;
+  END IF;
+  DELETE FROM inventory WHERE id = p_item_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION delete_inventory_item(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION delete_inventory_item(TEXT) TO authenticated;
 
 -- ============================================================
 -- DONE. New stock should be entered through Admin > Receive Stock.

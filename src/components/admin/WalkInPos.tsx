@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
+import { baseUnitsForSale } from "@/lib/packaging";
 import { useAuth } from "@/hooks/useAuth";
 import type { InventoryItem } from "@/types";
 
@@ -68,7 +69,7 @@ export default function WalkInPos() {
     (async () => {
       const { data } = await sb
         .from("inventory")
-        .select("id,name,sku,brand,category_name,amount,store_price,sale_price,cost_price,image_url")
+        .select("id,name,sku,brand,category_name,amount,store_price,sale_price,cost_price,image_url,base_unit,selling_unit,units_per_sale")
         .gt("amount", 0)
         .order("name");
       if (data) setItems(data as unknown as InventoryItem[]);
@@ -172,16 +173,17 @@ export default function WalkInPos() {
         image_url: l.item.image_url,
         unit_price: l.soldPrice,
         list_price: l.listPrice,
-        cost_price: (l.item as any).cost_price ?? 0,
+        cost_price: l.item.cost_price ?? 0,
         discount_amount: Math.max(0, (l.listPrice - l.soldPrice) * l.qty),
         discount_reason: (l.listPrice - l.soldPrice) > 0 ? discountReason.trim() : "",
         quantity: l.qty,
+        base_units_per_sale: l.item.units_per_sale ?? 1,
       }));
       const { error: itemsErr } = await sb.from("order_items").insert(orderItems);
       if (itemsErr) throw new Error(itemsErr.message);
 
       await Promise.all(
-        lines.map((l) => sb.rpc("decrement_inventory", { p_item_id: l.item.id, p_qty: l.qty }))
+        lines.map((l) => sb.rpc("decrement_inventory", { p_item_id: l.item.id, p_qty: baseUnitsForSale(l.qty, l.item.units_per_sale) }))
       );
 
       setDoneOrder(order.order_number);

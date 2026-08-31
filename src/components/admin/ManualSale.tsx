@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
+import { baseUnitsForSale } from "@/lib/packaging";
 import { useAuth } from "@/hooks/useAuth";
 import type { InventoryItem } from "@/types";
 
@@ -21,6 +22,7 @@ interface Line {
   soldPrice: number;
   qty: number;
   decrementStock: boolean;
+  unitsPerSale?: number;
 }
 
 export default function ManualSale() {
@@ -46,7 +48,7 @@ export default function ManualSale() {
     (async () => {
       const { data } = await sb
         .from("inventory")
-        .select("id,name,sku,brand,category_name,amount,store_price,sale_price,image_url")
+        .select("id,name,sku,brand,category_name,amount,store_price,sale_price,image_url,base_unit,selling_unit,units_per_sale")
         .order("name");
       if (data) setItems(data as unknown as InventoryItem[]);
     })();
@@ -69,7 +71,7 @@ export default function ManualSale() {
     const base = item.sale_price ?? item.store_price;
     setLines((prev) => [
       ...prev,
-      { key: crypto.randomUUID(), itemId: item.id, name: item.name, sku: item.sku ?? "", listPrice: base, soldPrice: base, qty: 1, decrementStock: false },
+      { key: crypto.randomUUID(), itemId: item.id, name: item.name, sku: item.sku ?? "", listPrice: base, soldPrice: base, qty: 1, decrementStock: false, unitsPerSale: item.units_per_sale ?? 1 },
     ]);
     setQuery("");
   }
@@ -148,6 +150,7 @@ export default function ManualSale() {
         discount_amount: Math.max(0, (l.listPrice - l.soldPrice) * l.qty),
         discount_reason: (l.listPrice - l.soldPrice) > 0 ? discountReason.trim() : "",
         quantity: l.qty,
+        base_units_per_sale: l.unitsPerSale ?? 1,
       }));
       const { error: itemsErr } = await sb.from("order_items").insert(orderItems);
       if (itemsErr) throw new Error(itemsErr.message);
@@ -156,7 +159,7 @@ export default function ManualSale() {
       await Promise.all(
         lines
           .filter((l) => l.itemId && l.decrementStock)
-          .map((l) => sb.rpc("decrement_inventory", { p_item_id: l.itemId!, p_qty: l.qty }))
+          .map((l) => sb.rpc("decrement_inventory", { p_item_id: l.itemId!, p_qty: baseUnitsForSale(l.qty, l.unitsPerSale) }))
       );
 
       setDoneOrder(order.order_number);

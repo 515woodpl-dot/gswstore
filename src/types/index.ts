@@ -10,6 +10,7 @@ export interface InventoryItem {
   amount: number;
   store_price: number;
   sale_price: number | null;
+  cost_price?: number;
   image_url: string | null;
   images: string[];
   featured: boolean;
@@ -24,6 +25,9 @@ export interface InventoryItem {
   variant_label: string;
   variant_dimension: string;
   part_number: string;
+  base_unit?: string;
+  selling_unit?: string;
+  units_per_sale?: number;
   variants?: InventoryItem[];
 }
 
@@ -58,6 +62,9 @@ export interface CartItem {
   quantity: number;
   variant_label?: string;
   part_number?: string;
+  base_unit?: string;
+  selling_unit?: string;
+  units_per_sale?: number;
 }
 
 export interface Cart {
@@ -80,6 +87,7 @@ export interface OrderItem {
   unit_price: number;
   list_price?: number;
   cost_price?: number;
+  base_units_per_sale?: number;
   quantity: number;
 }
 

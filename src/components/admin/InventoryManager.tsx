@@ -238,7 +238,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
   async function remove(id: string) {
     if (!confirm(`Delete ${id}? Unsold receipt stock will also be removed. This cannot be undone.`)) return;
     const { error: err } = await sb.rpc("delete_inventory_item", { p_item_id: id });
-    if (err) { setError(err.message); return; }
+    if (err) { setError(err.message); window.alert(`Could not delete ${id}: ${err.message}`); return; }
     setItems((prev) => prev.filter((p) => p.id !== id));
   }
 

@@ -15,7 +15,7 @@ export default async function SalesPage({ searchParams }: Props) {
     redirect("/?error=not_authorized");
   }
 
-  const { range = "month", from, to } = await searchParams;
+  const { range = "last90", from, to } = await searchParams;
 
   // Resolve date window
   const now = new Date();
@@ -27,14 +27,20 @@ export default async function SalesPage({ searchParams }: Props) {
     start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   } else if (range === "week") {
     start = new Date(now); start.setDate(now.getDate() - 7);
+  } else if (range === "last30") {
+    start = new Date(now); start.setDate(now.getDate() - 30);
+  } else if (range === "last90") {
+    start = new Date(now); start.setDate(now.getDate() - 90);
   } else if (range === "year") {
     start = new Date(now.getFullYear(), 0, 1);
+  } else if (range === "all") {
+    start = new Date(2000, 0, 1);
   } else {
     start = new Date(now.getFullYear(), now.getMonth(), 1); // month
   }
 
   const sb = await createClient();
-  const [{ data: orders }, { data: inventory }] = await Promise.all([
+  const [ordersResult, inventoryResult] = await Promise.all([
     sb
     .from("orders")
     .select("id,order_number,created_at,total,discount_total,status,source,sold_by_name,transaction_type,internal_use_reason,walk_in_customer_id,order_items(id,item_id,name,sku,quantity,unit_price,list_price,cost_price,base_units_per_sale,discount_amount,discount_reason)")
@@ -47,11 +53,15 @@ export default async function SalesPage({ searchParams }: Props) {
 
   return (
     <SalesReport
-      orders={orders ?? []}
-      inventory={inventory ?? []}
+      orders={ordersResult.data ?? []}
+      inventory={inventoryResult.data ?? []}
       range={range}
       from={from ?? start.toISOString().slice(0, 10)}
       to={to ?? end.toISOString().slice(0, 10)}
+      loadError={[
+        ordersResult.error && `Sales: ${ordersResult.error.message}`,
+        inventoryResult.error && `Inventory: ${inventoryResult.error.message}`,
+      ].filter(Boolean).join(" | ") || undefined}
     />
   );
 }

@@ -36,8 +36,11 @@ interface InventoryRow { id: string; name: string; amount: number; }
 const RANGES = [
   { key: "today", label: "Today" },
   { key: "week", label: "Last 7 days" },
+  { key: "last30", label: "Last 30 days" },
+  { key: "last90", label: "Last 90 days" },
   { key: "month", label: "This month" },
   { key: "year", label: "This year" },
+  { key: "all", label: "All time" },
 ];
 
 export default function SalesReport({
@@ -46,12 +49,14 @@ export default function SalesReport({
   range,
   from,
   to,
+  loadError,
 }: {
   orders: OrderRow[];
   inventory: InventoryRow[];
   range: string;
   from: string;
   to: string;
+  loadError?: string;
 }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -209,6 +214,9 @@ export default function SalesReport({
           </button>
         </div>
       </div>
+
+      {loadError && <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Could not load the complete report: {loadError}</div>}
+      {!loadError && orders.length === 0 && <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">No sales were found from {from} through {to}. Choose Last 90 days or All time to include older sales.</div>}
 
       {/* Range filters */}
       <div className="mt-4 flex flex-wrap items-center gap-2">

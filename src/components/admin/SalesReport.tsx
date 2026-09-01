@@ -61,10 +61,12 @@ export default function SalesReport({
   const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showItems, setShowItems] = useState(false);
+  const [repairingCosts, setRepairingCosts] = useState(false);
+  const [costRepairMessage, setCostRepairMessage] = useState("");
 
   // Totals
   const stats = useMemo(() => {
-    let revenue = 0, cost = 0, discounts = 0, units = 0, walkIn = 0, online = 0, internalUnits = 0;
+    let revenue = 0, cost = 0, discounts = 0, units = 0, walkIn = 0, online = 0, internalUnits = 0, saleOrders = 0;
     const byStaff: Record<string, { revenue: number; cost: number; discounts: number; count: number }> = {};
     let missingCostUnits = 0;
     const byItem: Record<string, { name: string; qty: number; stock: number; listRevenue: number; discounts: number; revenue: number; cost: number; profit: number; costMissing: boolean }> = {};
@@ -77,6 +79,7 @@ export default function SalesReport({
         internalUnits += o.order_items.reduce((sum, item) => sum + item.quantity, 0);
         continue;
       }
+      saleOrders += 1;
       const orderMerchandiseRevenue = o.order_items.reduce((sum, item) => sum + Number(item.unit_price) * item.quantity, 0);
       revenue += orderMerchandiseRevenue;
       discounts += Number(o.discount_total);
@@ -96,7 +99,7 @@ export default function SalesReport({
         byItem[key].revenue += itemRev;
         byItem[key].cost += itemCost;
         byItem[key].profit += itemRev - itemCost;
-        if (Number(it.cost_price || 0) <= 0 && itemRev > 0) {
+        if (Number(it.cost_price || 0) <= 0 && it.quantity > 0) {
           byItem[key].costMissing = true;
           missingCostUnits += it.quantity;
         }
@@ -114,7 +117,7 @@ export default function SalesReport({
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     return {
       revenue, cost, profit, margin, discounts, units, walkIn, online, internalUnits, missingCostUnits,
-      orders: orders.length,
+      orders: saleOrders,
       byStaff: Object.entries(byStaff).sort((a, b) => b[1].revenue - a[1].revenue),
       byItem: Object.values(byItem).sort((a, b) => b.revenue - a.revenue),
     };
@@ -127,14 +130,45 @@ export default function SalesReport({
     router.push(`/admin/sales?from=${f}&to=${t}`);
   }
 
+  async function repairHistoricalCosts() {
+    const confirmed = window.confirm(
+      "Historical costs were not saved when these sales were created. This will use each product's CURRENT average landed cost as an estimate. It will not replace costs already captured. Continue?",
+    );
+    if (!confirmed) return;
+
+    setRepairingCosts(true);
+    setCostRepairMessage("");
+    try {
+      const response = await fetch("/api/admin/backfill-sale-costs", { method: "POST" });
+      const result = await response.json();
+      if (!response.ok) {
+        setCostRepairMessage(result.error || "Could not repair historical costs.");
+        return;
+      }
+      const updated = Number(result.updated) || 0;
+      setCostRepairMessage(
+        updated > 0
+          ? `${updated} historical sale line${updated === 1 ? "" : "s"} repaired using current landed costs.`
+          : "No lines were repaired. Add an Average Landed Cost to the affected products in Inventory first.",
+      );
+      router.refresh();
+    } catch {
+      setCostRepairMessage("Could not repair historical costs.");
+    } finally {
+      setRepairingCosts(false);
+    }
+  }
+
   function exportCsv() {
     const rows: string[][] = [
       ["Order", "Date", "Source", "Sold by", "Item", "SKU", "Qty", "List price", "Sold price", "Cost per base unit", "Base units per sale", "Line cost", "Discount", "Discount reason", "Line total", "Line profit"],
     ];
     for (const o of orders) {
+      if (o.transaction_type === "internal_use") continue;
       for (const it of o.order_items) {
         const lineTotal = it.unit_price * it.quantity;
         const lineCost = costForSale(it.cost_price, it.quantity, it.base_units_per_sale);
+        const costMissing = Number(it.cost_price || 0) <= 0 && it.quantity > 0;
         rows.push([
           o.order_number,
           new Date(o.created_at).toLocaleString(),
@@ -145,13 +179,13 @@ export default function SalesReport({
           String(it.quantity),
           it.list_price != null ? it.list_price.toFixed(2) : "",
           it.unit_price.toFixed(2),
-          Number(it.cost_price || 0).toFixed(2),
+          costMissing ? "" : Number(it.cost_price).toFixed(2),
           String(it.base_units_per_sale || 1),
-          lineCost.toFixed(2),
+          costMissing ? "" : lineCost.toFixed(2),
           Number(it.discount_amount).toFixed(2),
           it.discount_reason ?? "",
           lineTotal.toFixed(2),
-          (lineTotal - lineCost).toFixed(2),
+          costMissing ? "" : (lineTotal - lineCost).toFixed(2),
         ]);
       }
     }
@@ -165,6 +199,7 @@ export default function SalesReport({
       ["SalesReceiptNo", "Customer", "SalesReceiptDate", "Item(Product/Service)", "ItemDescription", "ItemQuantity", "ItemRate", "ItemAmount"],
     ];
     for (const o of orders) {
+      if (o.transaction_type === "internal_use") continue;
       const date = new Date(o.created_at);
       const qbDate = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
       const customer =
@@ -260,7 +295,21 @@ export default function SalesReport({
       <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
         Net product revenue is the item amount actually collected after discounts, excluding sales tax. Cost is captured from inventory when the item is sold, so later receiving-cost changes do not alter past profit.
       </p>
-      {stats.missingCostUnits > 0 && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-5 text-amber-900">Cost is missing for {stats.missingCostUnits} sold unit{stats.missingCostUnits === 1 ? "" : "s"}. Profit and margin are incomplete until those historical sales are backfilled.</p>}
+      {stats.missingCostUnits > 0 && (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-5 text-amber-950">
+          <p>Cost is missing for {stats.missingCostUnits} sold unit{stats.missingCostUnits === 1 ? "" : "s"}. Profit and margin stay hidden so the report never treats unknown cost as $0.</p>
+          <p className="mt-1 text-xs text-amber-800">If these products now have an Average Landed Cost in Inventory, you can use that current cost as the best available historical estimate.</p>
+          <button
+            type="button"
+            onClick={repairHistoricalCosts}
+            disabled={repairingCosts}
+            className="mt-3 rounded-lg bg-amber-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-amber-950 disabled:cursor-wait disabled:opacity-60"
+          >
+            {repairingCosts ? "Repairing costs..." : "Backfill from current inventory costs"}
+          </button>
+          {costRepairMessage && <p className="mt-2 text-xs font-semibold">{costRepairMessage}</p>}
+        </div>
+      )}
 
       {/* Item profit breakdown button */}
       <div className="mt-4 flex justify-end">
@@ -446,6 +495,7 @@ function EditableItemRow({ item, onSaved }: { item: OrderItemRow; onSaved: () =>
   const list = item.list_price ?? item.unit_price;
   const newPrice = Number(price);
   const wouldDiscount = list - newPrice > 0;
+  const costMissing = Number(item.cost_price || 0) <= 0 && item.quantity > 0;
 
   async function save() {
     setError("");
@@ -512,9 +562,9 @@ function EditableItemRow({ item, onSaved }: { item: OrderItemRow; onSaved: () =>
       <td className="py-1.5 text-right text-slate-500">{item.list_price != null ? formatPrice(item.list_price) : "—"}</td>
       <td className="py-1.5 text-right font-semibold">{formatPrice(item.unit_price)}</td>
       <td className="py-1.5 text-right text-amber-700">{Number(item.discount_amount) > 0 ? `−${formatPrice(item.discount_amount)}` : "—"}</td>
-      <td className="py-1.5 text-right text-slate-500">{formatPrice(costForSale(item.cost_price, item.quantity, item.base_units_per_sale))}</td>
-      <td className={`py-1.5 text-right font-semibold ${item.unit_price * item.quantity - costForSale(item.cost_price, item.quantity, item.base_units_per_sale) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-        {formatPrice(item.unit_price * item.quantity - costForSale(item.cost_price, item.quantity, item.base_units_per_sale))}
+      <td className={`py-1.5 text-right ${costMissing ? "font-semibold text-amber-700" : "text-slate-500"}`}>{costMissing ? "Missing" : formatPrice(costForSale(item.cost_price, item.quantity, item.base_units_per_sale))}</td>
+      <td className={`py-1.5 text-right font-semibold ${costMissing ? "text-amber-700" : item.unit_price * item.quantity - costForSale(item.cost_price, item.quantity, item.base_units_per_sale) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+        {costMissing ? "—" : formatPrice(item.unit_price * item.quantity - costForSale(item.cost_price, item.quantity, item.base_units_per_sale))}
       </td>
       <td className="py-1.5 text-right">
         <button onClick={() => setEditing(true)} className="font-semibold text-brand-navy hover:underline">Edit</button>

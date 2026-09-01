@@ -76,13 +76,12 @@ export default function PromoHero({ items }: { items: InventoryItem[] }) {
           )}
         </div>
 
-        <div className="order-1 flex items-center justify-center p-6 sm:p-10 lg:order-2 lg:p-12">
-          <div className="relative w-full max-w-[620px]">
+        <div className="order-1 flex items-center justify-center p-5 sm:p-8 lg:order-2 lg:p-10">
+          <div className="relative w-full max-w-[720px]">
             <div className="absolute -right-5 top-8 h-[84%] w-[48%] rounded-[2.5rem] bg-brand-primary/80 sm:-right-9" />
-            <div className="relative overflow-hidden rounded-[2.25rem] bg-[#e6e6e2] shadow-2xl shadow-brand-navy/20">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={image} alt={item.name} className="h-[300px] w-full object-contain p-5 sm:h-[400px] sm:p-8" onError={(event) => { event.currentTarget.src = PLACEHOLDER; }} />
-            </div>
+            {/* The product image sits directly on the hero, without a gray frame. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={image} alt={item.name} className="relative h-[340px] w-full object-contain drop-shadow-[0_22px_28px_rgba(15,23,42,0.20)] sm:h-[440px] lg:h-[520px]" onError={(event) => { event.currentTarget.src = PLACEHOLDER; }} />
             <div className="absolute -bottom-5 -right-2 rounded-2xl border border-white/70 bg-white/95 px-5 py-4 shadow-xl sm:right-5">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Availability</p>
               <p className="mt-1 text-sm font-black text-brand-navy">{item.amount > 0 ? "Ready for pickup" : "View availability"}</p>

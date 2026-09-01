@@ -325,7 +325,61 @@ export default function SalesReport({
         <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="text-base font-bold text-slate-950">Inventory and profit by item</h2>
           <p className="mt-1 text-xs text-slate-400">All inventory products are shown. List sales less discounts equals net revenue. Cost = what you paid × qty sold.</p>
-          <div className="mt-3 overflow-x-auto">
+
+          {/* Mobile: the nine-column table becomes one readable card per item. */}
+          <div className="mt-4 space-y-3 lg:hidden">
+            {stats.byItem.map((item) => {
+              const margin = item.revenue > 0 ? (item.profit / item.revenue) * 100 : 0;
+              return (
+                <article key={item.name} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="min-w-0 text-sm font-bold leading-5 text-slate-900">{item.name}</h3>
+                    <div className="shrink-0 text-right text-[11px] font-semibold text-slate-500">
+                      <p>{item.qty} sold</p>
+                      <p>{item.stock} in stock</p>
+                    </div>
+                  </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-slate-200 pt-3">
+                    <MobileMetric label="List sales" value={formatPrice(item.listRevenue)} />
+                    <MobileMetric label="Discounts" value={item.discounts > 0 ? `-${formatPrice(item.discounts)}` : "-"} valueClass="text-amber-700" />
+                    <MobileMetric label="Net revenue" value={formatPrice(item.revenue)} strong />
+                    <MobileMetric label="Cost" value={item.costMissing ? "Missing" : formatPrice(item.cost)} valueClass={item.costMissing ? "text-amber-700" : "text-slate-700"} />
+                  </dl>
+                  <div className="mt-3 flex items-end justify-between rounded-xl bg-white px-3 py-2.5 ring-1 ring-slate-200">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Profit</p>
+                      <p className={`mt-0.5 text-lg font-black ${item.costMissing ? "text-amber-700" : item.profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                        {item.costMissing ? "Unknown" : formatPrice(item.profit)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Margin</p>
+                      <p className={`mt-0.5 text-sm font-black ${item.costMissing ? "text-amber-700" : margin >= 20 ? "text-emerald-700" : margin >= 0 ? "text-amber-600" : "text-rose-700"}`}>
+                        {item.costMissing ? "Unknown" : `${margin.toFixed(1)}%`}
+                      </p>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+
+            <section className="rounded-2xl bg-brand-navy p-4 text-white">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-white/60">Report totals</p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <MobileTotal label="Units sold" value={String(stats.units)} />
+                <MobileTotal label="In stock" value={String(stats.byItem.reduce((sum, item) => sum + item.stock, 0))} />
+                <MobileTotal label="List sales" value={formatPrice(stats.byItem.reduce((sum, item) => sum + item.listRevenue, 0))} />
+                <MobileTotal label="Discounts" value={stats.discounts > 0 ? `-${formatPrice(stats.discounts)}` : "-"} />
+                <MobileTotal label="Net revenue" value={formatPrice(stats.revenue)} />
+                <MobileTotal label="Cost" value={stats.missingCostUnits > 0 ? "Incomplete" : formatPrice(stats.cost)} />
+                <MobileTotal label="Profit" value={stats.missingCostUnits > 0 ? "Unknown" : formatPrice(stats.profit)} />
+                <MobileTotal label="Margin" value={stats.missingCostUnits > 0 ? "Unknown" : `${stats.margin.toFixed(1)}%`} />
+              </div>
+            </section>
+          </div>
+
+          {/* Desktop: retain the dense comparison table where it has room. */}
+          <div className="mt-3 hidden overflow-x-auto lg:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-xs text-slate-400">
@@ -483,6 +537,24 @@ function StatCard({ label, value, accent = "text-slate-950" }: { label: string; 
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
       <p className={`mt-1 text-xl font-black tracking-tight ${accent}`}>{value}</p>
+    </div>
+  );
+}
+
+function MobileMetric({ label, value, valueClass = "text-slate-700", strong = false }: { label: string; value: string; valueClass?: string; strong?: boolean }) {
+  return (
+    <div>
+      <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</dt>
+      <dd className={`mt-0.5 text-sm ${strong ? "font-black" : "font-semibold"} ${valueClass}`}>{value}</dd>
+    </div>
+  );
+}
+
+function MobileTotal({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-white/10 px-3 py-2.5">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-white/55">{label}</p>
+      <p className="mt-0.5 break-words text-sm font-black text-white">{value}</p>
     </div>
   );
 }

@@ -9,7 +9,7 @@ type BrandLogoProps = {
 
 // Intrinsic sizes of the source files — used to reserve exact space so the
 // logo doesn't reflow/shrink after the image loads.
-const SQUARE = { w: 344, h: 348, ratio: 344 / 348 };
+const SQUARE = { w: 600, h: 600, ratio: 1 };
 const WIDE = { w: 1530, h: 348, ratio: 1530 / 348 };
 
 export default function BrandLogo({ href, className = "", compact = false }: BrandLogoProps) {
@@ -23,7 +23,7 @@ export default function BrandLogo({ href, className = "", compact = false }: Bra
       {/* Mobile: square logo */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/brand/gst-logo-white.png"
+        src="/brand/sps-logo-square.png"
         alt=""
         aria-hidden="true"
         width={SQUARE.w}

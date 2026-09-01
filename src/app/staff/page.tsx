@@ -52,14 +52,16 @@ export default async function StaffLandingPage() {
         {/* Header */}
         <header className="mb-8 flex flex-col items-center text-center">
           <div className="flex w-full justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/brand/gst-logo-horizontal.png"
-              alt="Stone Product Supply"
-              width={1530}
-              height={348}
-              className="h-12 w-auto max-w-[240px] object-contain sm:h-14 sm:max-w-[300px]"
-            />
+            <picture>
+              <source media="(min-width: 640px)" srcSet="/brand/gst-logo-horizontal.png" />
+              <img
+                src="/brand/sps-logo-square.png"
+                alt="Stone Product Supply"
+                width={600}
+                height={600}
+                className="h-20 w-20 object-contain sm:h-14 sm:w-auto sm:max-w-[300px]"
+              />
+            </picture>
           </div>
           <p className="mt-5 text-xs font-bold uppercase tracking-[0.24em] text-slate-400">
             Staff Portal

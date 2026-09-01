@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
 import { generateSmartProductIdentity, inferCategoryFromProductName } from "@/lib/productIdentity";
+import SupplyUnitField from "@/components/admin/SupplyUnitField";
 import type { Category } from "@/types";
 
 interface Row {
@@ -177,6 +178,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
   async function save() {
     if (!editing) return;
     if (!editing.id.trim() || !editing.name.trim()) { setError("ID and name are required."); return; }
+    if (!editing.base_unit?.trim() || !editing.selling_unit?.trim() || editing.base_unit === "__custom__" || editing.selling_unit === "__custom__") { setError("Choose a unit or enter a custom unit name."); return; }
     setSaving(true); setError("");
     // Auto-generate SKU if left blank
     const editingWithSku = editing.sku?.trim() ? editing : { ...editing, sku: generateSku(editing) };
@@ -451,8 +453,8 @@ export default function InventoryManager({ initialItems, categories }: { initial
               <Field label="Sale Price ($)" type="number" value={String(editing.sale_price ?? "")} onChange={(v) => setEditing({ ...editing, sale_price: v ? Number(v) : null })} placeholder="Leave empty if no sale" />
               <Field label="Average Landed Cost ($)" type="number" value={String(editing.cost_price || "")} onChange={(v) => setEditing({ ...editing, cost_price: Number(v) || 0 })} placeholder="Updated automatically by receiving" />
               <Field label="Stock amount" type="number" value={String(editing.amount)} onChange={(v) => setEditing({ ...editing, amount: Number(v) })} />
-              <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">Base stock unit</span><input list="base-unit-options" value={editing.base_unit ?? "Each"} onChange={(e) => setEditing({ ...editing, base_unit: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /><datalist id="base-unit-options"><option>Each</option><option>Tube</option><option>Clip</option><option>Blade</option><option>Piece</option></datalist></label>
-              <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">Customer selling unit</span><input list="selling-unit-options" value={editing.selling_unit ?? "Each"} onChange={(e) => setEditing({ ...editing, selling_unit: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /><datalist id="selling-unit-options"><option>Each</option><option>Bag</option><option>Pack</option><option>Set</option><option>Case</option><option>Box</option><option>Roll</option></datalist></label>
+              <SupplyUnitField label="Base stock unit" value={editing.base_unit ?? "Each"} onChange={(value) => setEditing({ ...editing, base_unit: value })} />
+              <SupplyUnitField label="Customer selling unit" value={editing.selling_unit ?? "Each"} onChange={(value) => setEditing({ ...editing, selling_unit: value })} />
               <Field label={`Base ${editing.base_unit ?? "units"} per ${editing.selling_unit ?? "sale"}`} type="number" value={String(editing.units_per_sale ?? 1)} onChange={(v) => setEditing({ ...editing, units_per_sale: Math.max(1, Number(v) || 1) })} />
               <p className="-mt-2 text-xs leading-5 text-slate-400 sm:col-span-2">Example: a Bag with 100 Clips uses base unit Clip, selling unit Bag, and 100 base units per sale. Do not change existing stock quantity until its packaging is reviewed.</p>
               <p className="-mt-2 text-xs leading-5 text-slate-400 sm:col-span-2">

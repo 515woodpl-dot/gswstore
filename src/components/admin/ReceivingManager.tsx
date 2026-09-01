@@ -12,6 +12,7 @@ import {
   type LandedCostExpense,
 } from "@/lib/landedCost";
 import { generateSmartProductIdentity, inferCategoryFromProductName } from "@/lib/productIdentity";
+import SupplyUnitField from "@/components/admin/SupplyUnitField";
 import { baseQuantityFromPackages, costPerBaseUnitFromPackageCost, positivePackagingFactor } from "@/lib/packaging";
 import type { Category } from "@/types";
 
@@ -294,6 +295,7 @@ export default function ReceivingManager({
     const category = categories.find((candidate) => candidate.id === newProduct.categoryId);
     if (!newProduct.name.trim()) { setNewProductError("Enter the new customer-facing store name."); return; }
     if (!newProduct.originalName.trim()) { setNewProductError("Enter the original name from the supplier."); return; }
+    if ([newProduct.purchaseUnit, newProduct.baseUnit, newProduct.sellingUnit].some((unit) => !unit.trim() || unit === "__custom__")) { setNewProductError("Choose each unit or enter a custom unit name."); return; }
     if (!category) { setNewProductError("Select a category."); return; }
     if (!id) { setNewProductError("Generate or enter a product ID."); return; }
     if (products.some((product) => product.id.toUpperCase() === id)) { setNewProductError(`Product ID ${id} already exists.`); return; }
@@ -843,22 +845,10 @@ export default function ReceivingManager({
               <Field label="SKU" value={newProduct.sku} onChange={(value) => setNewProduct({ ...newProduct, sku: value.toUpperCase(), smartIdentity: false })} placeholder="SNK-0001" mono />
               <NumberField label="Customer selling price *" value={newProduct.storePrice} onChange={(value) => setNewProduct({ ...newProduct, storePrice: value })} prefix="$" min={0.01} />
               <NumberField label="Received quantity" value={newProduct.quantity} onChange={(value) => setNewProduct({ ...newProduct, quantity: value })} min={1} step={1} />
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-bold text-slate-700">Purchase unit</span>
-                <input list="new-purchase-unit-options" value={newProduct.purchaseUnit} onChange={(event) => setNewProduct({ ...newProduct, purchaseUnit: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" />
-                <datalist id="new-purchase-unit-options"><option>Each</option><option>Bag</option><option>Pack</option><option>Set</option><option>Case</option><option>Box</option><option>Pallet</option></datalist>
-              </label>
+              <SupplyUnitField label="Purchase unit" value={newProduct.purchaseUnit} onChange={(value) => setNewProduct({ ...newProduct, purchaseUnit: value })} />
               <NumberField label={`Base units per ${newProduct.purchaseUnit}`} value={newProduct.baseUnitsPerPurchase} onChange={(value) => setNewProduct({ ...newProduct, baseUnitsPerPurchase: positivePackagingFactor(value) })} min={1} step={1} />
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-bold text-slate-700">Base stock unit</span>
-                <input list="new-base-unit-options" value={newProduct.baseUnit} onChange={(event) => setNewProduct({ ...newProduct, baseUnit: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" />
-                <datalist id="new-base-unit-options"><option>Each</option><option>Tube</option><option>Clip</option><option>Blade</option><option>Piece</option></datalist>
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-bold text-slate-700">Customer selling unit</span>
-                <input list="new-selling-unit-options" value={newProduct.sellingUnit} onChange={(event) => setNewProduct({ ...newProduct, sellingUnit: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" />
-                <datalist id="new-selling-unit-options"><option>Each</option><option>Bag</option><option>Pack</option><option>Set</option><option>Case</option><option>Box</option><option>Roll</option></datalist>
-              </label>
+              <SupplyUnitField label="Base stock unit" value={newProduct.baseUnit} onChange={(value) => setNewProduct({ ...newProduct, baseUnit: value })} />
+              <SupplyUnitField label="Customer selling unit" value={newProduct.sellingUnit} onChange={(value) => setNewProduct({ ...newProduct, sellingUnit: value })} />
               <NumberField label={`Base units per ${newProduct.sellingUnit}`} value={newProduct.unitsPerSale} onChange={(value) => setNewProduct({ ...newProduct, unitsPerSale: positivePackagingFactor(value) })} min={1} step={1} />
               <NumberField label="Supplier cost each" value={newProduct.supplierUnitCost} onChange={(value) => setNewProduct({ ...newProduct, supplierUnitCost: value })} prefix="$" />
               <NumberField label="Weight each (optional)" value={newProduct.unitWeight} onChange={(value) => setNewProduct({ ...newProduct, unitWeight: value })} suffix="lb" />

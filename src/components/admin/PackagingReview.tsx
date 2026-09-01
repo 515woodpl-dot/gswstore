@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import SupplyUnitField from "@/components/admin/SupplyUnitField";
 
 interface PackagingRow {
   id: string;
@@ -61,7 +62,7 @@ export default function PackagingReview({ initialItems }: { initialItems: Packag
       setError({ id: row.id, message: "Base units per sale must be a whole number of 1 or more." });
       return;
     }
-    if (!draft.baseUnit.trim() || !draft.sellingUnit.trim()) {
+    if (!draft.baseUnit.trim() || !draft.sellingUnit.trim() || draft.baseUnit === "__custom__" || draft.sellingUnit === "__custom__") {
       setError({ id: row.id, message: "Enter both the base stock unit and customer selling unit." });
       return;
     }
@@ -123,8 +124,8 @@ export default function PackagingReview({ initialItems }: { initialItems: Packag
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <UnitField label="Base stock unit" listId={`base-${row.id}`} value={draft.baseUnit} onChange={(value) => updateDraft(row.id, { baseUnit: value })} options={["Each", "Tube", "Clip", "Blade", "Piece"]} />
-                <UnitField label="Customer selling unit" listId={`selling-${row.id}`} value={draft.sellingUnit} onChange={(value) => updateDraft(row.id, { sellingUnit: value })} options={["Each", "Bag", "Pack", "Set", "Case", "Box", "Roll"]} />
+                <SupplyUnitField compact label="Base stock unit" value={draft.baseUnit} onChange={(value) => updateDraft(row.id, { baseUnit: value })} />
+                <SupplyUnitField compact label="Customer selling unit" value={draft.sellingUnit} onChange={(value) => updateDraft(row.id, { sellingUnit: value })} />
                 <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">{draft.baseUnit || "Units"} per {draft.sellingUnit || "sale"}</span><input type="number" min={1} step={1} value={draft.unitsPerSale} onChange={(event) => updateDraft(row.id, { unitsPerSale: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" /></label>
                 <div className="flex items-end"><button type="button" onClick={() => save(row)} disabled={savingId === row.id} className="w-full rounded-xl bg-brand-navy px-3 py-2 text-sm font-bold text-white disabled:opacity-50">{savingId === row.id ? "Saving..." : "Confirm packaging"}</button></div>
               </div>
@@ -135,8 +136,4 @@ export default function PackagingReview({ initialItems }: { initialItems: Packag
       </div>
     </div>
   );
-}
-
-function UnitField({ label, listId, value, onChange, options }: { label: string; listId: string; value: string; onChange: (value: string) => void; options: string[] }) {
-  return <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">{label}</span><input list={listId} value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" /><datalist id={listId}>{options.map((option) => <option key={option}>{option}</option>)}</datalist></label>;
 }

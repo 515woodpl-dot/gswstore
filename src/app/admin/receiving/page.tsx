@@ -17,7 +17,7 @@ export default async function AdminReceivingPage() {
   const sb = await createClient();
   const [productsResult, categoriesResult, receiptsResult] = await Promise.all([
     sb.from("inventory")
-      .select("id,name,original_name,sku,amount,cost_price,store_price,base_unit,selling_unit,units_per_sale")
+      .select("id,name,original_name,sku,amount,cost_price,store_price,base_unit,selling_unit,units_per_sale,packaging_reviewed")
       .order("name", { ascending: true }),
     sb.from("categories")
       .select("id,name,prefix,color")
@@ -47,6 +47,7 @@ export default async function AdminReceivingPage() {
       <div className="mb-6 flex gap-2 overflow-x-auto border-b border-slate-200">
         <Link href="/admin/inventory" className="whitespace-nowrap px-4 pb-3 text-sm font-semibold text-slate-500 hover:text-slate-900">Products</Link>
         <Link href="/admin/receiving" className="whitespace-nowrap border-b-2 border-brand-navy px-4 pb-3 text-sm font-bold text-brand-navy">Receive Stock</Link>
+        <Link href="/admin/inventory/packaging" className="whitespace-nowrap px-4 pb-3 text-sm font-semibold text-slate-500 hover:text-slate-900">Packaging Review</Link>
         <Link href="/admin/categories" className="whitespace-nowrap px-4 pb-3 text-sm font-semibold text-slate-500 hover:text-slate-900">Categories</Link>
       </div>
 
@@ -70,7 +71,11 @@ export default async function AdminReceivingPage() {
             landed_unit_cost: Number(item.landed_unit_cost) || 0,
           })),
         }))}
-        setupError={productsResult.error?.message || categoriesResult.error?.message || receiptsResult.error?.message}
+        setupError={[
+          productsResult.error && `Products: ${productsResult.error.message}`,
+          categoriesResult.error && `Categories: ${categoriesResult.error.message}`,
+          receiptsResult.error && `Receipts: ${receiptsResult.error.message}`,
+        ].filter(Boolean).join(" | ") || undefined}
       />
     </main>
   );

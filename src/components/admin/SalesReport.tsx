@@ -124,7 +124,7 @@ export default function SalesReport({
 
   function exportCsv() {
     const rows: string[][] = [
-      ["Order", "Date", "Source", "Sold by", "Item", "SKU", "Qty", "List price", "Sold price", "Cost price", "Discount", "Discount reason", "Line total", "Line profit"],
+      ["Order", "Date", "Source", "Sold by", "Item", "SKU", "Qty", "List price", "Sold price", "Cost per base unit", "Base units per sale", "Line cost", "Discount", "Discount reason", "Line total", "Line profit"],
     ];
     for (const o of orders) {
       for (const it of o.order_items) {
@@ -141,6 +141,8 @@ export default function SalesReport({
           it.list_price != null ? it.list_price.toFixed(2) : "",
           it.unit_price.toFixed(2),
           Number(it.cost_price || 0).toFixed(2),
+          String(it.base_units_per_sale || 1),
+          lineCost.toFixed(2),
           Number(it.discount_amount).toFixed(2),
           it.discount_reason ?? "",
           lineTotal.toFixed(2),

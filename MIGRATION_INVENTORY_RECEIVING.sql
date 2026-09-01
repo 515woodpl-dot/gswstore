@@ -16,7 +16,8 @@ ALTER TABLE order_items
 ALTER TABLE inventory
   ADD COLUMN IF NOT EXISTS base_unit TEXT NOT NULL DEFAULT 'Each',
   ADD COLUMN IF NOT EXISTS selling_unit TEXT NOT NULL DEFAULT 'Each',
-  ADD COLUMN IF NOT EXISTS units_per_sale INTEGER NOT NULL DEFAULT 1;
+  ADD COLUMN IF NOT EXISTS units_per_sale INTEGER NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS packaging_reviewed BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Existing products start with their current name as the best-known original.
 -- Staff can replace this with the supplier's exact name in Products.
@@ -121,15 +122,18 @@ CREATE OR REPLACE FUNCTION snapshot_order_item_cost()
 RETURNS TRIGGER AS $$
 DECLARE
   v_cost NUMERIC;
+  v_units_per_sale INTEGER;
 BEGIN
-  SELECT cost_price INTO v_cost
+  SELECT cost_price, units_per_sale INTO v_cost, v_units_per_sale
   FROM inventory
   WHERE id = NEW.item_id;
 
   IF FOUND THEN
     NEW.cost_price := COALESCE(v_cost, 0);
+    NEW.base_units_per_sale := GREATEST(COALESCE(v_units_per_sale, 1), 1);
   ELSE
     NEW.cost_price := COALESCE(NEW.cost_price, 0);
+    NEW.base_units_per_sale := GREATEST(COALESCE(NEW.base_units_per_sale, 1), 1);
   END IF;
   RETURN NEW;
 END;
@@ -279,11 +283,11 @@ BEGIN
 
       INSERT INTO inventory (
         id, name, original_name, category_id, category_name, sku,
-        amount, store_price, cost_price, store_visible, base_unit, selling_unit, units_per_sale
+        amount, store_price, cost_price, store_visible, base_unit, selling_unit, units_per_sale, packaging_reviewed
       ) VALUES (
         v_inventory_id, v_new_name, v_new_original_name,
         v_new_category_id, v_new_category_name, v_new_sku,
-        0, v_new_store_price, 0, v_new_store_visible, v_new_base_unit, v_new_selling_unit, v_new_units_per_sale
+        0, v_new_store_price, 0, v_new_store_visible, v_new_base_unit, v_new_selling_unit, v_new_units_per_sale, TRUE
       );
 
       v_previous_quantity := 0;

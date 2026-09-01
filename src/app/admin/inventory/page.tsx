@@ -44,6 +44,7 @@ export default async function AdminInventoryPage() {
       <div className="mb-6 flex gap-2 border-b border-slate-200">
         <a href="/admin/inventory" className="border-b-2 border-brand-navy pb-3 px-4 text-sm font-bold text-brand-navy">Products</a>
         <a href="/admin/receiving" className="pb-3 px-4 text-sm font-semibold text-slate-500 hover:text-slate-900">Receive Stock</a>
+        <a href="/admin/inventory/packaging" className="pb-3 px-4 text-sm font-semibold text-slate-500 hover:text-slate-900">Packaging Review</a>
         <a href="/admin/categories" className="pb-3 px-4 text-sm font-semibold text-slate-500 hover:text-slate-900">Categories</a>
       </div>
       <InventoryManager

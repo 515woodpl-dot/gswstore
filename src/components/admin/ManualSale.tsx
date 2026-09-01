@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
-import { baseUnitsForSale } from "@/lib/packaging";
 import { useAuth } from "@/hooks/useAuth";
 import type { InventoryItem } from "@/types";
 
@@ -159,7 +158,7 @@ export default function ManualSale() {
       await Promise.all(
         lines
           .filter((l) => l.itemId && l.decrementStock)
-          .map((l) => sb.rpc("decrement_inventory", { p_item_id: l.itemId!, p_qty: baseUnitsForSale(l.qty, l.unitsPerSale) }))
+          .map((l) => sb.rpc("decrement_packaged_inventory", { p_item_id: l.itemId!, p_selling_qty: l.qty }))
       );
 
       setDoneOrder(order.order_number);

@@ -14,7 +14,7 @@ interface Row {
   featured: boolean; new_arrival: boolean; store_visible: boolean;
   attributes: Record<string, string> | null;
   tax_enabled: boolean; tax_rate_percent: number;
-  parent_id: string | null; variant_label: string; variant_dimension: string; part_number: string; base_unit?: string; selling_unit?: string; units_per_sale?: number;
+  parent_id: string | null; variant_label: string; variant_dimension: string; part_number: string; base_unit?: string; selling_unit?: string; units_per_sale?: number; packaging_reviewed?: boolean;
 }
 
 const PRODUCT_ATTR_FIELDS = [
@@ -29,7 +29,7 @@ const BLANK: Row = {
   id: "", name: "", original_name: "", category_id: null, category_name: "", brand: "", model_number: "",
   voltage: "", sku: "", description: "", amount: 0, store_price: 0, sale_price: null, cost_price: 0, image_url: "", images: [], featured: false, new_arrival: false, store_visible: true,
   attributes: {}, tax_enabled: false, tax_rate_percent: 0,
-  parent_id: null, variant_label: "", variant_dimension: "Color", part_number: "", base_unit: "Each", selling_unit: "Each", units_per_sale: 1,
+  parent_id: null, variant_label: "", variant_dimension: "Color", part_number: "", base_unit: "Each", selling_unit: "Each", units_per_sale: 1, packaging_reviewed: false,
 };
 
 // Compress image to max 1200px wide and ~80% quality JPEG using Canvas
@@ -181,6 +181,8 @@ export default function InventoryManager({ initialItems, categories }: { initial
     // Auto-generate SKU if left blank
     const editingWithSku = editing.sku?.trim() ? editing : { ...editing, sku: generateSku(editing) };
     const cat = categories.find((c) => c.id === editingWithSku.category_id);
+    const original = originalId ? items.find((item) => item.id === originalId) : null;
+    const packagingChanged = !original || original.base_unit !== editing.base_unit || original.selling_unit !== editing.selling_unit || Number(original.units_per_sale || 1) !== Number(editing.units_per_sale || 1);
     const payload: Row = {
       ...editingWithSku,
       id: editing.id.trim(), name: editing.name.trim(),
@@ -203,6 +205,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
       base_unit: editing.base_unit || "Each",
       selling_unit: editing.selling_unit || "Each",
       units_per_sale: Math.max(1, Math.floor(Number(editing.units_per_sale) || 1)),
+      packaging_reviewed: Boolean(editing.packaging_reviewed || packagingChanged),
     };
     let err = null as { message: string } | null;
     if (originalId) {
@@ -213,6 +216,15 @@ export default function InventoryManager({ initialItems, categories }: { initial
       err = e;
     }
     if (err) { setError(err.message); setSaving(false); return; }
+    if (originalId && packagingChanged) {
+      const { error: packagingError } = await sb.rpc("review_inventory_packaging", {
+        p_item_id: payload.id,
+        p_base_unit: payload.base_unit,
+        p_selling_unit: payload.selling_unit,
+        p_units_per_sale: payload.units_per_sale,
+      });
+      if (packagingError) { setError(`Product saved, but packaging history was not updated: ${packagingError.message}`); setSaving(false); return; }
+    }
     setItems((prev) => {
       const withoutOld = originalId ? prev.filter((p) => p.id !== originalId) : prev;
       const exists = withoutOld.some((p) => p.id === payload.id);
@@ -239,6 +251,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
   const filtered = search
     ? items.filter(i => [i.name, i.original_name, i.id, i.sku, i.category_name].join(" ").toLowerCase().includes(search.toLowerCase()))
     : items;
+  const unreviewedCount = items.filter((item) => !item.packaging_reviewed).length;
 
   return (
     <div>
@@ -250,6 +263,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-navy w-48" />
         </div>
         <div className="flex gap-2">
+          {unreviewedCount > 0 && <a href="/admin/inventory/packaging" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-center text-sm font-semibold text-amber-800 hover:bg-amber-100">{unreviewedCount} need review</a>}
           <a href="/admin/receiving" className="rounded-xl border border-brand-navy px-4 py-2 text-center text-sm font-semibold text-brand-navy hover:bg-brand-navy/5">
             Receive Stock
           </a>
@@ -285,7 +299,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
                 </td>
                 <td className="px-4 py-3">
                   <p className="font-medium text-slate-900">
-                    {row.name}
+                    {row.name}{!row.packaging_reviewed && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">Needs review</span>}
                     {row.featured && <span className="ml-1.5 text-xs">⭐</span>}
                   </p>
                   {row.original_name && row.original_name !== row.name && <p className="max-w-xs truncate text-xs text-slate-500">Original: {row.original_name}</p>}
@@ -327,7 +341,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
                 ? <img src={row.image_url} alt={row.name} className="h-14 w-14 rounded-xl object-cover shrink-0" />
                 : <div className="h-14 w-14 rounded-xl bg-slate-100 shrink-0" />}
               <div className="min-w-0 flex-1">
-                <p className="font-bold text-slate-900 truncate">{row.name}</p>
+                <p className="font-bold text-slate-900 truncate">{row.name}{!row.packaging_reviewed && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">Needs review</span>}</p>
                 <p className="text-xs font-mono text-slate-400">{row.id}</p>
                 <div className="mt-1 flex items-center gap-2 flex-wrap">
                   {row.store_price > 0 ? (
@@ -437,8 +451,8 @@ export default function InventoryManager({ initialItems, categories }: { initial
               <Field label="Sale Price ($)" type="number" value={String(editing.sale_price ?? "")} onChange={(v) => setEditing({ ...editing, sale_price: v ? Number(v) : null })} placeholder="Leave empty if no sale" />
               <Field label="Average Landed Cost ($)" type="number" value={String(editing.cost_price || "")} onChange={(v) => setEditing({ ...editing, cost_price: Number(v) || 0 })} placeholder="Updated automatically by receiving" />
               <Field label="Stock amount" type="number" value={String(editing.amount)} onChange={(v) => setEditing({ ...editing, amount: Number(v) })} />
-              <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">Base stock unit</span><select value={editing.base_unit ?? "Each"} onChange={(e) => setEditing({ ...editing, base_unit: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"><option>Each</option><option>Tube</option><option>Clip</option><option>Blade</option><option>Piece</option></select></label>
-              <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">Customer selling unit</span><select value={editing.selling_unit ?? "Each"} onChange={(e) => setEditing({ ...editing, selling_unit: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"><option>Each</option><option>Bag</option><option>Pack</option><option>Set</option><option>Case</option></select></label>
+              <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">Base stock unit</span><input list="base-unit-options" value={editing.base_unit ?? "Each"} onChange={(e) => setEditing({ ...editing, base_unit: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /><datalist id="base-unit-options"><option>Each</option><option>Tube</option><option>Clip</option><option>Blade</option><option>Piece</option></datalist></label>
+              <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">Customer selling unit</span><input list="selling-unit-options" value={editing.selling_unit ?? "Each"} onChange={(e) => setEditing({ ...editing, selling_unit: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /><datalist id="selling-unit-options"><option>Each</option><option>Bag</option><option>Pack</option><option>Set</option><option>Case</option><option>Box</option><option>Roll</option></datalist></label>
               <Field label={`Base ${editing.base_unit ?? "units"} per ${editing.selling_unit ?? "sale"}`} type="number" value={String(editing.units_per_sale ?? 1)} onChange={(v) => setEditing({ ...editing, units_per_sale: Math.max(1, Number(v) || 1) })} />
               <p className="-mt-2 text-xs leading-5 text-slate-400 sm:col-span-2">Example: a Bag with 100 Clips uses base unit Clip, selling unit Bag, and 100 base units per sale. Do not change existing stock quantity until its packaging is reviewed.</p>
               <p className="-mt-2 text-xs leading-5 text-slate-400 sm:col-span-2">

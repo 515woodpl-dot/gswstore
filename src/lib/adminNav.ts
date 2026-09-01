@@ -62,6 +62,12 @@ export const ADMIN_NAV: NavGroup[] = [
         icon: "🚚",
       },
       {
+        href: "/admin/inventory/packaging",
+        label: "Packaging Review",
+        description: "Confirm base units, selling units, and package sizes",
+        icon: "📐",
+      },
+      {
         href: "/admin/orders",
         label: "Orders",
         description: "Full order history, status updates, and fulfillment",

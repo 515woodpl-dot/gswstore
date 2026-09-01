@@ -36,6 +36,7 @@ interface ReceivingProduct {
   base_unit?: string;
   selling_unit?: string;
   units_per_sale?: number;
+  packaging_reviewed?: boolean;
   pendingNew?: PendingNewProduct;
 }
 
@@ -312,6 +313,10 @@ export default function ReceivingManager({
       amount: 0,
       cost_price: 0,
       store_price: newProduct.storePrice,
+      base_unit: newProduct.baseUnit,
+      selling_unit: newProduct.sellingUnit,
+      units_per_sale: newProduct.unitsPerSale,
+      packaging_reviewed: true,
       pendingNew: {
         categoryId: category.id,
         categoryName: category.name,
@@ -406,7 +411,7 @@ export default function ReceivingManager({
   async function receiveStock() {
     setError("");
     if (setupError) {
-      setError("Run MIGRATION_INVENTORY_RECEIVING.sql in Supabase before receiving stock.");
+      setError(`Receiving is unavailable because a database query failed: ${setupError}`);
       return;
     }
     if (!receiptCode.trim()) { setError("The batch token is required."); return; }
@@ -579,8 +584,9 @@ export default function ReceivingManager({
     <div className="space-y-6">
       {setupError && (
         <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-          <p className="font-bold">Database setup required</p>
-          <p className="mt-1">Run <span className="font-mono">MIGRATION_INVENTORY_RECEIVING.sql</span> in Supabase, then reload this page.</p>
+          <p className="font-bold">Receiving database check failed</p>
+          <p className="mt-1 break-words font-mono text-xs">{setupError}</p>
+          <p className="mt-2">If the error names <span className="font-mono">packaging_reviewed</span>, run <span className="font-mono">MIGRATION_UNITS_PACKAGING_V2.sql</span>. If it names a receipt table or receiving function, rerun <span className="font-mono">MIGRATION_INVENTORY_RECEIVING.sql</span>.</p>
         </div>
       )}
 
@@ -839,22 +845,19 @@ export default function ReceivingManager({
               <NumberField label="Received quantity" value={newProduct.quantity} onChange={(value) => setNewProduct({ ...newProduct, quantity: value })} min={1} step={1} />
               <label className="block">
                 <span className="mb-1.5 block text-sm font-bold text-slate-700">Purchase unit</span>
-                <select value={newProduct.purchaseUnit} onChange={(event) => setNewProduct({ ...newProduct, purchaseUnit: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
-                  {['Each', 'Bag', 'Pack', 'Set', 'Case', 'Box'].map((unit) => <option key={unit}>{unit}</option>)}
-                </select>
+                <input list="new-purchase-unit-options" value={newProduct.purchaseUnit} onChange={(event) => setNewProduct({ ...newProduct, purchaseUnit: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" />
+                <datalist id="new-purchase-unit-options"><option>Each</option><option>Bag</option><option>Pack</option><option>Set</option><option>Case</option><option>Box</option><option>Pallet</option></datalist>
               </label>
               <NumberField label={`Base units per ${newProduct.purchaseUnit}`} value={newProduct.baseUnitsPerPurchase} onChange={(value) => setNewProduct({ ...newProduct, baseUnitsPerPurchase: positivePackagingFactor(value) })} min={1} step={1} />
               <label className="block">
                 <span className="mb-1.5 block text-sm font-bold text-slate-700">Base stock unit</span>
-                <select value={newProduct.baseUnit} onChange={(event) => setNewProduct({ ...newProduct, baseUnit: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
-                  {['Each', 'Tube', 'Clip', 'Blade', 'Piece'].map((unit) => <option key={unit}>{unit}</option>)}
-                </select>
+                <input list="new-base-unit-options" value={newProduct.baseUnit} onChange={(event) => setNewProduct({ ...newProduct, baseUnit: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" />
+                <datalist id="new-base-unit-options"><option>Each</option><option>Tube</option><option>Clip</option><option>Blade</option><option>Piece</option></datalist>
               </label>
               <label className="block">
                 <span className="mb-1.5 block text-sm font-bold text-slate-700">Customer selling unit</span>
-                <select value={newProduct.sellingUnit} onChange={(event) => setNewProduct({ ...newProduct, sellingUnit: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
-                  {['Each', 'Bag', 'Pack', 'Set', 'Case'].map((unit) => <option key={unit}>{unit}</option>)}
-                </select>
+                <input list="new-selling-unit-options" value={newProduct.sellingUnit} onChange={(event) => setNewProduct({ ...newProduct, sellingUnit: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" />
+                <datalist id="new-selling-unit-options"><option>Each</option><option>Bag</option><option>Pack</option><option>Set</option><option>Case</option><option>Box</option><option>Roll</option></datalist>
               </label>
               <NumberField label={`Base units per ${newProduct.sellingUnit}`} value={newProduct.unitsPerSale} onChange={(value) => setNewProduct({ ...newProduct, unitsPerSale: positivePackagingFactor(value) })} min={1} step={1} />
               <NumberField label="Supplier cost each" value={newProduct.supplierUnitCost} onChange={(value) => setNewProduct({ ...newProduct, supplierUnitCost: value })} prefix="$" />

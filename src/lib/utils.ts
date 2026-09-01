@@ -43,7 +43,7 @@ export async function createOrder(
   // Decrement inventory stock for each purchased item (atomic via RPC).
   await Promise.all(
     cart.items.map(ci =>
-      sb.rpc("decrement_inventory", { p_item_id: ci.item_id, p_qty: ci.quantity * (ci.units_per_sale ?? 1) })
+      sb.rpc("decrement_packaged_inventory", { p_item_id: ci.item_id, p_selling_qty: ci.quantity })
     )
   );
 

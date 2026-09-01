@@ -28,6 +28,7 @@ export interface InventoryItem {
   base_unit?: string;
   selling_unit?: string;
   units_per_sale?: number;
+  packaging_reviewed?: boolean;
   variants?: InventoryItem[];
 }
 

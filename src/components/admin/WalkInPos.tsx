@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
-import { baseUnitsForSale } from "@/lib/packaging";
 import { useAuth } from "@/hooks/useAuth";
 import type { InventoryItem } from "@/types";
 
@@ -183,7 +182,7 @@ export default function WalkInPos() {
       if (itemsErr) throw new Error(itemsErr.message);
 
       await Promise.all(
-        lines.map((l) => sb.rpc("decrement_inventory", { p_item_id: l.item.id, p_qty: baseUnitsForSale(l.qty, l.item.units_per_sale) }))
+        lines.map((l) => sb.rpc("decrement_packaged_inventory", { p_item_id: l.item.id, p_selling_qty: l.qty }))
       );
 
       setDoneOrder(order.order_number);

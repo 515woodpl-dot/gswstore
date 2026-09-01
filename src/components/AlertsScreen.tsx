@@ -167,7 +167,7 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
       <header className="border-b border-slate-200 bg-white/95 px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur sm:px-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <BrandLogo href="/alerts" className="rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200" compact />
+            <BrandLogo href="/alerts" className="shrink-0" compact />
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Live Alerts</p>
               <p className="text-sm font-semibold text-slate-700">Order notifications</p>

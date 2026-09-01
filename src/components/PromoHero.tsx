@@ -33,7 +33,7 @@ export default function PromoHero({ items }: { items: InventoryItem[] }) {
   const currentPrice = item.sale_price != null && item.sale_price < item.store_price ? item.sale_price : item.store_price;
 
   return (
-    <section className="relative isolate overflow-hidden rounded-[2rem] border border-[#eadfd4] bg-[#fff5ea] shadow-[0_18px_55px_rgba(67,93,105,0.12)]">
+    <section className="relative isolate overflow-hidden rounded-[2rem] border border-[#dce2e7] bg-[#EEF1F4] shadow-[0_18px_55px_rgba(67,93,105,0.12)]">
       <div className="absolute -left-12 bottom-8 h-32 w-32 rounded-full border border-brand-primary/30" />
       <div className="absolute -left-6 bottom-16 h-px w-40 rotate-[-20deg] bg-brand-primary/50" />
       <div className="absolute right-[11%] top-[-5rem] h-52 w-52 rounded-[42%_58%_63%_37%/43%_39%_61%_57%] bg-brand-primary/30" />
@@ -81,7 +81,7 @@ export default function PromoHero({ items }: { items: InventoryItem[] }) {
             <div className="absolute -right-5 top-8 h-[84%] w-[48%] rounded-[2.5rem] bg-brand-primary/80 sm:-right-9" />
             {/* The product image sits directly on the hero, without a gray frame. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={image} alt={item.name} className="relative h-[340px] w-full object-contain drop-shadow-[0_22px_28px_rgba(15,23,42,0.20)] sm:h-[440px] lg:h-[520px]" onError={(event) => { event.currentTarget.src = PLACEHOLDER; }} />
+            <img src={image} alt={item.name} className="relative mx-auto h-[340px] max-w-full rounded-[2rem] object-contain drop-shadow-[0_22px_28px_rgba(15,23,42,0.20)] sm:h-[440px] lg:h-[520px]" onError={(event) => { event.currentTarget.src = PLACEHOLDER; }} />
             <div className="absolute -bottom-5 -right-2 rounded-2xl border border-white/70 bg-white/95 px-5 py-4 shadow-xl sm:right-5">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Availability</p>
               <p className="mt-1 text-sm font-black text-brand-navy">{item.amount > 0 ? "Ready for pickup" : "View availability"}</p>

@@ -51,10 +51,10 @@ export function StoreShell({ children, categories = [], promotion = null }: { ch
     <div className="min-h-screen bg-transparent text-slate-900">
       {/* Sticky header */}
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 text-slate-900 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur">
-        {promotion && <div className="bg-brand-primary px-4 py-2 text-center text-xs font-bold uppercase tracking-wide text-white sm:text-sm">{promotion.name}: Save {promotion.percentOff}% online · Use code: <span className="rounded bg-white/20 px-2 py-1">{promotion.code}</span></div>}
+        {promotion && <div className="bg-brand-navy px-4 py-1.5 text-center text-xs font-bold uppercase tracking-wide text-white sm:text-sm">{promotion.name}: Save {promotion.percentOff}% online · Use code: <span className="rounded bg-white/15 px-2 py-0.5">{promotion.code}</span></div>}
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-4 py-3 sm:py-4">
-            <BrandLogo href="/" className="rounded-2xl bg-white/80 p-1.5 shadow-sm ring-1 ring-slate-200" compact />
+            <BrandLogo href="/" className="shrink-0" compact />
 
             {/* Search box — desktop, between logo and menu */}
             <form action="/" method="get" className="hidden flex-1 lg:block lg:max-w-md">

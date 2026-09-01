@@ -38,14 +38,6 @@ function ProductCard({ item }: { item: InventoryItem }) {
             className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
             onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER; }}
           />
-          <div className="absolute left-4 top-4">
-            <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-navy">
-              {item.category_name}
-            </span>
-          </div>
-          <div className="absolute bottom-4 left-4">
-            <StockBadge status={item.stock_status} />
-          </div>
         </div>
       </Link>
 
@@ -84,6 +76,11 @@ function ProductCard({ item }: { item: InventoryItem }) {
           >
             {adding ? "Adding…" : added ? "✓ Added" : canAdd ? "Add" : "Out"}
           </button>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{item.category_name}</span>
+          <StockBadge status={item.stock_status} />
         </div>
       </div>
     </article>

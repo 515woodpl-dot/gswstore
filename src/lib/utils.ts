@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import { clearCart, cartTotal } from "@/lib/cart";
+import { clearCart } from "@/lib/cart";
 import type { Cart, Order, StockStatus } from "@/types";
 import { BRAND } from "@/lib/brand";
 
@@ -7,7 +7,7 @@ function genOrderNumber() {
   const d = new Date().toISOString().slice(0,10).replace(/-/g,"");
   // 6 chars from a padded random base-36 string — guaranteed length, ~2B combos/day
   const r = Math.random().toString(36).slice(2).padEnd(6, "0").slice(0, 6).toUpperCase();
-  return `GSS-${d}-${r}`;
+  return `GSW-${d}-${r}`;
 }
 
 export async function createOrder(
@@ -20,12 +20,21 @@ export async function createOrder(
 ): Promise<Order> {
   const sb = createClient();
   const percentOff = Math.min(100, Math.max(0, Number(promo?.percentOff) || 0));
-  const total = Math.round(cartTotal(cart.items) * (1 - percentOff / 100) * 100) / 100;
+  const lines = cart.items.map((ci) => {
+    const base = ci.sale_price ?? ci.store_price;
+    const unitPrice = Math.round(base * (1 - percentOff / 100) * 100) / 100;
+    const discountAmount = Math.round((ci.store_price - unitPrice) * ci.quantity * 100) / 100;
+    return { item: ci, unitPrice, discountAmount };
+  });
+  const total = Math.round(lines.reduce((sum, line) => sum + line.unitPrice * line.item.quantity, 0) * 100) / 100;
+  const discountTotal = Math.round(lines.reduce((sum, line) => sum + line.discountAmount, 0) * 100) / 100;
   const { data: order, error } = await sb.from("orders").insert({
     order_number: genOrderNumber(),
     user_id: userId,
     status: "pending",
     total,
+    discount_total: discountTotal,
+    source: "online",
     notes,
     fulfillment,
     delivery_address: fulfillment === "delivery" ? deliveryAddress : "",
@@ -33,10 +42,8 @@ export async function createOrder(
     promo_percent: percentOff,
   }).select().single();
   if (error) throw new Error(error.message);
-  const items = cart.items.map(ci => {
-    const base = ci.sale_price ?? ci.store_price;
-    const unitPrice = Math.round(base * (1 - percentOff / 100) * 100) / 100;
-    return { order_id: order.id, item_id: ci.item_id, name: ci.name, sku: ci.sku, image_url: ci.image_url, unit_price: unitPrice, list_price: ci.store_price, cost_price: 0, discount_amount: Math.round((ci.store_price - unitPrice) * ci.quantity * 100) / 100, discount_reason: promo?.code ? `Code: ${promo.code}` : "", quantity: ci.quantity, base_units_per_sale: ci.units_per_sale ?? 1 };
+  const items = lines.map(({ item, unitPrice, discountAmount }) => {
+    return { order_id: order.id, item_id: item.item_id, name: item.name, sku: item.sku, image_url: item.image_url, unit_price: unitPrice, list_price: item.store_price, cost_price: 0, discount_amount: discountAmount, discount_reason: promo?.code ? `Code: ${promo.code}` : "", quantity: item.quantity, base_units_per_sale: item.units_per_sale ?? 1 };
   });
   await sb.from("order_items").insert(items);
 

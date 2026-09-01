@@ -81,8 +81,9 @@ export default function SalesReport({
       }
       saleOrders += 1;
       const orderMerchandiseRevenue = o.order_items.reduce((sum, item) => sum + Number(item.unit_price) * item.quantity, 0);
+      const orderDiscount = o.order_items.reduce((sum, item) => sum + Number(item.discount_amount || 0), 0);
       revenue += orderMerchandiseRevenue;
-      discounts += Number(o.discount_total);
+      discounts += orderDiscount;
       for (const it of o.order_items) {
         units += it.quantity;
         const itemCost = costForSale(it.cost_price, it.quantity, it.base_units_per_sale);
@@ -109,7 +110,7 @@ export default function SalesReport({
       const staff = o.sold_by_name || (o.source === "walk_in" ? "Unknown staff" : "Online");
       if (!byStaff[staff]) byStaff[staff] = { revenue: 0, cost: 0, discounts: 0, count: 0 };
       byStaff[staff].revenue += orderMerchandiseRevenue;
-      byStaff[staff].discounts += Number(o.discount_total);
+      byStaff[staff].discounts += orderDiscount;
       byStaff[staff].count += 1;
       for (const it of o.order_items) byStaff[staff].cost += costForSale(it.cost_price, it.quantity, it.base_units_per_sale);
     }
@@ -410,8 +411,9 @@ export default function SalesReport({
             No sales in this period.
           </p>
         )}
-        {orders.map((o) => (
-          <div key={o.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        {orders.map((o) => {
+          const orderDiscount = o.order_items.reduce((sum, item) => sum + Number(item.discount_amount || 0), 0);
+          return <div key={o.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <button onClick={() => setExpanded(expanded === o.id ? null : o.id)}
               className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50">
               <div>
@@ -425,7 +427,7 @@ export default function SalesReport({
               </div>
               <div className="text-right">
                 <p className="font-black text-slate-900">{formatPrice(o.total)}</p>
-                {o.discount_total > 0 && <p className="text-xs font-semibold text-amber-700">−{formatPrice(o.discount_total)}</p>}
+                {orderDiscount > 0 && <p className="text-xs font-semibold text-amber-700">−{formatPrice(orderDiscount)}</p>}
               </div>
             </button>
             {expanded === o.id && (
@@ -459,8 +461,8 @@ export default function SalesReport({
                 )}
               </div>
             )}
-          </div>
-        ))}
+          </div>;
+        })}
       </div>
     </div>
   );

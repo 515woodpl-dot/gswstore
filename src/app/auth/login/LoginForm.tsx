@@ -13,6 +13,7 @@ export default function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/";
+  const timeout = params.get("timeout") === "1";
 
   async function handle(e: React.FormEvent) {
     e.preventDefault(); setLoading(true); setError("");
@@ -29,6 +30,7 @@ export default function LoginForm() {
           <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Access your account</h1>
         </div>
         <form onSubmit={handle} className="space-y-5">
+          {timeout && <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">You were signed out after five minutes of inactivity.</div>}
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-800">Email</span>
             <input type="email" required value={email} onChange={e => setEmail(e.target.value)} autoComplete="email"
@@ -48,7 +50,10 @@ export default function LoginForm() {
         </form>
         <div className="mt-6 flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
           <Link href="/" className="font-semibold text-slate-600 hover:text-slate-950">Back to Home</Link>
-          <Link href={`/auth/register?next=${next}`} className="font-semibold text-brand-navy hover:text-slate-800">Create account</Link>
+          <div className="flex gap-4">
+            <Link href="/auth/forgot-password" className="font-semibold text-slate-600 hover:text-slate-950">Forgot password?</Link>
+            <Link href={`/auth/register?next=${next}`} className="font-semibold text-brand-navy hover:text-slate-800">Create account</Link>
+          </div>
         </div>
       </div>
     </div>

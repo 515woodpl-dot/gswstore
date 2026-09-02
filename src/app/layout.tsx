@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { CartProvider } from "@/hooks/useCart";
 import { StoreShell } from "@/components/StoreShell";
 import { createClient } from "@/lib/supabase/server";
+import IdleSessionGuard from "@/components/IdleSessionGuard";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -32,6 +33,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="en">
       <body className="min-h-screen font-sans">
+        <IdleSessionGuard />
         <CartProvider>
           <StoreShell categories={cats ?? []} promotion={promotion ? { name: promotion.name, code: promotion.code, percentOff: Number(promotion.percent_off) } : null}>{children}</StoreShell>
         </CartProvider>

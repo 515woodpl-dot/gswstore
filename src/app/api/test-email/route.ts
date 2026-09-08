@@ -1,11 +1,13 @@
-import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/admin";
+import { NextRequest, NextResponse } from "next/server";
 import { BRAND } from "@/lib/brand";
 
-// GET /api/test-email — sends a test email and returns full diagnostics
-export async function GET() {
-  const auth = await requireAdmin();
-  if (!auth.ok) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+// GET /api/test-email?key=sps2024 — sends a test email, returns diagnostics
+// Protected by a simple query param instead of auth (so you can hit it directly)
+export async function GET(request: NextRequest) {
+  const key = request.nextUrl.searchParams.get("key");
+  if (key !== "sps2024") {
+    return NextResponse.json({ error: "Add ?key=sps2024 to the URL" });
+  }
 
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM || "noreply@orders.stoneproductsupply.com";
@@ -15,11 +17,11 @@ export async function GET() {
     RESEND_API_KEY_SET: !!apiKey,
     RESEND_API_KEY_PREFIX: apiKey ? apiKey.slice(0, 6) + "..." : "NOT SET",
     RESEND_FROM: from,
-    SHOP_NOTIFY_EMAIL: to,
+    SEND_TO: to,
   };
 
   if (!apiKey) {
-    return NextResponse.json({ ...diagnostics, error: "RESEND_API_KEY not set" });
+    return NextResponse.json({ ...diagnostics, error: "RESEND_API_KEY is not set in environment" });
   }
 
   try {
@@ -29,8 +31,8 @@ export async function GET() {
       body: JSON.stringify({
         from: `${BRAND.name} <${from}>`,
         to: [to],
-        subject: "🔧 SPS Test Email",
-        html: `<p>This is a test email from Stone Product Supply.</p><p>If you see this, Resend is working.</p><p>Sent at: ${new Date().toISOString()}</p>`,
+        subject: "Test Email - SPS",
+        html: `<p>This is a test email from Stone Product Supply.</p><p>If you see this, Resend is working correctly.</p><p>Sent: ${new Date().toISOString()}</p>`,
       }),
     });
 
@@ -38,10 +40,9 @@ export async function GET() {
     diagnostics.resend_status = res.status;
     diagnostics.resend_response = body;
     diagnostics.success = res.ok;
-
-    return NextResponse.json(diagnostics);
   } catch (err) {
     diagnostics.fetch_error = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(diagnostics);
   }
+
+  return NextResponse.json(diagnostics);
 }

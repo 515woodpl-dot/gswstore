@@ -29,6 +29,9 @@ export interface InventoryItem {
   selling_unit?: string;
   units_per_sale?: number;
   packaging_reviewed?: boolean;
+  dimensions: string;
+  weight: string;
+  material: string;
   variants?: InventoryItem[];
 }
 

@@ -16,7 +16,33 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
   const [orders, setOrders]   = useState<Order[]>(initialOrders);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [filter, setFilter]   = useState<OrderStatus | "all">("all");
+  const [sendingReceipt, setSendingReceipt] = useState<string | null>(null);
+  const [receiptMsg, setReceiptMsg] = useState<Record<string, string>>({});
   const sb = createClient();
+
+  async function sendReceipt(orderId: string) {
+    setSendingReceipt(orderId);
+    setReceiptMsg((prev) => ({ ...prev, [orderId]: "" }));
+    try {
+      const res = await fetch("/api/receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = await res.json();
+      if (data.sent) {
+        setReceiptMsg((prev) => ({ ...prev, [orderId]: `✓ Receipt sent to ${data.to}` }));
+      } else if (data.skipped) {
+        setReceiptMsg((prev) => ({ ...prev, [orderId]: data.message || "No email on file." }));
+      } else {
+        setReceiptMsg((prev) => ({ ...prev, [orderId]: data.error || "Failed to send." }));
+      }
+    } catch {
+      setReceiptMsg((prev) => ({ ...prev, [orderId]: "Network error." }));
+    } finally {
+      setSendingReceipt(null);
+    }
+  }
 
   useEffect(() => {
     const channel = sb
@@ -124,6 +150,22 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
                       {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
                     </select>
                   </label>
+
+                  {/* Send receipt email */}
+                  <div className="mt-3 flex items-center gap-3">
+                    <button
+                      onClick={() => sendReceipt(order.id)}
+                      disabled={sendingReceipt === order.id}
+                      className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-brand-gold hover:bg-brand-gold/5 disabled:opacity-50"
+                    >
+                      {sendingReceipt === order.id ? "Sending…" : "📧 Send Receipt"}
+                    </button>
+                    {receiptMsg[order.id] && (
+                      <span className={`text-xs font-medium ${receiptMsg[order.id].startsWith("✓") ? "text-emerald-600" : "text-amber-600"}`}>
+                        {receiptMsg[order.id]}
+                      </span>
+                    )}
+                  </div>
 
                   {order.status === "item_unavailable" && (
                     <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { sendReceiptEmail } from "@/lib/notifications";
 
-// POST { orderId }  — looks up the completed sale and emails a receipt
-// to the linked walk-in customer, if one has an email on file.
+// POST { orderId }  — looks up any completed sale and emails a receipt
+// Works for walk-in (via walk_in_customers), online (via auth.users), or manual sales.
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -17,22 +17,37 @@ export async function POST(request: NextRequest) {
 
     const { data: order } = await sb
       .from("orders")
-      .select("order_number,total,discount_total,created_at,source,sold_by_name,walk_in_customer_id,order_items(name,quantity,unit_price,list_price,discount_amount)")
+      .select("order_number,total,discount_total,created_at,source,sold_by_name,walk_in_customer_id,user_id,order_items(name,quantity,unit_price,list_price,discount_amount)")
       .eq("id", orderId)
       .single();
     if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
 
-    if (!order.walk_in_customer_id) {
-      return NextResponse.json({ ok: true, skipped: "no_customer" });
+    let email = "";
+    let name = "";
+
+    // Walk-in order — look up walk_in_customers
+    if (order.walk_in_customer_id) {
+      const { data: cust } = await sb
+        .from("walk_in_customers")
+        .select("name,email")
+        .eq("id", order.walk_in_customer_id)
+        .single();
+      email = cust?.email || "";
+      name = cust?.name || "";
     }
 
-    const { data: cust } = await sb
-      .from("walk_in_customers")
-      .select("name,email")
-      .eq("id", order.walk_in_customer_id)
-      .single();
+    // Online order — look up auth user
+    if (!email && order.user_id) {
+      const { data: { user } } = await sb.auth.admin.getUserById(order.user_id);
+      if (user) {
+        email = user.email || "";
+        name = (user.user_metadata?.full_name as string) || "";
+      }
+    }
 
-    if (!cust?.email) return NextResponse.json({ ok: true, skipped: "no_email" });
+    if (!email || !email.includes("@")) {
+      return NextResponse.json({ ok: true, skipped: "no_email", message: "No email address on file for this order." });
+    }
 
     await sendReceiptEmail(
       {
@@ -49,11 +64,11 @@ export async function POST(request: NextRequest) {
         createdAt: order.created_at,
         source: order.source ?? "",
       },
-      cust.email,
-      cust.name ?? ""
+      email,
+      name
     );
 
-    return NextResponse.json({ ok: true, sent: true });
+    return NextResponse.json({ ok: true, sent: true, to: email });
   } catch (err) {
     console.error("[Receipt] error:", err instanceof Error ? err.message : "unknown");
     return NextResponse.json({ error: "Could not send receipt." }, { status: 500 });

@@ -61,6 +61,9 @@ export default async function ProductPage({ params }: Props) {
           {item!.brand && <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Brand</dt><dd className="mt-0.5 font-semibold text-slate-900">{item!.brand}</dd></div>}
           {item!.model_number && <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Model</dt><dd className="mt-0.5 font-semibold text-slate-900">{item!.model_number}</dd></div>}
           {item!.voltage && item!.voltage !== "N/A" && <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Voltage</dt><dd className="mt-0.5 font-semibold text-slate-900">{item!.voltage}</dd></div>}
+          {item!.dimensions && <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Dimensions</dt><dd className="mt-0.5 font-semibold text-slate-900">{item!.dimensions}</dd></div>}
+          {item!.weight && <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Weight</dt><dd className="mt-0.5 font-semibold text-slate-900">{item!.weight}</dd></div>}
+          {item!.material && <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Material</dt><dd className="mt-0.5 font-semibold text-slate-900">{item!.material}</dd></div>}
           {item!.sku && <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">SKU</dt><dd className="mt-0.5 font-semibold text-slate-900">{item!.sku}</dd></div>}
           {item!.category_name && <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Category</dt><dd className="mt-0.5 font-semibold text-slate-900">{item!.category_name}</dd></div>}
         </dl>

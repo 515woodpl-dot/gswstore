@@ -16,6 +16,7 @@ interface Row {
   attributes: Record<string, string> | null;
   tax_enabled: boolean; tax_rate_percent: number;
   parent_id: string | null; variant_label: string; variant_dimension: string; part_number: string; base_unit?: string; selling_unit?: string; units_per_sale?: number; packaging_reviewed?: boolean;
+  dimensions: string; weight: string; material: string;
 }
 
 const PRODUCT_ATTR_FIELDS = [
@@ -31,6 +32,7 @@ const BLANK: Row = {
   voltage: "", sku: "", description: "", amount: 0, store_price: 0, sale_price: null, cost_price: 0, image_url: "", images: [], featured: false, new_arrival: false, store_visible: true,
   attributes: {}, tax_enabled: false, tax_rate_percent: 0,
   parent_id: null, variant_label: "", variant_dimension: "Color", part_number: "", base_unit: "Each", selling_unit: "Each", units_per_sale: 1, packaging_reviewed: false,
+  dimensions: "", weight: "", material: "",
 };
 
 // Compress image to max 1200px wide and ~80% quality JPEG using Canvas
@@ -208,6 +210,9 @@ export default function InventoryManager({ initialItems, categories }: { initial
       selling_unit: editing.selling_unit || "Each",
       units_per_sale: Math.max(1, Math.floor(Number(editing.units_per_sale) || 1)),
       packaging_reviewed: Boolean(editing.packaging_reviewed || packagingChanged),
+      dimensions: editing.dimensions ?? "",
+      weight: editing.weight ?? "",
+      material: editing.material ?? "",
     };
     let err = null as { message: string } | null;
     if (originalId) {
@@ -593,6 +598,23 @@ export default function InventoryManager({ initialItems, categories }: { initial
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
                 </label>
               </div>
+
+              {/* Measurements */}
+              <label className="block">
+                <span className="mb-1 block text-sm font-semibold text-slate-700">Dimensions</span>
+                <input type="text" value={editing.dimensions ?? ""} onChange={(e) => setEditing({ ...editing, dimensions: e.target.value })}
+                  placeholder='e.g. 24" × 12" × 3/8"' className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-semibold text-slate-700">Weight</span>
+                <input type="text" value={editing.weight ?? ""} onChange={(e) => setEditing({ ...editing, weight: e.target.value })}
+                  placeholder="e.g. 15 lbs" className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-semibold text-slate-700">Material</span>
+                <input type="text" value={editing.material ?? ""} onChange={(e) => setEditing({ ...editing, material: e.target.value })}
+                  placeholder="e.g. Natural granite" className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
+              </label>
 
               <label className="flex items-center gap-2 py-1">
                 <input type="checkbox" checked={editing.store_visible} onChange={(e) => setEditing({ ...editing, store_visible: e.target.checked })} className="h-4 w-4 rounded" />

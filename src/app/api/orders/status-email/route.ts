@@ -38,6 +38,32 @@ export async function POST(request: NextRequest) {
     if (!email) return NextResponse.json({ error: "No customer email" }, { status: 404 });
 
     await sendStatusEmail(order, email, name);
+
+    // Notify shop inbox on cancellations and item_unavailable
+    if (order.status === "cancelled" || order.status === "item_unavailable") {
+      const { BRAND } = await import("@/lib/brand");
+      const shopInbox = process.env.SHOP_NOTIFY_EMAIL || BRAND.orderEmail;
+      const apiKey = process.env.RESEND_API_KEY;
+      const from = process.env.RESEND_FROM || "noreply@orders.stoneproductsupply.com";
+      if (apiKey) {
+        const label = order.status === "cancelled" ? "Cancelled" : "Item Unavailable";
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: `${BRAND.name} <${from}>`,
+            to: [shopInbox],
+            subject: `⚠ Order ${label} — ${order.order_number}`,
+            html: `<p><strong>${order.order_number}</strong> was marked <strong>${label}</strong>.</p>
+              <p>Customer: ${name || "—"} (${email})</p>
+              <p>Total: $${order.total.toFixed(2)}</p>
+              ${order.attention_note ? `<p>Note: ${order.attention_note}</p>` : ""}
+              <p><a href="${BRAND.adminUrl}/orders">View in Admin</a></p>`,
+          }),
+        }).catch((e) => console.warn("[Resend] shop cancel notify failed:", e));
+      }
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[/api/orders/status-email]", err);

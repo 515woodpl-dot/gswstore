@@ -199,6 +199,14 @@ export default function WalkInPos() {
         taxRate,
         taxAmount,
       });
+
+      // Auto-send receipt email (to shop + customer if email provided)
+      fetch("/api/receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: order.id }),
+      }).catch(() => {});
+
       setLines([]);
       setCustName("");
       setCustEmail("");

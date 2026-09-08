@@ -19,7 +19,7 @@ export default function LoginForm() {
     e.preventDefault(); setLoading(true); setError("");
     const { error: err } = await createClient().auth.signInWithPassword({ email, password });
     if (err) { setError(err.message); setLoading(false); return; }
-    router.push(next); router.refresh();
+    window.location.href = next;
   }
 
   return (

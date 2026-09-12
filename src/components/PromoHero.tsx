@@ -42,7 +42,7 @@ export default function PromoHero({ items }: { items: InventoryItem[] }) {
         <div className="order-2 flex flex-col justify-center px-7 py-10 sm:px-12 lg:order-1 lg:py-14 xl:px-16">
           <p className="text-xs font-black uppercase tracking-[0.28em] text-brand-primary">Stone Product Supply</p>
           {item.category_name?.toLowerCase() === "sink" && item.dimensions ? (
-            <p className="mt-5 text-xs font-bold uppercase tracking-[0.22em] text-brand-navy/65">{item.dimensions}</p>
+            <p className="mt-5 text-xs font-bold tracking-[0.18em] text-brand-navy/65">Sink Dimensions: {item.dimensions}</p>
           ) : item.category_name ? (
             <p className="mt-5 text-xs font-bold uppercase tracking-[0.22em] text-brand-navy/65">{item.category_name}</p>
           ) : null}

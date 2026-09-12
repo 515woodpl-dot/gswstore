@@ -99,7 +99,7 @@ export default async function ProductPage({ params }: Props) {
         <div className="space-y-5 sm:space-y-6">
           <div className="space-y-3">
             {item!.category_name?.toLowerCase() === "sink" && item!.dimensions
-              ? <p className="text-sm font-semibold uppercase tracking-[0.22em] text-brand-primary">{item!.dimensions}</p>
+              ? <p className="text-sm font-semibold tracking-[0.18em] text-brand-primary">Sink Dimensions: {item!.dimensions}</p>
               : null}
             <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">{item!.name}</h1>
             <div className="flex flex-wrap items-center gap-3">

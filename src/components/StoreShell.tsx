@@ -84,22 +84,22 @@ export function StoreShell({ children, categories = [], promotion = null }: { ch
 
       <main>{children}</main>
 
-      <footer id="contact" className="bg-brand-gold text-brand-navy/75">
+      <footer id="contact" className="bg-brand-gold text-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.4fr_1fr_1fr] lg:gap-16 lg:px-8">
           <div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/gst-logo-horizontal.png" alt={BRAND.name} className="h-auto w-full max-w-[310px]" />
             <p className="mt-5 max-w-sm text-sm leading-6">Tools, materials, and no-nonsense help for the stone trade.</p>
           </div>
-          <div><p className="font-display text-sm font-black uppercase tracking-wide text-brand-navy">Visit the counter</p><p className="mt-4 text-xs leading-6">{BRAND.address}</p><p className="mt-2 text-xs">Mon–Fri, 7:00 AM–5:00 PM</p></div>
+          <div><p className="font-display text-sm font-black uppercase tracking-wide text-white">Visit the counter</p><p className="mt-4 text-xs leading-6">{BRAND.address}</p><p className="mt-2 text-xs">Mon–Fri, 7:00 AM–5:00 PM</p></div>
           <div>
-            <p className="font-display text-sm font-black uppercase tracking-wide text-brand-navy">Shop categories</p>
+            <p className="font-display text-sm font-black uppercase tracking-wide text-white">Shop categories</p>
             <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs">{categories.slice(0, 6).map((category) => <Link key={category.id} href={`/shop?cat=${encodeURIComponent(category.name)}#catalog`} className="hover:text-white">{category.name}</Link>)}</div>
             <Link href="/about" className="mt-4 block text-xs font-bold hover:text-white">About us</Link>
-            <a href={`tel:${SHOP_PHONE_RAW}`} className="mt-3 block text-xs font-bold text-brand-navy hover:text-white">{SHOP_PHONE}</a>
+            <a href={`tel:${SHOP_PHONE_RAW}`} className="mt-3 block text-xs font-bold text-white hover:text-brand-navy">{SHOP_PHONE}</a>
           </div>
         </div>
-        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-2 border-t border-brand-navy/15 px-4 py-5 text-[10px] sm:flex-row sm:px-6 lg:px-8"><p>© {new Date().getFullYear()} {BRAND.name}</p><p>Pickup-first supply for working crews.</p></div>
+        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-2 border-t border-white/20 px-4 py-5 text-[10px] sm:flex-row sm:px-6 lg:px-8"><p>© {new Date().getFullYear()} {BRAND.name}</p><p>Pickup-first supply for working crews.</p></div>
       </footer>
     </div>
   );

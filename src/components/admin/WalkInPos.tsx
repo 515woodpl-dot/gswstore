@@ -3,14 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
-import { useAuth } from "@/hooks/useAuth";
 import type { InventoryItem } from "@/types";
-
-function genOrderNumber() {
-  const d = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const r = Math.random().toString(36).slice(2).padEnd(6, "0").slice(0, 6).toUpperCase();
-  return `GSW-${d}-${r}`;
-}
 
 interface PosLine {
   item: InventoryItem;
@@ -21,7 +14,6 @@ interface PosLine {
 
 export default function WalkInPos() {
   const sb = createClient();
-  const { user } = useAuth();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [query, setQuery] = useState("");
   const [lines, setLines] = useState<PosLine[]>([]);
@@ -134,77 +126,45 @@ export default function WalkInPos() {
 
     setSaving(true);
     try {
-      const { data: cust, error: custErr } = await sb
-        .from("walk_in_customers")
-        .upsert({ email: custEmail.trim().toLowerCase(), name: custName.trim() }, { onConflict: "email" })
-        .select("id")
-        .single();
-      if (custErr || !cust) throw new Error(custErr?.message || "Failed to save customer");
+      const response = await fetch("/api/admin/walk-in-sale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: custName.trim(),
+          customerEmail: custEmail.trim(),
+          discountReason: discountReason.trim(),
+          applyTax,
+          taxRate,
+          lines: lines.map((line) => ({
+            itemId: line.item.id,
+            qty: line.qty,
+            soldPrice: line.soldPrice,
+          })),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Failed to complete sale");
 
-      const soldByName =
-        (user?.user_metadata?.full_name as string | undefined) ||
-        (user?.email ? user.email.split("@")[0] : "Staff");
-
-      const { data: order, error: orderErr } = await sb
-        .from("orders")
-        .insert({
-          order_number: genOrderNumber(),
-          user_id: null,
-          status: "completed",
-          total: grandTotal,
-          notes: taxRate > 0 ? `Tax (${(taxRate * 100).toFixed(2)}%): ${formatPrice(taxAmount)}` : "",
-          source: "walk_in",
-          walk_in_customer_id: cust.id,
-          fulfillment: "pickup",
-          sold_by_id: user?.id ?? null,
-          sold_by_name: soldByName,
-          discount_total: discountTotal,
-        })
-        .select("id,order_number")
-        .single();
-      if (orderErr || !order) throw new Error(orderErr?.message || "Failed to create order");
-
-      const orderItems = lines.map((l) => ({
-        order_id: order.id,
-        item_id: l.item.id,
-        name: l.item.name,
-        sku: l.item.sku,
-        image_url: l.item.image_url,
-        unit_price: l.soldPrice,
-        list_price: l.listPrice,
-        cost_price: l.item.cost_price ?? 0,
-        discount_amount: Math.max(0, (l.listPrice - l.soldPrice) * l.qty),
-        discount_reason: (l.listPrice - l.soldPrice) > 0 ? discountReason.trim() : "",
-        quantity: l.qty,
-        base_units_per_sale: l.item.units_per_sale ?? 1,
-      }));
-      const { error: itemsErr } = await sb.from("order_items").insert(orderItems);
-      if (itemsErr) throw new Error(itemsErr.message);
-
-      await Promise.all(
-        lines.map((l) => sb.rpc("decrement_packaged_inventory", { p_item_id: l.item.id, p_selling_qty: l.qty }))
-      );
-
-      setDoneOrder(order.order_number);
+      setDoneOrder(result.orderNumber);
       setDoneData({
-        orderNumber: order.order_number,
+        orderNumber: result.orderNumber,
         lines: [...lines],
         custName: custName.trim(),
         custEmail: custEmail.trim(),
-        total: grandTotal,
-        discountTotal,
+        total: Number(result.total),
+        discountTotal: Number(result.discountTotal),
         discountReason: discountReason.trim(),
-        soldBy: soldByName,
+        soldBy: result.soldByName,
         date: new Date().toLocaleString(),
-        taxRate,
-        taxAmount,
+        taxRate: Number(result.taxRate),
+        taxAmount: Number(result.taxAmount),
       });
 
       // Auto-send receipt email (to shop + customer if email provided)
       fetch("/api/receipt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: order.id }),
+        body: JSON.stringify({ orderId: result.orderId }),
       }).catch(() => {});
 
       setLines([]);

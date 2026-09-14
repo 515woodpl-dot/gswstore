@@ -113,7 +113,7 @@ export default function ShopGrid({ items, cat, q, basePath = "/" }: { items: Inv
       <div className="border border-dashed border-white/25 bg-white/5 px-6 py-14 text-center">
         <p className="font-display text-xl font-black uppercase text-white">No products match that search.</p>
         <p className="mt-2 text-sm text-white/55">Try a different category or a shorter keyword.</p>
-        {(cat || q) && <Link href={basePath} className="mt-5 inline-flex bg-brand-gold px-5 py-3 text-xs font-black uppercase text-white">Clear filters</Link>}
+        {(cat || q) && <Link href={`${basePath}#catalog`} className="mt-5 inline-flex bg-brand-gold px-5 py-3 text-xs font-black uppercase text-white">Clear filters</Link>}
       </div>
     );
   }

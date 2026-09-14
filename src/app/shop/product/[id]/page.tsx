@@ -148,7 +148,7 @@ export default async function ProductPage({ params }: Props) {
             <div className="flex items-center gap-3"><span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-600 text-xs font-black text-white">✓</span><p className="text-[10px] text-emerald-800"><b className="block text-xs">{item!.amount > 0 ? "Ready for pickup" : "Check availability"}</b>{stockLabel(item!.stock_status, item!.amount)} at Auburn</p></div>
           </div>
           <ul className="mt-5 grid gap-2 text-[10px] text-slate-500">
-            <li>↗ Order before 2 PM for same-day pickup</li>
+            <li>↗ Order by 4 PM for same-day pickup in Auburn.</li>
             <li>↺ Unopened items returnable within 30 days</li>
             <li>? Product question? Call {BRAND.phone}</li>
           </ul>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode, useState } from "react";
+import { type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import BrandLogo from "@/components/BrandLogo";
 import { useCart } from "@/hooks/useCart";
@@ -25,8 +25,6 @@ export function StoreShell({ children, categories = [], promotion = null }: { ch
   const pathname = usePathname();
   const { itemCount } = useCart();
   const { user, signOut } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
   const isStaffScreen = pathname.startsWith("/admin") || pathname.startsWith("/alerts")
     || (typeof window !== "undefined" && (window.location.hostname.startsWith("admin.") || window.location.hostname.startsWith("alerts.")));
   if (isStaffScreen) return <>{children}</>;
@@ -37,7 +35,7 @@ export function StoreShell({ children, categories = [], promotion = null }: { ch
         <div className="flex min-h-10 items-center justify-center gap-8 bg-brand-navy px-4 py-2 text-center text-[11px] text-white/75">
           <p className="m-0 flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.13)]" />
-            {promotion ? <>{promotion.name}: save {promotion.percentOff}% with <b className="text-white">{promotion.code}</b></> : <>Order by 2 PM for same-day pickup in Auburn</>}
+            {promotion ? <>{promotion.name}: save {promotion.percentOff}% with <b className="text-white">{promotion.code}</b></> : <>Order by 4 PM for same-day pickup in Auburn.</>}
           </p>
           <a href={`tel:${SHOP_PHONE_RAW}`} className="hidden font-bold text-white hover:text-brand-gold sm:block">Need help? {SHOP_PHONE}</a>
         </div>
@@ -60,17 +58,14 @@ export function StoreShell({ children, categories = [], promotion = null }: { ch
             <Link href="/cart" aria-label={`Cart with ${itemCount} items`} className="inline-flex items-center gap-2 text-xs font-bold text-slate-700 hover:text-brand-gold">
               <CartGlyph /><span className="hidden sm:inline">Cart</span><b className="grid h-6 min-w-6 place-items-center rounded-full bg-brand-gold px-1.5 text-[10px] text-white">{itemCount}</b>
             </Link>
-            <button type="button" onClick={() => setMobileMenuOpen((open) => !open)} className="border border-slate-300 px-3 py-2 text-xs font-black lg:hidden" aria-expanded={mobileMenuOpen} aria-label="Toggle navigation menu">Menu</button>
           </div>
         </div>
 
-        {mobileMenuOpen && (
-          <nav className="grid border-t border-slate-200 bg-white px-4 py-3 lg:hidden" aria-label="Mobile navigation">
-            <Link onClick={() => setMobileMenuOpen(false)} href="/shop" className="border-b border-slate-100 px-2 py-3 text-sm font-bold">Shop</Link>
-            <Link onClick={() => setMobileMenuOpen(false)} href="/about" className="border-b border-slate-100 px-2 py-3 text-sm font-bold">About</Link>
-            <Link onClick={() => setMobileMenuOpen(false)} href={user ? "/account/orders" : "/auth/login"} className="px-2 py-3 text-sm font-bold">{user ? "My orders" : "Sign in"}</Link>
-          </nav>
-        )}
+        <nav className="flex items-center justify-center gap-8 border-t border-slate-200 bg-white px-4 py-3 lg:hidden" aria-label="Mobile navigation">
+          <Link href="/shop" className="text-xs font-bold text-slate-700 hover:text-brand-gold">Shop</Link>
+          <Link href="/about" className="text-xs font-bold text-slate-700 hover:text-brand-gold">About</Link>
+          <Link href={user ? "/account/orders" : "/auth/login"} className="text-xs font-bold text-slate-700 hover:text-brand-gold">{user ? "My orders" : "Sign in"}</Link>
+        </nav>
 
         <div className="mx-auto max-w-7xl border-x border-t border-[#d7dbdd]">
           <form action="/#catalog" method="get" className="grid min-h-[62px] grid-cols-[auto_1fr_auto] items-center gap-3 bg-white pl-4 sm:pl-6">

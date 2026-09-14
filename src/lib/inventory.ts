@@ -123,7 +123,7 @@ export async function getFeaturedItems(limit = 5): Promise<InventoryItem[]> {
 }
 
 export async function getHeroItems(): Promise<InventoryItem[]> {
-  return getFeaturedItems(3);
+  return getFeaturedItems(8);
 }
 
 export async function getStoreCategories(): Promise<Category[]> {

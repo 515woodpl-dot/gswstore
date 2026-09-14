@@ -237,7 +237,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
       const exists = withoutOld.some((p) => p.id === payload.id);
       return exists ? withoutOld.map((p) => (p.id === payload.id ? payload : p)) : [...withoutOld, payload];
     });
-    // Bust the storefront cache so Staff Picks / featured changes show immediately.
+    // Bust the storefront cache so featured hero changes show immediately.
     fetch("/api/admin/revalidate", { method: "POST" }).catch(() => {});
     setEditing(null); setOriginalId(null); setSaving(false);
   }
@@ -622,7 +622,7 @@ export default function InventoryManager({ initialItems, categories }: { initial
               </label>
               <label className="flex items-center gap-2 py-1">
                 <input type="checkbox" checked={editing.featured} onChange={(e) => setEditing({ ...editing, featured: e.target.checked })} className="h-4 w-4 rounded" />
-                <span className="text-sm font-semibold text-slate-700">⭐ Staff Pick <span className="font-normal text-slate-400">(shows in Staff Picks section on homepage)</span></span>
+                <span className="text-sm font-semibold text-slate-700">Featured <span className="font-normal text-slate-400">(shows in the homepage hero slideshow)</span></span>
               </label>
               <label className="flex items-center gap-2 py-1">
                 <input type="checkbox" checked={editing.new_arrival} onChange={(e) => setEditing({ ...editing, new_arrival: e.target.checked })} className="h-4 w-4 rounded" />

@@ -46,9 +46,7 @@ export function StoreShell({ children, categories = [], promotion = null }: { ch
           <BrandLogo href="/" className="shrink-0" compact />
           <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary navigation">
             <Link href="/shop" className={`border-b-2 px-3 py-3 text-sm font-bold transition ${pathname.startsWith("/shop") ? "border-brand-gold text-brand-navy" : "border-transparent text-slate-600 hover:border-brand-gold"}`}>Shop</Link>
-            <Link href="/#catalog" className="border-b-2 border-transparent px-3 py-3 text-sm font-bold text-slate-600 transition hover:border-brand-gold">Categories</Link>
-            <Link href="/#pro" className="border-b-2 border-transparent px-3 py-3 text-sm font-bold text-slate-600 transition hover:border-brand-gold">Pro accounts</Link>
-            <Link href="/#contact" className="border-b-2 border-transparent px-3 py-3 text-sm font-bold text-slate-600 transition hover:border-brand-gold">About</Link>
+            <Link href="/about" className={`border-b-2 px-3 py-3 text-sm font-bold transition ${pathname === "/about" ? "border-brand-gold text-brand-navy" : "border-transparent text-slate-600 hover:border-brand-gold"}`}>About</Link>
           </nav>
           <div className="flex items-center gap-4">
             {user ? (
@@ -69,42 +67,39 @@ export function StoreShell({ children, categories = [], promotion = null }: { ch
         {mobileMenuOpen && (
           <nav className="grid border-t border-slate-200 bg-white px-4 py-3 lg:hidden" aria-label="Mobile navigation">
             <Link onClick={() => setMobileMenuOpen(false)} href="/shop" className="border-b border-slate-100 px-2 py-3 text-sm font-bold">Shop</Link>
-            <Link onClick={() => setMobileMenuOpen(false)} href="/#catalog" className="border-b border-slate-100 px-2 py-3 text-sm font-bold">Categories</Link>
-            <Link onClick={() => setMobileMenuOpen(false)} href="/#pro" className="border-b border-slate-100 px-2 py-3 text-sm font-bold">Pro accounts</Link>
+            <Link onClick={() => setMobileMenuOpen(false)} href="/about" className="border-b border-slate-100 px-2 py-3 text-sm font-bold">About</Link>
             <Link onClick={() => setMobileMenuOpen(false)} href={user ? "/account/orders" : "/auth/login"} className="px-2 py-3 text-sm font-bold">{user ? "My orders" : "Sign in"}</Link>
           </nav>
         )}
 
-        <div className="mx-auto grid max-w-7xl border-x border-t border-[#d7dbdd] bg-[#d7dbdd] sm:grid-cols-[1fr_245px]">
-          <form action="/" method="get" className="grid min-h-[62px] grid-cols-[auto_1fr_auto] items-center gap-3 bg-white pl-4 sm:pl-6">
+        <div className="mx-auto max-w-7xl border-x border-t border-[#d7dbdd]">
+          <form action="/#catalog" method="get" className="grid min-h-[62px] grid-cols-[auto_1fr_auto] items-center gap-3 bg-white pl-4 sm:pl-6">
             <span className="text-brand-blue"><SearchGlyph /></span>
             <label className="sr-only" htmlFor="store-search">Search the catalog</label>
             <input id="store-search" name="q" type="search" placeholder="Search by product, brand, or SKU" className="min-w-0 bg-transparent text-sm outline-none placeholder:text-slate-400" />
             <button type="submit" className="h-full bg-brand-blue px-4 text-[11px] font-black uppercase tracking-wide text-white transition hover:bg-brand-gold sm:px-6">Search<span className="hidden sm:inline"> catalog</span></button>
           </form>
-          <Link href="/#catalog" className="hidden content-center bg-[#f4efe7] px-5 text-xs text-slate-500 hover:bg-[#ece4d9] sm:grid sm:grid-cols-[1fr_auto]">
-            <b className="col-span-2 text-[10px] uppercase tracking-[0.16em] text-brand-navy">Quick order</b><span>Have a part number?</span><span className="text-lg text-brand-gold">→</span>
-          </Link>
         </div>
       </header>
 
       <main>{children}</main>
 
-      <footer id="contact" className="bg-[#0d1820] text-white/65">
+      <footer id="contact" className="bg-brand-gold text-brand-navy/75">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.4fr_1fr_1fr] lg:gap-16 lg:px-8">
           <div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/gst-logo-white.png" alt={BRAND.name} className="h-auto w-full max-w-[310px] brightness-0 invert" />
+            <img src="/brand/gst-logo-horizontal.png" alt={BRAND.name} className="h-auto w-full max-w-[310px]" />
             <p className="mt-5 max-w-sm text-sm leading-6">Tools, materials, and no-nonsense help for the stone trade.</p>
           </div>
-          <div><p className="font-display text-sm font-black uppercase tracking-wide text-white">Visit the counter</p><p className="mt-4 text-xs leading-6">{BRAND.address}</p><p className="mt-2 text-xs">Mon–Fri, 7:00 AM–5:00 PM</p></div>
+          <div><p className="font-display text-sm font-black uppercase tracking-wide text-brand-navy">Visit the counter</p><p className="mt-4 text-xs leading-6">{BRAND.address}</p><p className="mt-2 text-xs">Mon–Fri, 7:00 AM–5:00 PM</p></div>
           <div>
-            <p className="font-display text-sm font-black uppercase tracking-wide text-white">Shop categories</p>
-            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs">{categories.slice(0, 6).map((category) => <Link key={category.id} href={`/shop?cat=${encodeURIComponent(category.name)}`} className="hover:text-white">{category.name}</Link>)}</div>
-            <a href={`tel:${SHOP_PHONE_RAW}`} className="mt-5 block text-xs font-bold text-white hover:text-brand-gold">{SHOP_PHONE}</a>
+            <p className="font-display text-sm font-black uppercase tracking-wide text-brand-navy">Shop categories</p>
+            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs">{categories.slice(0, 6).map((category) => <Link key={category.id} href={`/shop?cat=${encodeURIComponent(category.name)}#catalog`} className="hover:text-white">{category.name}</Link>)}</div>
+            <Link href="/about" className="mt-4 block text-xs font-bold hover:text-white">About us</Link>
+            <a href={`tel:${SHOP_PHONE_RAW}`} className="mt-3 block text-xs font-bold text-brand-navy hover:text-white">{SHOP_PHONE}</a>
           </div>
         </div>
-        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-2 border-t border-white/10 px-4 py-5 text-[10px] sm:flex-row sm:px-6 lg:px-8"><p>© {new Date().getFullYear()} {BRAND.name}</p><p>Pickup-first supply for working crews.</p></div>
+        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-2 border-t border-brand-navy/15 px-4 py-5 text-[10px] sm:flex-row sm:px-6 lg:px-8"><p>© {new Date().getFullYear()} {BRAND.name}</p><p>Pickup-first supply for working crews.</p></div>
       </footer>
     </div>
   );

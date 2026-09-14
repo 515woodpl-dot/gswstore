@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   getStoreItems,
   getStoreCategories,
+  getHeroItems,
   getNewArrivals,
 } from "@/lib/inventory";
 import ShopGrid from "@/components/ShopGrid";
@@ -19,9 +20,10 @@ interface Props {
 
 export default async function StorefrontPage({ searchParams, basePath }: Props) {
   const { q, cat, account } = await searchParams;
-  const [items, cats, newArrivals] = await Promise.all([
+  const [items, cats, heroItems, newArrivals] = await Promise.all([
     getStoreItems(),
     getStoreCategories(),
+    getHeroItems(),
     getNewArrivals(8),
   ]);
 
@@ -31,7 +33,7 @@ export default async function StorefrontPage({ searchParams, basePath }: Props) 
       if (value) search.set(key, value);
     });
     const query = search.toString();
-    return query ? `${basePath}?${query}` : basePath;
+    return `${query ? `${basePath}?${query}` : basePath}#catalog`;
   };
 
   return (
@@ -42,7 +44,7 @@ export default async function StorefrontPage({ searchParams, basePath }: Props) 
         </div>
       )}
 
-      <TradeHero />
+      <TradeHero items={heroItems} />
 
       <section className="bg-[#dfe8ed]">
         <div className="mx-auto grid max-w-7xl divide-y divide-brand-blue/15 px-4 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:px-6 lg:px-8">
@@ -67,7 +69,7 @@ export default async function StorefrontPage({ searchParams, basePath }: Props) 
             </div>
             {q && (
               <Link
-                href={cat ? buildUrl({ cat }) : basePath}
+                href={cat ? buildUrl({ cat }) : `${basePath}#catalog`}
                 className="inline-flex w-fit items-center gap-2 border border-white/25 px-4 py-2 text-xs font-bold text-white hover:border-white"
               >
                 ✕ Clear search
@@ -77,7 +79,7 @@ export default async function StorefrontPage({ searchParams, basePath }: Props) 
 
           <div className="-mx-4 mb-7 flex gap-2 overflow-x-auto px-4 pb-2 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
             <Link
-              href={q ? buildUrl({ q }) : basePath}
+              href={q ? buildUrl({ q }) : `${basePath}#catalog`}
               className={`shrink-0 border px-3 py-2 text-[10px] font-bold uppercase tracking-wide transition ${
                 !cat ? "border-brand-gold bg-brand-gold text-white" : "border-white/20 text-white/60 hover:border-white/60 hover:text-white"
               }`}
@@ -100,18 +102,6 @@ export default async function StorefrontPage({ searchParams, basePath }: Props) 
           <Suspense>
             <ShopGrid items={items} cat={cat} q={q} basePath={basePath} />
           </Suspense>
-        </div>
-      </section>
-
-      <section id="pro" className="mx-auto my-20 grid max-w-7xl bg-brand-gold text-white shadow-[12px_12px_0_#13212c] lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="px-6 py-14 sm:px-10 lg:px-16 lg:py-20">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-100">Built for repeat business</p>
-          <h2 className="font-display mt-4 text-4xl font-black uppercase leading-[0.9] tracking-[-0.05em] sm:text-6xl">Your shop moves fast.<br />Your supplier should too.</h2>
-          <p className="mt-6 max-w-2xl text-sm leading-7 text-white/80">Save frequent orders, build pickup lists, and get straightforward support from a local team that understands production schedules.</p>
-          <a href="tel:+12534496246" className="mt-8 inline-flex bg-[#f4efe7] px-6 py-4 text-xs font-black uppercase tracking-wide text-brand-navy">Talk to our team →</a>
-        </div>
-        <div className="grid content-center border-t border-white/20 bg-brand-navy/10 px-6 py-8 lg:border-l lg:border-t-0 lg:px-12">
-          {["Save your staples", "Order in minutes", "Pick up and go"].map((label, index) => <div key={label} className="grid grid-cols-[42px_1fr] border-b border-white/20 py-5 last:border-0"><span className="font-display text-[10px] font-black text-orange-100">0{index + 1}</span><b className="font-display uppercase">{label}</b></div>)}
         </div>
       </section>
 

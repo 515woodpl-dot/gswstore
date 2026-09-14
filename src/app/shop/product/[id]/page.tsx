@@ -16,11 +16,20 @@ import { StockBadge } from "@/components/ui";
 export const revalidate = 60;
 interface Props { params: Promise<{ id: string }> }
 
+function ProductDescription({ text }: { text: string }) {
+  const paragraphs = text.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
+  return (
+    <div className="mt-6 space-y-4 text-sm leading-7 text-slate-600">
+      {paragraphs.map((paragraph, index) => <p key={index} className="whitespace-pre-line">{paragraph}</p>)}
+    </div>
+  );
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const { id } = await params;
     const item = await getStoreItem(id);
-    const description = item.description || `Shop ${item.name} for local pickup from ${BRAND.name}.`;
+    const description = (item.description || `Shop ${item.name} for local pickup from ${BRAND.name}.`).replace(/\s+/g, " ").trim();
     const image = item.image_url || item.images?.[0];
     const imageUrl = image ? (image.startsWith("http") ? image : new URL(image, BRAND.siteUrl).toString()) : undefined;
     return {
@@ -53,13 +62,9 @@ export default async function ProductPage({ params }: Props) {
   });
   const related = allItems!.filter((candidate) => candidate.category_name === item!.category_name && candidate.id !== item!.id).slice(0, 3);
   const galleryImages = item!.images?.length ? item!.images : (item!.image_url ? [item!.image_url] : []);
-  const placeholder = "/proposal/stone-shop-still-life.png";
+  const placeholder = "/brand/sps-logo-square.png";
 
   const sections = [
-    {
-      title: "Product guidance",
-      content: item!.description ? <p>{item!.description}</p> : <p className="text-slate-400">Ask our counter team for product guidance.</p>,
-    },
     {
       title: "Specifications",
       content: (
@@ -90,12 +95,21 @@ export default async function ProductPage({ params }: Props) {
     <div className="bg-[#fbfaf7]">
       <nav className="mx-auto flex max-w-7xl items-center gap-2 overflow-hidden px-4 py-5 text-[10px] font-bold text-slate-400 sm:px-6 lg:px-8" aria-label="Breadcrumb">
         <Link href="/" className="hover:text-brand-gold">Home</Link><span>/</span>
-        <Link href={item!.category_name ? `/shop?cat=${encodeURIComponent(item!.category_name)}` : "/shop"} className="hover:text-brand-gold">{item!.category_name || "Shop"}</Link><span>/</span>
+        <Link href={item!.category_name ? `/shop?cat=${encodeURIComponent(item!.category_name)}#catalog` : "/shop#catalog"} className="hover:text-brand-gold">{item!.category_name || "Shop"}</Link><span>/</span>
         <span className="truncate text-brand-navy">{item!.name}</span>
       </nav>
 
       <section className="mx-auto grid max-w-7xl gap-10 px-4 pb-20 sm:px-6 lg:grid-cols-[1.12fr_0.88fr] lg:gap-16 lg:px-8 lg:pb-24">
-        <ImageGallery images={galleryImages} name={item!.name} />
+        <div>
+          <ImageGallery images={galleryImages} name={item!.name} />
+          <div className="mt-2">
+            <KeyAttributes attributes={item!.attributes} />
+            <div className="mt-9">
+              <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold">Product details</p>
+              <Accordion sections={sections} defaultOpen={0} />
+            </div>
+          </div>
+        </div>
 
         <div className="pt-1">
           <div className="flex items-center justify-between gap-5">
@@ -110,7 +124,7 @@ export default async function ProductPage({ params }: Props) {
             {reviewCount > 0 && <a href="#reviews" className="flex items-center gap-2 text-slate-500 hover:text-brand-gold"><Stars value={reviewAvg} /><b>{reviewAvg.toFixed(1)}</b><span>({reviewCount})</span></a>}
           </div>
 
-          {item!.description && <p className="mt-6 text-sm leading-7 text-slate-600">{item!.description}</p>}
+          {item!.description && <ProductDescription text={item!.description} />}
 
           {item!.variants?.length ? (
             <div className="mt-7"><VariantSelector product={item!} /></div>
@@ -141,19 +155,7 @@ export default async function ProductPage({ params }: Props) {
         </div>
       </section>
 
-      <section className="bg-[#dfe8ed] py-20 sm:py-24">
-        <div className="mx-auto grid max-w-7xl gap-14 px-4 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:gap-24 lg:px-8">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold">Product information</p>
-            <h2 className="font-display mt-3 text-4xl font-black uppercase leading-[0.9] tracking-[-0.05em] text-brand-navy sm:text-6xl">Know the details before the job.</h2>
-            <p className="mt-6 max-w-lg text-sm leading-7 text-slate-600">Review compatibility, specifications, and pickup information before ordering. Need a second opinion? Our counter team can help.</p>
-          </div>
-          <Accordion sections={sections} defaultOpen={0} />
-        </div>
-      </section>
-
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
-        <KeyAttributes attributes={item!.attributes} />
         <div id="reviews"><ProductReviews itemId={item!.id} initialReviews={reviews!} /></div>
 
         {related.length > 0 && (

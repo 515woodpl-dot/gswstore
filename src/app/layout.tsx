@@ -14,14 +14,14 @@ export const metadata: Metadata = {
   openGraph: {
     title: BRAND.name,
     description: "Supply for the cut. Finish for the craft. Trade-grade tools ready for local pickup.",
-    images: ["/og.png"],
+    images: ["/brand/gst-logo-horizontal.png"],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
     title: BRAND.name,
     description: "Supply for the cut. Finish for the craft. Trade-grade tools ready for local pickup.",
-    images: ["/og.png"],
+    images: ["/brand/gst-logo-horizontal.png"],
   },
   icons: {
     icon: "/favicon.png",

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const PLACEHOLDER = "/proposal/stone-shop-still-life.png";
+const PLACEHOLDER = "/brand/sps-logo-square.png";
 
 export default function ImageGallery({ images, name }: { images: string[]; name: string }) {
   const gallery = images.length > 0 ? images : [PLACEHOLDER];

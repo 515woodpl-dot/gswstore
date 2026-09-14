@@ -24,11 +24,11 @@ export default function NewsletterSignup() {
   }
 
   return (
-    <section className="border-t border-slate-200 bg-slate-50">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-xl text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.24em] text-brand-gold">Newsletter</p>
-          <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Join Our Email List</h2>
+    <section className="border-t border-slate-300 bg-[#f4efe7]">
+      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold">Counter notes</p>
+          <h2 className="font-display mt-3 text-4xl font-black uppercase leading-none tracking-[-0.05em] text-brand-navy sm:text-5xl">Know what just landed.</h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">
             {`Stay in-the-know about ${BRAND.shortName} promotions, launches, and events.`}
           </p>
@@ -45,12 +45,12 @@ export default function NewsletterSignup() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-brand-navy"
+              className="flex-1 border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-brand-gold"
               />
               <button
                 type="submit"
                 disabled={status === "loading"}
-                className="rounded-2xl bg-brand-navy px-6 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                className="bg-brand-navy px-6 py-3 text-xs font-black uppercase tracking-wide text-white transition hover:bg-brand-gold disabled:opacity-60"
               >
                 {status === "loading" ? "Joining…" : "Join Now"}
               </button>

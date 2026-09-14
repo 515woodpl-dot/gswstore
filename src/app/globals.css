@@ -8,9 +8,12 @@
   color-scheme: light;
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --brand-primary: #355471;
-  --brand-secondary: #2b353f;
-  --brand-text: #3c3c3c;
+  --font-display: 'Arial Narrow', 'IBM Plex Sans', system-ui, sans-serif;
+  --brand-primary: #315e7b;
+  --brand-secondary: #13212c;
+  --brand-accent: #d95b2e;
+  --brand-text: #13212c;
+  --brand-paper: #fbfaf7;
 }
 
 html {
@@ -22,9 +25,7 @@ body {
   @apply antialiased;
   font-family: var(--font-sans);
   color: var(--brand-text);
-  background:
-    radial-gradient(circle at top, rgba(239, 81, 35, 0.08), transparent 32%),
-    linear-gradient(180deg, #fffdfb 0%, #ffffff 48%, #fbf8f6 100%);
+  background: var(--brand-paper);
 }
 
 * {
@@ -40,8 +41,20 @@ a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #355471;
+  outline: 3px solid rgba(217, 91, 46, 0.55);
   outline-offset: 2px;
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+    font-stretch: condensed;
+  }
+
+  .sps-grid-texture {
+    background-image: radial-gradient(rgba(19, 33, 44, 0.12) 0.55px, transparent 0.55px);
+    background-size: 5px 5px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

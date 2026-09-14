@@ -94,11 +94,11 @@ export default function ProductReviews({
   }
 
   return (
-    <section className="mt-12 border-t border-slate-100 pt-10">
+    <section className="mt-16 border-t border-slate-300 pt-12">
       <div className="mb-6 flex flex-col gap-1">
-        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Customer reviews</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold">Customer reviews</p>
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-2xl font-black tracking-tight text-slate-950">
+          <h2 className="font-display text-3xl font-black uppercase tracking-[-0.04em] text-brand-navy">
             {count > 0 ? `${average.toFixed(1)} out of 5` : "No reviews yet"}
           </h2>
           {count > 0 && <Stars value={average} size={20} />}
@@ -124,7 +124,7 @@ export default function ProductReviews({
           )}
 
           {/* Write a review */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="border border-slate-300 bg-white p-5">
             <h3 className="mb-3 text-base font-bold text-slate-900">
               {myExisting ? "Update your review" : "Write a review"}
             </h3>
@@ -173,20 +173,20 @@ export default function ProductReviews({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Display name (optional)"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  className="w-full border border-slate-300 px-3 py-2 text-sm"
                 />
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Title (optional)"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  className="w-full border border-slate-300 px-3 py-2 text-sm"
                 />
                 <textarea
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
                   rows={4}
                   placeholder="Share your experience with this product…"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  className="w-full border border-slate-300 px-3 py-2 text-sm"
                 />
 
                 {error && <p className="text-sm text-rose-600">{error}</p>}
@@ -194,7 +194,7 @@ export default function ProductReviews({
                 <button
                   onClick={submit}
                   disabled={saving}
-                  className="w-full rounded-xl bg-brand-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-70"
+                  className="w-full bg-brand-navy px-4 py-3 text-xs font-black uppercase tracking-wide text-white hover:bg-brand-gold disabled:opacity-70"
                 >
                   {saving ? "Posting…" : myExisting ? "Update review" : "Post review"}
                 </button>
@@ -206,12 +206,12 @@ export default function ProductReviews({
         {/* Review list */}
         <div className="space-y-5">
           {count === 0 ? (
-            <p className="rounded-2xl border border-dashed border-slate-300 py-12 text-center text-sm text-slate-500">
+            <p className="border border-dashed border-slate-300 py-12 text-center text-sm text-slate-500">
               Be the first to review this product.
             </p>
           ) : (
             reviews.map((r) => (
-              <article key={r.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <article key={r.id} className="border border-slate-300 bg-white p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <Stars value={r.rating} />

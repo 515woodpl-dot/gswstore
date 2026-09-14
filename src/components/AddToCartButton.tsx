@@ -25,7 +25,7 @@ export default function AddToCartButton({ item }: { item: InventoryItem }) {
 
   if (!canAdd) return (
     <div className="space-y-3">
-      <button disabled className="inline-flex w-full cursor-not-allowed items-center justify-center rounded-xl bg-slate-200 px-6 py-3 text-sm font-semibold text-slate-500 sm:w-auto">
+      <button disabled className="inline-flex w-full cursor-not-allowed items-center justify-center bg-slate-200 px-6 py-4 text-xs font-black uppercase tracking-wide text-slate-500 sm:w-auto">
         Out of Stock
       </button>
       <p className="text-sm text-slate-500">Contact us about availability.</p>
@@ -33,21 +33,21 @@ export default function AddToCartButton({ item }: { item: InventoryItem }) {
   );
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
       <QuantitySelector value={qty} onChange={setQty} max={item.amount} />
       <button
         type="button"
         onClick={handleAdd}
         disabled={adding}
         className={[
-          "inline-flex min-h-11 items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold transition",
-          added ? "bg-emerald-600 text-white" : "bg-brand-navy text-white hover:bg-slate-800 disabled:opacity-70",
+          "inline-flex min-h-[48px] flex-1 items-center justify-center px-7 py-3 text-xs font-black uppercase tracking-wide transition",
+          added ? "bg-emerald-600 text-white" : "bg-brand-gold text-white shadow-[5px_5px_0_#13212c] hover:-translate-y-0.5 hover:bg-[#b94721] disabled:opacity-70",
         ].join(" ")}
       >
         {adding ? "Adding…" : added ? "✓ Added to Cart" : "Add to Cart"}
       </button>
       {added && (
-        <Link href="/cart" className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">
+        <Link href="/cart" className="inline-flex min-h-[48px] items-center justify-center border border-brand-navy bg-white px-5 py-3 text-xs font-black uppercase text-brand-navy transition hover:bg-brand-navy hover:text-white">
           View Cart
         </Link>
       )}

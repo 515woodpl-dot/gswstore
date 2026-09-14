@@ -8,8 +8,21 @@ import IdleSessionGuard from "@/components/IdleSessionGuard";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(BRAND.siteUrl),
   title: { default: BRAND.name, template: `%s | ${BRAND.name}` },
   description: "Trade-grade tools and equipment. Order online, pick up in store.",
+  openGraph: {
+    title: BRAND.name,
+    description: "Supply for the cut. Finish for the craft. Trade-grade tools ready for local pickup.",
+    images: ["/og.png"],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: BRAND.name,
+    description: "Supply for the cut. Finish for the craft. Trade-grade tools ready for local pickup.",
+    images: ["/og.png"],
+  },
   icons: {
     icon: "/favicon.png",
     apple: "/apple-touch-icon.png",

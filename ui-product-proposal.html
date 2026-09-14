@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Product-detail page proposal for Stone Product Supply."
+    />
+    <title>Fabricator Essentials Kit — Stone Product Supply</title>
+    <link rel="stylesheet" href="ui-proposal.css" />
+  </head>
+  <body class="product-page">
+    <a class="skip-link" href="#product-detail">Skip to product details</a>
+
+    <div class="concept-flag" aria-label="Design proposal">
+      <span>Concept 01</span>
+      <span>Product detail</span>
+    </div>
+
+    <div class="notice-bar">
+      <p>
+        <span class="notice-dot" aria-hidden="true"></span>
+        Order by 2 PM for same-day pickup in Auburn
+      </p>
+      <a href="tel:+12534496246">Need help? (253) 449-6246</a>
+    </div>
+
+    <header class="site-header">
+      <div class="header-main page-shell">
+        <a class="brand" href="ui-proposal.html" aria-label="Stone Product Supply home">
+          <img src="public/brand/gst-logo-horizontal.png" alt="Stone Product Supply" />
+        </a>
+
+        <nav class="desktop-nav" aria-label="Primary navigation">
+          <a class="is-active" href="ui-proposal.html#products">Shop</a>
+          <a href="ui-proposal.html#categories">Categories</a>
+          <a href="ui-proposal.html#pro">Pro accounts</a>
+          <a href="ui-proposal.html#footer">About</a>
+        </nav>
+
+        <div class="header-actions">
+          <a class="icon-link" href="#" aria-label="Sign in">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="3.5"></circle>
+              <path d="M5 20c.6-4 3-6 7-6s6.4 2 7 6"></path>
+            </svg>
+            <span>Account</span>
+          </a>
+          <a class="cart-link" href="#" aria-label="Cart with 2 items">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 4h2l2 10h10.5l2-7H6"></path>
+              <circle cx="9" cy="19" r="1.2"></circle>
+              <circle cx="17" cy="19" r="1.2"></circle>
+            </svg>
+            <span>Cart</span>
+            <b>2</b>
+          </a>
+        </div>
+      </div>
+
+      <div class="search-row page-shell">
+        <form class="search" role="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.5"></circle>
+            <path d="m16 16 5 5"></path>
+          </svg>
+          <label class="sr-only" for="product-search">Search the catalog</label>
+          <input id="product-search" type="search" placeholder="Search by product, brand, or SKU" />
+          <button type="submit">Search catalog</button>
+        </form>
+        <a class="quick-link" href="#specifications">
+          <span class="quick-link__label">Product specs</span>
+          <span>Jump to details</span>
+          <span aria-hidden="true">↓</span>
+        </a>
+      </div>
+    </header>
+
+    <main id="product-detail">
+      <nav class="breadcrumbs page-shell" aria-label="Breadcrumb">
+        <a href="ui-proposal.html">Home</a>
+        <span aria-hidden="true">/</span>
+        <a href="ui-proposal.html#products">Cutting &amp; Grinding</a>
+        <span aria-hidden="true">/</span>
+        <span>Fabricator Essentials Kit</span>
+      </nav>
+
+      <section class="product-detail page-shell" aria-labelledby="product-title">
+        <div class="product-gallery">
+          <div class="product-gallery__main">
+            <p class="gallery-label">Shop essential · New</p>
+            <img
+              src="public/proposal/stone-shop-still-life.png"
+              alt="Angle grinder, diamond blade, polishing pads, gloves, and stone samples included in the kit"
+            />
+            <button class="zoom-control" type="button" aria-label="Open enlarged product image">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="10.5" cy="10.5" r="6.5"></circle>
+                <path d="m16 16 5 5M10.5 7v7M7 10.5h7"></path>
+              </svg>
+              Zoom
+            </button>
+          </div>
+          <div class="gallery-thumbs" aria-label="Product image thumbnails">
+            <button class="is-active" type="button" aria-label="View complete kit image">
+              <img src="public/proposal/stone-shop-still-life.png" alt="" />
+            </button>
+            <button type="button" aria-label="View cutting tool detail">
+              <img class="thumb-tool" src="public/proposal/stone-shop-still-life.png" alt="" />
+            </button>
+            <button type="button" aria-label="View polishing supplies detail">
+              <img class="thumb-pads" src="public/proposal/stone-shop-still-life.png" alt="" />
+            </button>
+          </div>
+        </div>
+
+        <div class="product-summary">
+          <div class="product-summary__topline">
+            <p>Stone Product Supply</p>
+            <button type="button" aria-label="Save product">♡ Save</button>
+          </div>
+          <h1 id="product-title">Fabricator<br />Essentials Kit</h1>
+          <div class="rating-line">
+            <span aria-label="Rated 4.9 out of 5">★★★★★</span>
+            <a href="#reviews">4.9 · 18 reviews</a>
+            <small>SKU 40118</small>
+          </div>
+          <p class="product-lede">
+            A job-ready collection for cutting, shaping, and finishing engineered and
+            natural stone—chosen by our counter team for everyday fabrication work.
+          </p>
+
+          <div class="price-block">
+            <div>
+              <strong>$289.00</strong>
+              <span>$334.50 individual value</span>
+            </div>
+            <p>Save $45.50</p>
+          </div>
+
+          <div class="kit-options">
+            <p class="field-label">Choose blade size</p>
+            <div class="option-buttons" role="group" aria-label="Blade size">
+              <button class="is-selected" type="button">4.5 in</button>
+              <button type="button">5 in</button>
+              <button type="button">7 in</button>
+            </div>
+          </div>
+
+          <div class="purchase-row">
+            <label class="quantity-field">
+              <span>Qty</span>
+              <input type="number" value="1" min="1" max="12" />
+            </label>
+            <button class="add-to-cart" type="button">
+              Add to cart <span aria-hidden="true">→</span>
+            </button>
+          </div>
+
+          <div class="availability-panel">
+            <div class="availability-panel__status">
+              <span class="availability-check" aria-hidden="true">✓</span>
+              <p><strong>Ready for pickup today</strong><span>12 kits in stock at Auburn</span></p>
+            </div>
+            <a href="#pickup">Store details →</a>
+          </div>
+
+          <ul class="purchase-notes">
+            <li><span aria-hidden="true">↗</span> Order before 2 PM for same-day pickup</li>
+            <li><span aria-hidden="true">↺</span> Unopened items returnable within 30 days</li>
+            <li><span aria-hidden="true">?</span> Questions? Call the counter at (253) 449-6246</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="product-story" id="specifications" aria-labelledby="details-title">
+        <div class="page-shell product-story__grid">
+          <div class="product-story__intro">
+            <p class="eyebrow">One box. One complete workflow.</p>
+            <h2 id="details-title">From rough cut<br />to finished edge.</h2>
+            <p>
+              This kit brings together the daily essentials most fabrication teams reach
+              for—without filler. Every component is selected for dependable performance
+              across granite, marble, quartz, and engineered surfaces.
+            </p>
+          </div>
+
+          <div class="included-list">
+            <p class="included-list__title">What’s in the kit</p>
+            <ol>
+              <li><span>01</span><p><b>Variable-speed angle grinder</b><small>11,000 RPM maximum · side handle included</small></p></li>
+              <li><span>02</span><p><b>Turbo diamond blade</b><small>Selected size · wet or dry cutting</small></p></li>
+              <li><span>03</span><p><b>7-step polishing pad set</b><small>50, 100, 200, 400, 800, 1500, 3000 grit</small></p></li>
+              <li><span>04</span><p><b>Shop gloves</b><small>Durable palm · size large</small></p></li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <section class="specs-and-help page-shell">
+        <div class="spec-table-wrap">
+          <div class="section-kicker">
+            <p class="eyebrow">Technical information</p>
+            <h2>Specifications</h2>
+          </div>
+          <dl class="spec-table">
+            <div><dt>Application</dt><dd>Cutting, grinding, edge polishing</dd></div>
+            <div><dt>Compatible materials</dt><dd>Granite, marble, quartz, engineered stone</dd></div>
+            <div><dt>Power</dt><dd>120 V · 11 A</dd></div>
+            <div><dt>Spindle</dt><dd>5/8 in – 11</dd></div>
+            <div><dt>Kit weight</dt><dd>11.8 lb</dd></div>
+            <div><dt>Warranty</dt><dd>1 year limited</dd></div>
+          </dl>
+        </div>
+
+        <div class="details-stack">
+          <details open>
+            <summary>Product guidance <span aria-hidden="true">+</span></summary>
+            <p>Start at the lowest appropriate speed and match the pad sequence to the material. Our counter team can help confirm tooling before pickup.</p>
+          </details>
+          <details>
+            <summary>Pickup &amp; returns <span aria-hidden="true">+</span></summary>
+            <p>We’ll email when your order is staged. Bring your order number and identification to the Auburn counter.</p>
+          </details>
+          <details id="reviews">
+            <summary>Reviews (18) <span aria-hidden="true">+</span></summary>
+            <p>Customers rate this kit 4.9 out of 5 for value, completeness, and same-day availability.</p>
+          </details>
+        </div>
+      </section>
+
+      <section class="counter-help" id="pickup">
+        <div class="page-shell counter-help__inner">
+          <div>
+            <p class="eyebrow">Not sure it fits your setup?</p>
+            <h2>Ask someone who<br />knows the work.</h2>
+          </div>
+          <p>Call the Auburn counter and we’ll confirm material compatibility, arbor size, and the right consumables before you order.</p>
+          <a class="button button--cream" href="tel:+12534496246">Call (253) 449-6246 <span aria-hidden="true">→</span></a>
+        </div>
+      </section>
+    </main>
+
+    <div class="mobile-buy-bar">
+      <p><span>Fabricator Essentials Kit</span><strong>$289.00</strong></p>
+      <button type="button">Add to cart</button>
+    </div>
+
+    <footer class="footer">
+      <div class="page-shell footer-grid">
+        <div class="footer-brand">
+          <img src="public/brand/gst-logo-white.png" alt="Stone Product Supply" />
+          <p>Tools, materials, and no-nonsense help for the stone trade.</p>
+        </div>
+        <div>
+          <h2>Visit the counter</h2>
+          <p>4204 Auburn Way N, Suite 8<br />Auburn, WA 98002</p>
+          <p>Mon–Fri, 7:00 AM–5:00 PM</p>
+        </div>
+        <div>
+          <h2>Get in touch</h2>
+          <a href="tel:+12534496246">(253) 449-6246</a>
+          <a href="mailto:orders@stoneproductsupply.com">orders@stoneproductsupply.com</a>
+        </div>
+      </div>
+      <div class="page-shell footer-bottom">
+        <p>© 2026 Stone Product Supply</p>
+        <p>Product-detail redesign proposal · September 2026</p>
+      </div>
+    </footer>
+  </body>
+</html>

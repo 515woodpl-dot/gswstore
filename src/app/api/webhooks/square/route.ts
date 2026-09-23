@@ -1,5 +1,5 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { verifySquareWebhookSignature, type SquareEnvironment } from "@/lib/square-checkout";
 import { logOrderEvent } from "@/lib/order-events";
 import { sendPaymentLinkConfirmationEmail } from "@/lib/notifications";
@@ -148,9 +148,13 @@ async function handlePaymentEvent(admin: ReturnType<typeof adminClient>, event: 
     : { data: null };
   if (customer?.email) {
     const { data: fresh } = await admin.from("orders").select("*, order_items(*)").eq("id", order.id).single();
-    await sendPaymentLinkConfirmationEmail(
-      { ...fresh, items: fresh.order_items }, customer.email, customer.name,
-    ).catch((e) => console.error("[SquareWebhook] confirmation email failed:", e));
+    if (fresh) {
+      after(async () => {
+        await sendPaymentLinkConfirmationEmail(
+          { ...fresh, items: fresh.order_items }, customer.email, customer.name,
+        ).catch((e) => console.error("[SquareWebhook] confirmation email failed:", e));
+      });
+    }
   }
   console.log(`[SquareWebhook] payment confirmed for order ${order.order_number}`);
 }

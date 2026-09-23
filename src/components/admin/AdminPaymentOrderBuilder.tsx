@@ -38,7 +38,7 @@ export default function AdminPaymentOrderBuilder() {
   const [saving, setSaving] = useState(false);
   const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
   const [error, setError] = useState("");
-  const [result, setResult] = useState<{ orderNumber: string; total: number; paymentLinkUrl: string; emailSent: boolean; testMode: boolean } | null>(null);
+  const [result, setResult] = useState<{ orderNumber: string; total: number; paymentLinkUrl: string; emailQueued: boolean; testMode: boolean } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -161,7 +161,7 @@ export default function AdminPaymentOrderBuilder() {
         orderNumber: data.orderNumber,
         total: data.total,
         paymentLinkUrl: data.paymentLinkUrl,
-        emailSent: data.emailSent !== false,
+        emailQueued: data.emailQueued === true,
         testMode: data.testMode === true,
       });
     } catch (requestError) {
@@ -180,8 +180,8 @@ export default function AdminPaymentOrderBuilder() {
           <h1 className="mt-2 text-2xl font-black text-slate-950">{result.orderNumber}</h1>
           <p className="mt-2 text-slate-700">
             {result.testMode
-              ? `${formatPrice(result.total)} Sandbox order created. Inventory is reserved and ${result.emailSent ? "the test payment link was emailed." : "the payment link was created, but email delivery failed."} Delete the test order from Orders when testing is complete.`
-              : `${formatPrice(result.total)} due — ${result.emailSent ? "the customer has been emailed a secure payment link." : "the payment link was created, but email delivery failed. Copy the link now or resend it from Orders."}`}
+              ? `${formatPrice(result.total)} Sandbox order created. Inventory is reserved and ${result.emailQueued ? "the test payment email and shop copy are queued." : "the payment link was created; use Orders to resend its email."} Delete the test order from Orders when testing is complete.`
+              : `${formatPrice(result.total)} due — ${result.emailQueued ? "the customer payment email and shop copy are queued for delivery." : "the payment link was created; use Orders to send its email."}`}
           </p>
           <a href={result.paymentLinkUrl} target="_blank" rel="noreferrer" className="mt-4 inline-block text-sm font-semibold text-brand-navy underline">
             {result.testMode ? "Open the Square Sandbox payment page →" : "View the payment page →"}

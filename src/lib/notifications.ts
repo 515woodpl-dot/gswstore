@@ -376,9 +376,16 @@ export async function sendReceiptEmail(
 // ── Admin-created payment-link order emails ──────────────────────────────────
 // Shared wrapper — every email below is best-effort (never throws past this
 // point uncaught) and uses the same envelope/branding as the rest of the app.
-async function sendEmail(to: string, subject: string, html: string, replyTo?: string): Promise<void> {
+async function sendEmail(
+  to: string,
+  subject: string,
+  html: string,
+  replyTo?: string,
+  copyShop = false,
+): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM || "noreply@orders.stoneproductsupply.com";
+  const shopInbox = process.env.SHOP_NOTIFY_EMAIL || BRAND.orderEmail;
   if (!apiKey) { console.warn("[Resend] RESEND_API_KEY not set — skipping email:", subject); return; }
   if (!to || !to.includes("@")) { console.warn("[Resend] no recipient — skipping:", subject); return; }
   const res = await fetch("https://api.resend.com/emails", {
@@ -387,10 +394,12 @@ async function sendEmail(to: string, subject: string, html: string, replyTo?: st
     body: JSON.stringify({
       from: `${BRAND.name} <${from}>`,
       to: [to],
-      reply_to: replyTo || process.env.SHOP_NOTIFY_EMAIL || BRAND.orderEmail,
+      ...(copyShop && shopInbox.toLowerCase() !== to.toLowerCase() ? { bcc: [shopInbox] } : {}),
+      reply_to: replyTo || shopInbox,
       subject,
       html,
     }),
+    signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`Resend error ${res.status}: ${await res.text()}`);
 }
@@ -458,8 +467,10 @@ export async function sendPaymentRequestEmail(
     customerEmail,
     `${isUpdate ? "Updated payment request" : "Payment requested"} — ${order.order_number} — ${formatPrice(order.total)}`,
     emailShell(isUpdate ? "Updated Payment Request" : "Payment Request", order.order_number, body),
+    undefined,
+    true,
   );
-  console.log(`[Resend] Payment request (${isUpdate ? "update" : "new"}) sent to ${customerEmail} for ${order.order_number}`);
+  console.log(`[Resend] Payment request (${isUpdate ? "update" : "new"}) sent to ${customerEmail} with shop copy for ${order.order_number}`);
 }
 
 /** Section 17 — payment confirmation / lightweight invoice */
@@ -477,8 +488,8 @@ export async function sendPaymentLinkConfirmationEmail(order: Order, customerEma
     ${order.square_receipt_url ? `<a href="${order.square_receipt_url}" style="display:inline-block;color:#1e3a5f;font-size:0.85rem;font-weight:600;text-decoration:underline;margin-bottom:8px">View Square receipt →</a>` : ""}
     <p style="margin:16px 0 0;font-size:0.78rem;color:#9ca3af">Questions? Reply to this email or call ${BRAND.phone}.</p>
   `;
-  await sendEmail(customerEmail, `Payment confirmed — ${order.order_number}`, emailShell("Payment Confirmed", order.order_number, body));
-  console.log(`[Resend] Payment confirmation sent to ${customerEmail} for ${order.order_number}`);
+  await sendEmail(customerEmail, `Payment confirmed — ${order.order_number}`, emailShell("Payment Confirmed", order.order_number, body), undefined, true);
+  console.log(`[Resend] Payment confirmation sent to ${customerEmail} with shop copy for ${order.order_number}`);
 }
 
 /** Section 15 & 25 — "Order Updated" (items cancelled because unavailable, order unpaid or paid) */

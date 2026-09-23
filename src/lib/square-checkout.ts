@@ -118,6 +118,7 @@ export async function createPaymentLink(
     method: "POST",
     headers: headers(environment),
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -145,6 +146,7 @@ export async function cancelPaymentLink(
   const res = await fetch(`${config.api}/online-checkout/payment-links/${paymentLinkId}`, {
     method: "DELETE",
     headers: headers(environment),
+    signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => null);
@@ -178,6 +180,7 @@ export async function createRefund(args: RefundArgs, environment: SquareEnvironm
       amount_money: { amount: Math.round(args.amountCents), currency: "USD" },
       reason: (args.reason || "").slice(0, 192),
     }),
+    signal: AbortSignal.timeout(15_000),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -199,7 +202,10 @@ export interface SquarePayment {
 
 export async function getPayment(paymentId: string, environment: SquareEnvironment = "production"): Promise<SquarePayment> {
   const config = squareConfig(environment);
-  const res = await fetch(`${config.api}/payments/${paymentId}`, { headers: headers(environment) });
+  const res = await fetch(`${config.api}/payments/${paymentId}`, {
+    headers: headers(environment),
+    signal: AbortSignal.timeout(15_000),
+  });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.errors?.[0]?.detail || `Square error ${res.status}`);
   return data.payment as SquarePayment;

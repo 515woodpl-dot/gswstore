@@ -4,12 +4,15 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
 import { OrderStatusBadge } from "@/components/ui";
+import AdminPaymentOrderPanel from "@/components/admin/AdminPaymentOrderPanel";
 import type { Order, OrderStatus } from "@/types";
 
 const STATUSES: OrderStatus[] = ["pending", "confirmed", "ready", "completed", "cancelled", "item_unavailable"];
+const FILTER_STATUSES: OrderStatus[] = [...STATUSES, "draft", "awaiting_payment", "processing"];
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pending: "Pending", confirmed: "Confirmed", ready: "Ready for pickup",
   completed: "Completed", cancelled: "Cancelled", item_unavailable: "Item Unavailable",
+  draft: "Draft", awaiting_payment: "Awaiting Payment", processing: "Processing",
 };
 
 export default function AdminOrdersList({ initialOrders }: { initialOrders: Order[] }) {
@@ -77,6 +80,17 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
     if (o) setStatus(orderId, o.status, note);
   }
 
+  // Item-level admin-payment-link actions (cancel item, refunds, etc.) touch
+  // order_items and several order columns that the orders-table-only realtime
+  // subscription above doesn't cover — refetch that one order in full instead.
+  async function refreshOrder(orderId: string) {
+    const { data } = await sb.from("orders").select("*, order_items(*)").eq("id", orderId).single();
+    if (data) {
+      const refreshed = { ...data, items: data.order_items } as Order;
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? refreshed : o)));
+    }
+  }
+
   const visible = filter === "all" ? orders : orders.filter(o => o.status === filter);
 
   if (orders.length === 0) {
@@ -87,7 +101,7 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
     <div>
       {/* Filter bar */}
       <div className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
-        {(["all", ...STATUSES] as const).map((s) => (
+        {(["all", ...FILTER_STATUSES] as const).map((s) => (
           <button key={s} onClick={() => setFilter(s)}
             className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition ${filter === s ? "bg-brand-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
             {s === "all" ? `All (${orders.length})` : STATUS_LABELS[s]}
@@ -111,6 +125,7 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
                   <p className="truncate text-sm font-bold text-slate-900">{order.order_number}</p>
                   <p className="text-xs text-slate-400">
                     {new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    {order.source === "admin_payment_link" && <span className="ml-2 rounded-full bg-brand-navy/10 px-2 py-0.5 font-semibold text-brand-navy">Payment Link</span>}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -142,43 +157,52 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
                     </div>
                   )}
 
-                  {/* Status selector */}
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Update Status</span>
-                    <select value={order.status} onChange={(e) => setStatus(order.id, e.target.value as OrderStatus)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold">
-                      {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                    </select>
-                  </label>
+                  {order.source === "admin_payment_link" ? (
+                    <AdminPaymentOrderPanel
+                      order={order}
+                      onChanged={() => { refreshOrder(order.id); }}
+                    />
+                  ) : (
+                    <>
+                      {/* Status selector */}
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Update Status</span>
+                        <select value={order.status} onChange={(e) => setStatus(order.id, e.target.value as OrderStatus)}
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold">
+                          {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                        </select>
+                      </label>
 
-                  {/* Send receipt email */}
-                  <div className="mt-3 flex items-center gap-3">
-                    <button
-                      onClick={() => sendReceipt(order.id)}
-                      disabled={sendingReceipt === order.id}
-                      className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-brand-gold hover:bg-brand-gold/5 disabled:opacity-50"
-                    >
-                      {sendingReceipt === order.id ? "Sending…" : "📧 Send Receipt"}
-                    </button>
-                    {receiptMsg[order.id] && (
-                      <span className={`text-xs font-medium ${receiptMsg[order.id].startsWith("✓") ? "text-emerald-600" : "text-amber-600"}`}>
-                        {receiptMsg[order.id]}
-                      </span>
-                    )}
-                  </div>
+                      {/* Send receipt email */}
+                      <div className="mt-3 flex items-center gap-3">
+                        <button
+                          onClick={() => sendReceipt(order.id)}
+                          disabled={sendingReceipt === order.id}
+                          className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-brand-gold hover:bg-brand-gold/5 disabled:opacity-50"
+                        >
+                          {sendingReceipt === order.id ? "Sending…" : "📧 Send Receipt"}
+                        </button>
+                        {receiptMsg[order.id] && (
+                          <span className={`text-xs font-medium ${receiptMsg[order.id].startsWith("✓") ? "text-emerald-600" : "text-amber-600"}`}>
+                            {receiptMsg[order.id]}
+                          </span>
+                        )}
+                      </div>
 
-                  {order.status === "item_unavailable" && (
-                    <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
-                      <label className="block text-xs font-bold text-amber-900 mb-1">Note to customer</label>
-                      <textarea
-                        defaultValue={order.attention_note}
-                        onBlur={(e) => saveNote(order.id, e.target.value)}
-                        rows={2}
-                        placeholder="e.g. The Makita grinder is out of stock — the rest is ready."
-                        className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm"
-                      />
-                      <p className="mt-1 text-xs text-amber-600">Saves on click away. Customer emailed automatically.</p>
-                    </div>
+                      {order.status === "item_unavailable" && (
+                        <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
+                          <label className="block text-xs font-bold text-amber-900 mb-1">Note to customer</label>
+                          <textarea
+                            defaultValue={order.attention_note}
+                            onBlur={(e) => saveNote(order.id, e.target.value)}
+                            rows={2}
+                            placeholder="e.g. The Makita grinder is out of stock — the rest is ready."
+                            className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm"
+                          />
+                          <p className="mt-1 text-xs text-amber-600">Saves on click away. Customer emailed automatically.</p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}

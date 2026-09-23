@@ -372,3 +372,169 @@ export async function sendReceiptEmail(
     console.warn("[Resend] Receipt error:", e);
   }
 }
+
+// ── Admin-created payment-link order emails ──────────────────────────────────
+// Shared wrapper — every email below is best-effort (never throws past this
+// point uncaught) and uses the same envelope/branding as the rest of the app.
+async function sendEmail(to: string, subject: string, html: string, replyTo?: string): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM || "noreply@orders.stoneproductsupply.com";
+  if (!apiKey) { console.warn("[Resend] RESEND_API_KEY not set — skipping email:", subject); return; }
+  if (!to || !to.includes("@")) { console.warn("[Resend] no recipient — skipping:", subject); return; }
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: `${BRAND.name} <${from}>`,
+      to: [to],
+      reply_to: replyTo || process.env.SHOP_NOTIFY_EMAIL || BRAND.orderEmail,
+      subject,
+      html,
+    }),
+  });
+  if (!res.ok) throw new Error(`Resend error ${res.status}: ${await res.text()}`);
+}
+
+function emailShell(headerLabel: string, orderNumber: string, bodyHtml: string): string {
+  return `<!DOCTYPE html>
+<html><body style="margin:0;padding:0;background:#f8f9fa;font-family:sans-serif">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
+  <div style="background:#1e3a5f;padding:24px 32px">
+    <h1 style="margin:0;color:#fff;font-size:1.2rem;font-weight:700">${headerLabel}</h1>
+    <p style="margin:6px 0 0;color:rgba(255,255,255,0.7);font-size:0.85rem">Order ${orderNumber}</p>
+  </div>
+  <div style="padding:28px 32px">${bodyHtml}</div>
+</div>
+</body></html>`;
+}
+
+function itemsTable(items: { name: string; quantity: number; unit_price: number }[]): string {
+  const rows = items.map((i) => `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0">${i.name}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:center">${i.quantity}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right">${formatPrice(i.unit_price * i.quantity)}</td>
+    </tr>`).join("");
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:18px">
+    <thead><tr style="background:#f9fafb">
+      <th style="padding:10px 12px;text-align:left;font-size:0.78rem;color:#6b7280">Item</th>
+      <th style="padding:10px 12px;text-align:center;font-size:0.78rem;color:#6b7280">Qty</th>
+      <th style="padding:10px 12px;text-align:right;font-size:0.78rem;color:#6b7280">Price</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+/** Section 3 & 25 — "Payment Request" / "Updated Payment Request" */
+export async function sendPaymentRequestEmail(
+  order: Order,
+  customerEmail: string,
+  customerName: string,
+  paymentLinkUrl: string,
+  isUpdate: boolean,
+): Promise<void> {
+  const totals = `<table width="100%" style="font-size:0.9rem;color:#374151;margin-bottom:20px">
+      <tr><td style="padding:3px 0">Subtotal</td><td style="padding:3px 0;text-align:right">${formatPrice(order.subtotal ?? order.total)}</td></tr>
+      ${order.discount_total ? `<tr><td style="padding:3px 0;color:#b45309">Discount</td><td style="padding:3px 0;text-align:right;color:#b45309">−${formatPrice(order.discount_total)}</td></tr>` : ""}
+      ${order.tax_total ? `<tr><td style="padding:3px 0">Tax</td><td style="padding:3px 0;text-align:right">${formatPrice(order.tax_total)}</td></tr>` : ""}
+      <tr><td style="padding:6px 0;font-weight:700;font-size:1rem">Amount Due</td><td style="padding:6px 0;text-align:right;font-weight:700;font-size:1rem">${formatPrice(order.total)}</td></tr>
+    </table>`;
+
+  const updateBanner = isUpdate
+    ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 14px;font-size:0.85rem;color:#991b1b;margin-bottom:18px">
+        <strong>This order has changed.</strong> Please use the new payment link below — any previous payment link for this order is no longer valid.
+      </div>`
+    : "";
+
+  const body = `
+    <p style="margin:0 0 16px;color:#374151">Hi ${customerName || "there"}, please review your order below and complete payment to confirm it.</p>
+    ${updateBanner}
+    ${itemsTable(order.items)}
+    ${totals}
+    ${order.notes ? `<p style="background:#f0f7ff;border-radius:6px;padding:12px 14px;font-size:0.85rem;color:#374151;margin-bottom:20px"><strong>Note:</strong> ${order.notes}</p>` : ""}
+    <a href="${paymentLinkUrl}" style="display:inline-block;background:#1e3a5f;color:#fff;text-decoration:none;font-weight:700;font-size:0.95rem;padding:13px 28px;border-radius:10px">Review &amp; Pay →</a>
+    <p style="margin:20px 0 0;font-size:0.78rem;color:#9ca3af">Questions? Reply to this email or call ${BRAND.phone}.</p>
+  `;
+  await sendEmail(
+    customerEmail,
+    `${isUpdate ? "Updated payment request" : "Payment requested"} — ${order.order_number} — ${formatPrice(order.total)}`,
+    emailShell(isUpdate ? "Updated Payment Request" : "Payment Request", order.order_number, body),
+  );
+  console.log(`[Resend] Payment request (${isUpdate ? "update" : "new"}) sent to ${customerEmail} for ${order.order_number}`);
+}
+
+/** Section 17 — payment confirmation / lightweight invoice */
+export async function sendPaymentLinkConfirmationEmail(order: Order, customerEmail: string, customerName: string): Promise<void> {
+  const totals = `<table width="100%" style="font-size:0.9rem;color:#374151;margin-bottom:20px">
+      <tr><td style="padding:3px 0">Subtotal</td><td style="padding:3px 0;text-align:right">${formatPrice(order.subtotal ?? order.total)}</td></tr>
+      ${order.discount_total ? `<tr><td style="padding:3px 0;color:#b45309">Discount</td><td style="padding:3px 0;text-align:right;color:#b45309">−${formatPrice(order.discount_total)}</td></tr>` : ""}
+      ${order.tax_total ? `<tr><td style="padding:3px 0">Tax</td><td style="padding:3px 0;text-align:right">${formatPrice(order.tax_total)}</td></tr>` : ""}
+      <tr><td style="padding:6px 0;font-weight:700;font-size:1rem">Amount Paid</td><td style="padding:6px 0;text-align:right;font-weight:700;font-size:1rem;color:#047857">${formatPrice(order.amount_paid ?? order.total)}</td></tr>
+    </table>`;
+  const body = `
+    <p style="margin:0 0 16px;color:#374151">Hi ${customerName || "there"}, thanks — your payment for order ${order.order_number} was successful. We're preparing your order now and will email you when it's ready.</p>
+    ${itemsTable(order.items)}
+    ${totals}
+    ${order.square_receipt_url ? `<a href="${order.square_receipt_url}" style="display:inline-block;color:#1e3a5f;font-size:0.85rem;font-weight:600;text-decoration:underline;margin-bottom:8px">View Square receipt →</a>` : ""}
+    <p style="margin:16px 0 0;font-size:0.78rem;color:#9ca3af">Questions? Reply to this email or call ${BRAND.phone}.</p>
+  `;
+  await sendEmail(customerEmail, `Payment confirmed — ${order.order_number}`, emailShell("Payment Confirmed", order.order_number, body));
+  console.log(`[Resend] Payment confirmation sent to ${customerEmail} for ${order.order_number}`);
+}
+
+/** Section 15 & 25 — "Order Updated" (items cancelled because unavailable, order unpaid or paid) */
+export async function sendOrderUpdatedEmail(
+  order: Order,
+  customerEmail: string,
+  customerName: string,
+  cancelledItems: { name: string; cancelledQuantity: number; reason: string }[],
+  refundAmount: number,
+): Promise<void> {
+  const cancelledRows = cancelledItems.map((i) => `<li style="margin-bottom:4px">${i.name} × ${i.cancelledQuantity}${i.reason ? ` — ${i.reason}` : ""}</li>`).join("");
+  const remaining = order.items.filter((i) => i.status !== "cancelled" || (i.cancelled_quantity ?? 0) < i.quantity);
+  const body = `
+    <p style="margin:0 0 16px;color:#374151">Hi ${customerName || "there"}, one or more items on your order needed to be updated:</p>
+    <ul style="margin:0 0 18px;padding-left:20px;color:#991b1b;font-size:0.9rem">${cancelledRows}</ul>
+    ${remaining.length ? `<p style="margin:0 0 10px;font-weight:700;color:#0f172a;font-size:0.9rem">Remaining items</p>${itemsTable(remaining)}` : ""}
+    <table width="100%" style="font-size:0.9rem;color:#374151;margin-bottom:20px">
+      <tr><td style="padding:6px 0;font-weight:700">Updated Total</td><td style="padding:6px 0;text-align:right;font-weight:700">${formatPrice(order.total)}</td></tr>
+      ${refundAmount > 0 ? `<tr><td style="padding:3px 0;color:#047857">Refunded</td><td style="padding:3px 0;text-align:right;color:#047857">${formatPrice(refundAmount)}</td></tr>` : ""}
+    </table>
+    <p style="margin:0;font-size:0.78rem;color:#9ca3af">Questions? Reply to this email or call ${BRAND.phone}.</p>
+  `;
+  await sendEmail(customerEmail, `Your order has been updated — ${order.order_number}`, emailShell("Order Updated", order.order_number, body));
+  console.log(`[Resend] Order-updated email sent to ${customerEmail} for ${order.order_number}`);
+}
+
+/** Section 16 & 25 — partial or full refund confirmation */
+export async function sendRefundEmail(
+  order: Order,
+  customerEmail: string,
+  customerName: string,
+  args: { refundedItemName?: string; refundAmount: number; remainingTotal: number; full: boolean; receiptUrl?: string | null },
+): Promise<void> {
+  const body = `
+    <p style="margin:0 0 16px;color:#374151">Hi ${customerName || "there"}, ${args.full ? "your order has been cancelled and a refund has been issued." : `a refund has been issued for ${args.refundedItemName ?? "an item on your order"}.`}</p>
+    <table width="100%" style="font-size:0.9rem;color:#374151;margin-bottom:20px">
+      <tr><td style="padding:6px 0;font-weight:700;color:#047857">Refund Amount</td><td style="padding:6px 0;text-align:right;font-weight:700;color:#047857">${formatPrice(args.refundAmount)}</td></tr>
+      ${!args.full ? `<tr><td style="padding:6px 0">Remaining Order Total</td><td style="padding:6px 0;text-align:right">${formatPrice(args.remainingTotal)}</td></tr>` : ""}
+    </table>
+    ${args.receiptUrl ? `<a href="${args.receiptUrl}" style="display:inline-block;color:#1e3a5f;font-size:0.85rem;font-weight:600;text-decoration:underline;margin-bottom:8px">View refund receipt →</a>` : ""}
+    <p style="margin:16px 0 0;font-size:0.78rem;color:#9ca3af">Refunds typically appear on your statement within 5–10 business days. Questions? Reply to this email or call ${BRAND.phone}.</p>
+  `;
+  await sendEmail(
+    customerEmail,
+    `${args.full ? "Order cancelled & refunded" : "Refund issued"} — ${order.order_number}`,
+    emailShell(args.full ? "Order Cancelled & Refunded" : "Refund Issued", order.order_number, body),
+  );
+  console.log(`[Resend] Refund email sent to ${customerEmail} for ${order.order_number}`);
+}
+
+/** Section 10 & 25 — full order cancellation, no payment was ever taken */
+export async function sendCancellationEmail(order: Order, customerEmail: string, customerName: string, reason: string): Promise<void> {
+  const body = `
+    <p style="margin:0 0 16px;color:#374151">Hi ${customerName || "there"}, your order has been cancelled${reason ? `: ${reason}` : "."}</p>
+    <p style="margin:0;font-size:0.85rem;color:#6b7280">No payment was collected for this order. If you have questions, reply to this email or call ${BRAND.phone}.</p>
+  `;
+  await sendEmail(customerEmail, `Order cancelled — ${order.order_number}`, emailShell("Order Cancelled", order.order_number, body));
+  console.log(`[Resend] Cancellation email sent to ${customerEmail} for ${order.order_number}`);
+}

@@ -122,10 +122,18 @@ export function stockLabel(status: StockStatus, amount?: number): string {
 }
 
 export function orderStatusLabel(s: string) {
-  return ({ pending:"Pending", confirmed:"Confirmed", ready:"Ready for pickup", completed:"Completed", cancelled:"Cancelled", item_unavailable:"Item Unavailable" })[s] ?? s;
+  return ({
+    pending:"Pending", confirmed:"Confirmed", ready:"Ready for pickup", completed:"Completed",
+    cancelled:"Cancelled", item_unavailable:"Item Unavailable",
+    draft:"Draft", awaiting_payment:"Awaiting Payment", processing:"Processing",
+  } as Record<string,string>)[s] ?? s;
 }
 export function orderStatusColor(s: string) {
-  return ({ pending:"#f59e0b", confirmed:"#0d6efd", ready:"#198754", completed:"#6c757d", cancelled:"#dc3545", item_unavailable:"#dc3545" })[s] ?? "#6c757d";
+  return ({
+    pending:"#f59e0b", confirmed:"#0d6efd", ready:"#198754", completed:"#6c757d",
+    cancelled:"#dc3545", item_unavailable:"#dc3545",
+    draft:"#6c757d", awaiting_payment:"#0ea5e9", processing:"#6366f1",
+  } as Record<string,string>)[s] ?? "#6c757d";
 }
 
 // ── Shop contact + customer-facing status messages ───────────────────────────

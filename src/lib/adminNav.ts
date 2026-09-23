@@ -26,6 +26,12 @@ export const ADMIN_NAV: NavGroup[] = [
     color: "ring-emerald-200 bg-emerald-50",
     items: [
       {
+        href: "/admin/orders/new",
+        label: "Payment Link Order",
+        description: "Create an order and send a secure online payment link",
+        icon: "🔗",
+      },
+      {
         href: "/admin/walk-in",
         label: "Walk-in Sale",
         description: "Ring up an in-store customer",

@@ -1,12 +1,10 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { after, NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { createSale, rollbackCreatedSale, SaleCreationError, type CreatedSale } from "@/lib/create-sale";
 import { orderNumber, type OrderDiscount } from "@/lib/order-money";
 import { cancelPaymentLink, createPaymentLink, isSquareEnvironmentConfigured } from "@/lib/square-checkout";
 import { logOrderEvent } from "@/lib/order-events";
-import { sendPaymentRequestEmail } from "@/lib/notifications";
-import type { Order } from "@/types";
 
 interface RawLineInput {
   itemId: string;
@@ -23,8 +21,14 @@ function adminClient() {
 }
 
 export async function POST(request: NextRequest) {
+  const startedAt = Date.now();
+  const logStage = (stage: string, details?: Record<string, unknown>) => {
+    console.info("[PaymentLink/create] timing", { stage, elapsedMs: Date.now() - startedAt, ...details });
+  };
+  logStage("started");
   const auth = await requireAdmin();
   if (!auth.ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  logStage("authorized");
 
   const admin = adminClient();
   let createdSale: CreatedSale | null = null;
@@ -157,6 +161,7 @@ export async function POST(request: NextRequest) {
       }),
     });
     const { order, items: insertedItems, squarePlan: plan, total } = createdSale;
+    logStage("sale_created", { orderId: order.id });
     await admin.from("admin_order_requests").update({ order_id: order.id, updated_at: new Date().toISOString() }).eq("request_key", requestKey);
 
     // ── Square: create the hosted order + payment link ─────────────────────
@@ -175,6 +180,7 @@ export async function POST(request: NextRequest) {
         buyerEmail: customerEmail,
         note: `Order ${num} — ${customerName}`,
       }, testMode ? "sandbox" : "production");
+      logStage("square_link_created", { orderId: order.id, testMode });
     } catch (squareErr) {
       // Order + items are saved, but no link went out — surface this clearly
       // so the admin can retry sending the link without recreating the order.
@@ -230,24 +236,15 @@ export async function POST(request: NextRequest) {
       squareRef: link.paymentLinkId, newValue: { total },
     });
 
-    // Return the successful financial operation before waiting on Resend. This
-    // prevents a slow email API from turning a created order into an HTTP 504.
-    // Payment emails BCC the shop, so staff receive proof of each customer send.
-    const emailOrder = { ...order, order_number: num, notes: customerNotes, total, items: insertedItems } as unknown as Order;
-    const response = { ok: true, orderId: order.id, orderNumber: num, total, paymentLinkUrl: link.url, emailQueued: true, testMode };
+    // Email is intentionally triggered by a separate client request after this
+    // response arrives. A slow email provider can never turn a created order
+    // into a gateway timeout or tempt staff to submit a duplicate order.
+    const response = { ok: true, orderId: order.id, orderNumber: num, total, paymentLinkUrl: link.url, emailQueued: false, testMode };
     const { error: requestCompleteError } = await admin.from("admin_order_requests").update({
       status: "completed", order_id: order.id, response, updated_at: new Date().toISOString(),
     }).eq("request_key", requestKey);
     if (requestCompleteError) console.error("[PaymentLink] request completion record failed:", requestCompleteError.message);
-
-    after(async () => {
-      try {
-        await sendPaymentRequestEmail(emailOrder, customerEmail, customerName, link.url, false);
-        await logOrderEvent(admin, { orderId: order.id, eventType: "payment_email_sent", actorId: auth.userId, actorName: soldByName });
-      } catch (emailErr) {
-        console.error("[PaymentLink] queued email send failed:", emailErr instanceof Error ? emailErr.message : emailErr);
-      }
-    });
+    logStage("completed", { orderId: order.id });
     return NextResponse.json(response);
   } catch (error) {
     if (createdSale) await rollbackCreatedSale(admin, createdSale);

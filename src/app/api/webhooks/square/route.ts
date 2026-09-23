@@ -1,6 +1,6 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { verifySquareWebhookSignature } from "@/lib/square-checkout";
+import { verifySquareWebhookSignature, type SquareEnvironment } from "@/lib/square-checkout";
 import { logOrderEvent } from "@/lib/order-events";
 import { sendPaymentLinkConfirmationEmail } from "@/lib/notifications";
 import { finalizeRefund } from "@/lib/refund-finalize";
@@ -38,15 +38,22 @@ function adminClient() {
 // Square signs against the exact Notification URL configured in the Square
 // Dashboard. Deployed behind a proxy, request.url can differ from that
 // configured URL, so prefer an explicit env var when set.
-function notificationUrl(request: NextRequest): string {
-  return process.env.SQUARE_WEBHOOK_NOTIFICATION_URL || request.url;
+function squareEnvironment(request: NextRequest): SquareEnvironment {
+  return request.nextUrl.searchParams.get("environment") === "sandbox" ? "sandbox" : "production";
+}
+
+function notificationUrl(request: NextRequest, environment: SquareEnvironment): string {
+  return environment === "sandbox"
+    ? process.env.SQUARE_SANDBOX_WEBHOOK_NOTIFICATION_URL || request.url
+    : process.env.SQUARE_WEBHOOK_NOTIFICATION_URL || request.url;
 }
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   const signature = request.headers.get("x-square-hmacsha256-signature");
+  const environment = squareEnvironment(request);
 
-  if (!verifySquareWebhookSignature(rawBody, signature, notificationUrl(request))) {
+  if (!verifySquareWebhookSignature(rawBody, signature, notificationUrl(request, environment), environment)) {
     console.warn("[SquareWebhook] invalid signature — rejecting");
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }

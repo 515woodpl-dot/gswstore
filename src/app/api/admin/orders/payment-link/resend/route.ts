@@ -26,7 +26,6 @@ export async function POST(request: NextRequest) {
 
     const { data: order } = await admin.from("orders").select("*, order_items(*)").eq("id", orderId).single();
     if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
-    if (order.is_test) return NextResponse.json({ error: "Test orders do not send payment links or emails." }, { status: 409 });
     let paymentLinkUrl: string | null = order.square_payment_link_status === "active" ? order.square_payment_link_url : null;
     let regenerated = false;
     if (!paymentLinkUrl) {
@@ -56,7 +55,7 @@ export async function POST(request: NextRequest) {
         referenceId: order.order_number,
         lineItems: squareLineItems,
         note: `Order ${order.order_number}`,
-      });
+      }, order.is_test ? "sandbox" : "production");
       const { error: linkError } = await admin.from("orders").update({
         square_order_id: link.squareOrderId,
         square_payment_link_id: link.paymentLinkId,
@@ -66,7 +65,7 @@ export async function POST(request: NextRequest) {
         payment_link_sent_at: new Date().toISOString(),
       }).eq("id", orderId);
       if (linkError) {
-        await cancelPaymentLink(link.paymentLinkId);
+        await cancelPaymentLink(link.paymentLinkId, order.is_test ? "sandbox" : "production");
         throw new Error(`Square created a link that could not be saved, so it was deactivated: ${linkError.message}`);
       }
       paymentLinkUrl = link.url;

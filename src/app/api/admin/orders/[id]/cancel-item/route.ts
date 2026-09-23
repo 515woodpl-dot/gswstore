@@ -62,7 +62,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // Never change the local amount while an old checkout link can still be
       // paid. A non-404 Square failure throws and leaves the order untouched.
       if (order.square_payment_link_id && order.square_payment_link_status === "active") {
-        await cancelPaymentLink(order.square_payment_link_id);
+        await cancelPaymentLink(order.square_payment_link_id, order.is_test ? "sandbox" : "production");
       }
 
       const { data: cancelledQuantity, error: cancelError } = await admin.rpc("cancel_unpaid_order_item", {
@@ -102,10 +102,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
       const newTotalCents = netSubtotalCents + taxCents;
 
-      if (order.is_test) {
-        return NextResponse.json({ ok: true, newTotal: newTotalCents / 100, testMode: true });
-      }
-
       // Record that the old link is gone before issuing its replacement.
       if (order.square_payment_link_id && order.square_payment_link_status === "active") {
         const { error: replaceError } = await admin.from("orders").update({ square_payment_link_status: "replaced" }).eq("id", orderId);
@@ -129,7 +125,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         lineItems: squareLineItems,
         buyerEmail: undefined,
         note: `Order ${order.order_number} (updated)`,
-      });
+      }, order.is_test ? "sandbox" : "production");
 
       const { error: linkUpdateError } = await admin.from("orders").update({
         square_order_id: link.squareOrderId,

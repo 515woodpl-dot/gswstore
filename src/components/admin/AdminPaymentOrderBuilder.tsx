@@ -149,8 +149,14 @@ export default function AdminPaymentOrderBuilder() {
         <div className={`rounded-3xl border p-8 ${result.testMode ? "border-violet-200 bg-violet-50" : "border-emerald-200 bg-emerald-50"}`}>
           <p className={`text-sm font-semibold uppercase tracking-widest ${result.testMode ? "text-violet-700" : "text-emerald-700"}`}>{result.testMode ? "Test order created" : "Payment link sent"}</p>
           <h1 className="mt-2 text-2xl font-black text-slate-950">{result.orderNumber}</h1>
-          <p className="mt-2 text-slate-700">{result.testMode ? `${formatPrice(result.total)} simulated total. No inventory, Square payment, email, or sales reporting was changed.` : `${formatPrice(result.total)} due — ${result.emailSent ? "the customer has been emailed a secure payment link." : "the payment link was created, but email delivery failed. Copy the link now or resend it from Orders."}`}</p>
-          {!result.testMode && <a href={result.paymentLinkUrl} target="_blank" rel="noreferrer" className="mt-4 inline-block text-sm font-semibold text-brand-navy underline">View the payment page →</a>}
+          <p className="mt-2 text-slate-700">
+            {result.testMode
+              ? `${formatPrice(result.total)} Sandbox order created. Inventory is reserved and ${result.emailSent ? "the test payment link was emailed." : "the payment link was created, but email delivery failed."} Delete the test order from Orders when testing is complete.`
+              : `${formatPrice(result.total)} due — ${result.emailSent ? "the customer has been emailed a secure payment link." : "the payment link was created, but email delivery failed. Copy the link now or resend it from Orders."}`}
+          </p>
+          <a href={result.paymentLinkUrl} target="_blank" rel="noreferrer" className="mt-4 inline-block text-sm font-semibold text-brand-navy underline">
+            {result.testMode ? "Open the Square Sandbox payment page →" : "View the payment page →"}
+          </a>
           <div className="mt-6 flex justify-center gap-3">
             <Link href="/admin/orders" className="rounded-xl bg-brand-navy px-4 py-2 text-sm font-semibold text-white">Go to Orders</Link>
             <button onClick={() => { setResult(null); setRequestKey(crypto.randomUUID()); setLines([]); setCustName(""); setCustEmail(""); setCustPhone(""); setCustomerNotes(""); setInternalNotes(""); setDiscountType(""); setDiscountValue(0); setDiscountReason(""); }}
@@ -261,7 +267,7 @@ export default function AdminPaymentOrderBuilder() {
             <span className="flex items-center gap-2 text-sm font-bold text-slate-900">
               <input type="checkbox" checked={testMode} onChange={(e) => setTestMode(e.target.checked)} /> Test mode
             </span>
-            <span className="mt-1 block text-xs leading-5 text-slate-600">Runs the complete admin workflow without changing inventory, contacting Square, sending email, or appearing in sales reports.</span>
+            <span className="mt-1 block text-xs leading-5 text-slate-600">Runs the complete workflow through Square Sandbox: reserves inventory, emails the link, and supports fulfillment. Delete the test order afterward to restore inventory and remove its records.</span>
           </label>
           <div>
             <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Order Discount</label>

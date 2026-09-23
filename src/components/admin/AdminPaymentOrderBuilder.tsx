@@ -13,6 +13,8 @@ interface Line {
   lineDiscount: number; // dollars, applied to the whole line (not per-unit)
 }
 
+type EmailStatus = "sending" | "sent" | "failed";
+
 export default function AdminPaymentOrderBuilder() {
   const sb = createClient();
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -38,7 +40,15 @@ export default function AdminPaymentOrderBuilder() {
   const [saving, setSaving] = useState(false);
   const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
   const [error, setError] = useState("");
-  const [result, setResult] = useState<{ orderNumber: string; total: number; paymentLinkUrl: string; emailQueued: boolean; testMode: boolean } | null>(null);
+  const [result, setResult] = useState<{
+    orderId: string;
+    orderNumber: string;
+    total: number;
+    paymentLinkUrl: string;
+    emailStatus: EmailStatus;
+    emailError?: string;
+    testMode: boolean;
+  } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -107,6 +117,30 @@ export default function AdminPaymentOrderBuilder() {
   const total = taxable + taxAmount;
   const totalDiscount = lineDiscounts + orderDiscount;
 
+  async function sendCreatedOrderEmail(orderId: string) {
+    try {
+      const res = await fetch("/api/admin/orders/payment-link/resend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const responseText = await res.text();
+      let data: Record<string, unknown> = {};
+      try {
+        data = responseText ? JSON.parse(responseText) as Record<string, unknown> : {};
+      } catch {
+        throw new Error(`Email service returned HTTP ${res.status}.`);
+      }
+      if (!res.ok || data.ok === false) {
+        throw new Error(typeof data.error === "string" ? data.error : `Email service returned HTTP ${res.status}.`);
+      }
+      setResult((current) => current?.orderId === orderId ? { ...current, emailStatus: "sent", emailError: undefined } : current);
+    } catch (emailError) {
+      const message = emailError instanceof Error ? emailError.message : "The payment email could not be confirmed.";
+      setResult((current) => current?.orderId === orderId ? { ...current, emailStatus: "failed", emailError: message } : current);
+    }
+  }
+
   async function submit() {
     setError("");
     if (lines.length === 0) { setError("Add at least one product."); return; }
@@ -152,18 +186,22 @@ export default function AdminPaymentOrderBuilder() {
         setSaving(false);
         return;
       }
-      if (typeof data.orderNumber !== "string" || typeof data.total !== "number" || typeof data.paymentLinkUrl !== "string") {
+      if (typeof data.orderId !== "string" || typeof data.orderNumber !== "string" || typeof data.total !== "number" || typeof data.paymentLinkUrl !== "string") {
         setError("The server response was incomplete. Check the deployment logs before trying again.");
         setSaving(false);
         return;
       }
       setResult({
+        orderId: data.orderId,
         orderNumber: data.orderNumber,
         total: data.total,
         paymentLinkUrl: data.paymentLinkUrl,
-        emailQueued: data.emailQueued === true,
+        emailStatus: "sending",
         testMode: data.testMode === true,
       });
+      setSaving(false);
+      void sendCreatedOrderEmail(data.orderId);
+      return;
     } catch (requestError) {
       setError(requestError instanceof Error
         ? `Could not reach the server: ${requestError.message}`
@@ -180,8 +218,13 @@ export default function AdminPaymentOrderBuilder() {
           <h1 className="mt-2 text-2xl font-black text-slate-950">{result.orderNumber}</h1>
           <p className="mt-2 text-slate-700">
             {result.testMode
-              ? `${formatPrice(result.total)} Sandbox order created. Inventory is reserved and ${result.emailQueued ? "the test payment email and shop copy are queued." : "the payment link was created; use Orders to resend its email."} Delete the test order from Orders when testing is complete.`
-              : `${formatPrice(result.total)} due — ${result.emailQueued ? "the customer payment email and shop copy are queued for delivery." : "the payment link was created; use Orders to send its email."}`}
+              ? `${formatPrice(result.total)} Sandbox order created and inventory is reserved. Delete the test order from Orders when testing is complete.`
+              : `${formatPrice(result.total)} due. The secure Square payment link was created.`}
+          </p>
+          <p className={`mt-3 text-sm font-semibold ${result.emailStatus === "failed" ? "text-rose-700" : result.emailStatus === "sent" ? "text-emerald-700" : "text-slate-600"}`}>
+            {result.emailStatus === "sending" && "Sending the customer email and shop copy…"}
+            {result.emailStatus === "sent" && "Customer email sent; the shop copy was also sent."}
+            {result.emailStatus === "failed" && `Order created, but email confirmation failed: ${result.emailError}`}
           </p>
           <a href={result.paymentLinkUrl} target="_blank" rel="noreferrer" className="mt-4 inline-block text-sm font-semibold text-brand-navy underline">
             {result.testMode ? "Open the Square Sandbox payment page →" : "View the payment page →"}

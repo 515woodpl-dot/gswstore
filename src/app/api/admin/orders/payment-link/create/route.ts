@@ -1,5 +1,5 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { createSale, rollbackCreatedSale, SaleCreationError, type CreatedSale } from "@/lib/create-sale";
 import { orderNumber, type OrderDiscount } from "@/lib/order-money";
@@ -230,25 +230,24 @@ export async function POST(request: NextRequest) {
       squareRef: link.paymentLinkId, newValue: { total },
     });
 
-    // ── Email the customer their payment link ───────────────────────────────
-    let emailSent = true;
-    try {
-      await sendPaymentRequestEmail(
-        { ...order, order_number: num, notes: customerNotes, total, items: insertedItems } as unknown as Order,
-        customerEmail, customerName, link.url, false,
-      );
-      await logOrderEvent(admin, { orderId: order.id, eventType: "payment_email_sent", actorId: auth.userId, actorName: soldByName });
-    } catch (emailErr) {
-      emailSent = false;
-      console.error("[PaymentLink] email send failed:", emailErr instanceof Error ? emailErr.message : emailErr);
-      // Link is still valid — the admin can resend from the order screen.
-    }
-
-    const response = { ok: true, orderId: order.id, orderNumber: num, total, paymentLinkUrl: link.url, emailSent, testMode };
+    // Return the successful financial operation before waiting on Resend. This
+    // prevents a slow email API from turning a created order into an HTTP 504.
+    // Payment emails BCC the shop, so staff receive proof of each customer send.
+    const emailOrder = { ...order, order_number: num, notes: customerNotes, total, items: insertedItems } as unknown as Order;
+    const response = { ok: true, orderId: order.id, orderNumber: num, total, paymentLinkUrl: link.url, emailQueued: true, testMode };
     const { error: requestCompleteError } = await admin.from("admin_order_requests").update({
       status: "completed", order_id: order.id, response, updated_at: new Date().toISOString(),
     }).eq("request_key", requestKey);
     if (requestCompleteError) console.error("[PaymentLink] request completion record failed:", requestCompleteError.message);
+
+    after(async () => {
+      try {
+        await sendPaymentRequestEmail(emailOrder, customerEmail, customerName, link.url, false);
+        await logOrderEvent(admin, { orderId: order.id, eventType: "payment_email_sent", actorId: auth.userId, actorName: soldByName });
+      } catch (emailErr) {
+        console.error("[PaymentLink] queued email send failed:", emailErr instanceof Error ? emailErr.message : emailErr);
+      }
+    });
     return NextResponse.json(response);
   } catch (error) {
     if (createdSale) await rollbackCreatedSale(admin, createdSale);

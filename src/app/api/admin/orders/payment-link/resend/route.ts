@@ -50,8 +50,14 @@ export async function POST(request: NextRequest) {
       ), 0);
       if (taxCents > 0) squareLineItems.push({ name: "Sales Tax", quantity: "1", basePriceMoneyCents: taxCents });
       const stateKey = activeItems.map((item: { id: string; cancelled_quantity?: number }) => `${item.id}:${item.cancelled_quantity || 0}`).join("|");
+      // If the original Square request timed out before its response arrived,
+      // reuse the original idempotency key so retrying can never create a
+      // second payable order. A known prior link uses a new state-based key.
+      const idempotencyKey = order.square_payment_link_id
+        ? createHash("sha256").update(`${order.id}:recovery:${stateKey}`).digest("hex").slice(0, 45)
+        : order.id;
       const link = await createPaymentLink({
-        idempotencyKey: createHash("sha256").update(`${order.id}:recovery:${stateKey}`).digest("hex").slice(0, 45),
+        idempotencyKey,
         referenceId: order.order_number,
         lineItems: squareLineItems,
         note: `Order ${order.order_number}`,

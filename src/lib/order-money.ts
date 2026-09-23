@@ -184,8 +184,8 @@ export function toSquareLinePlan(
   return { lines: finalLines, taxCents, totalCents };
 }
 
-export function orderNumber(): string {
+export function orderNumber(prefix = "GSW"): string {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
-  return `GSW-${date}-${suffix}`;
+  return `${prefix}-${date}-${suffix}`;
 }

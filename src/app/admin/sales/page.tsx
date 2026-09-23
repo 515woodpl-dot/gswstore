@@ -46,6 +46,7 @@ export default async function SalesPage({ searchParams }: Props) {
     .select("id,order_number,created_at,total,discount_total,status,source,sold_by_name,transaction_type,internal_use_reason,walk_in_customer_id,order_items(id,item_id,name,sku,quantity,unit_price,list_price,cost_price,base_units_per_sale,discount_amount,discount_reason)")
     .gte("created_at", start.toISOString())
     .lte("created_at", end.toISOString())
+    .eq("is_test", false)
     .neq("status", "cancelled")
     .order("created_at", { ascending: false }),
     sb.from("inventory").select("id,name,amount").order("name"),

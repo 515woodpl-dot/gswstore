@@ -107,14 +107,14 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
   useEffect(() => {
     const channel = sb
       .channel("alerts-orders")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, async (payload) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders", filter: "is_test=eq.false" }, async (payload) => {
         const o = payload.new as Order;
         const { data: items } = await sb.from("order_items").select("*").eq("order_id", o.id);
         const full = { ...o, items: items ?? [] };
         setOrders((prev) => prev.some((p) => p.id === full.id) ? prev : [full, ...prev].slice(0, 50));
         showAlert(full);
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders", filter: "is_test=eq.false" }, (payload) => {
         const u = payload.new as Order;
         setOrders((prev) => prev.map((o) => (o.id === u.id ? { ...o, ...u } : o)));
       })
@@ -125,7 +125,7 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
   // Poll every 20s
   useEffect(() => {
     const poll = setInterval(async () => {
-      const { data } = await sb.from("orders").select("*, order_items(*)").order("created_at", { ascending: false }).limit(50);
+      const { data } = await sb.from("orders").select("*, order_items(*)").eq("is_test", false).order("created_at", { ascending: false }).limit(50);
       if (!data) return;
       setOrders((prev) => {
         const known = new Set(prev.map((o) => o.id));

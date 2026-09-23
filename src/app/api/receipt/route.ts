@@ -17,10 +17,11 @@ export async function POST(request: NextRequest) {
 
     const { data: order } = await sb
       .from("orders")
-      .select("order_number,total,discount_total,created_at,source,sold_by_name,walk_in_customer_id,user_id,order_items(name,quantity,unit_price,list_price,discount_amount)")
+      .select("order_number,total,discount_total,created_at,source,sold_by_name,walk_in_customer_id,user_id,is_test,order_items(name,quantity,unit_price,list_price,discount_amount)")
       .eq("id", orderId)
       .single();
     if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
+    if (order.is_test) return NextResponse.json({ ok: true, skipped: "test_order", message: "Test orders do not send receipts." });
 
     let customerEmail = "";
     let customerName = "";

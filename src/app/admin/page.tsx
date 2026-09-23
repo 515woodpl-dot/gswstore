@@ -21,8 +21,8 @@ export default async function AdminDashboardPage() {
   today.setHours(0, 0, 0, 0);
 
   const [{ count: todayOrders }, { count: pendingOrders }, { data: lowStock }] = await Promise.all([
-    sb.from("orders").select("*", { count: "exact", head: true }).gte("created_at", today.toISOString()),
-    sb.from("orders").select("*", { count: "exact", head: true }).in("status", ["pending", "confirmed", "ready"]),
+    sb.from("orders").select("*", { count: "exact", head: true }).eq("is_test", false).gte("created_at", today.toISOString()),
+    sb.from("orders").select("*", { count: "exact", head: true }).eq("is_test", false).in("status", ["pending", "confirmed", "ready"]),
     sb.from("inventory").select("id").lt("amount", 10).gt("amount", 0).limit(99),
   ]);
 

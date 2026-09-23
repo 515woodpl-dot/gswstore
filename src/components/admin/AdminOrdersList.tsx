@@ -126,6 +126,7 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
                   <p className="text-xs text-slate-400">
                     {new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                     {order.source === "admin_payment_link" && <span className="ml-2 rounded-full bg-brand-navy/10 px-2 py-0.5 font-semibold text-brand-navy">Payment Link</span>}
+                    {order.is_test && <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 font-bold text-violet-700">TEST — excluded from sales</span>}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

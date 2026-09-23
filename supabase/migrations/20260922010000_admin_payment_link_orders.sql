@@ -18,7 +18,10 @@
 -- ── 1. orders: payment + Square + lifecycle columns ──────────────────────────
 
 ALTER TABLE orders
-  ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'unpaid';
+  ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'unpaid',
+  ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS customer_email TEXT NOT NULL DEFAULT '';
 
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_payment_status_check;
 ALTER TABLE orders ADD CONSTRAINT orders_payment_status_check
@@ -72,6 +75,7 @@ UPDATE orders SET payment_status = 'paid'
 CREATE INDEX IF NOT EXISTS idx_orders_square_order_id   ON orders(square_order_id);
 CREATE INDEX IF NOT EXISTS idx_orders_square_payment_id ON orders(square_payment_id);
 CREATE INDEX IF NOT EXISTS idx_orders_payment_status    ON orders(payment_status);
+CREATE INDEX IF NOT EXISTS idx_orders_is_test           ON orders(is_test);
 
 -- ── 2. walk_in_customers: add phone, reused as the generic guest-customer
 --    table for admin_payment_link orders too (source column already free-text) ─
@@ -281,12 +285,14 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'Order not found'; END IF;
 
   IF v_refund.meta->>'kind' = 'full' THEN
-    UPDATE inventory AS inv
-    SET amount = inv.amount + ((oi.quantity - COALESCE(oi.cancelled_quantity, 0)) * GREATEST(COALESCE(oi.base_units_per_sale, 1), 1))
-    FROM order_items AS oi
-    WHERE oi.order_id = v_order.id
-      AND oi.item_id = inv.id
-      AND oi.quantity > COALESCE(oi.cancelled_quantity, 0);
+    IF NOT v_order.is_test THEN
+      UPDATE inventory AS inv
+      SET amount = inv.amount + ((oi.quantity - COALESCE(oi.cancelled_quantity, 0)) * GREATEST(COALESCE(oi.base_units_per_sale, 1), 1))
+      FROM order_items AS oi
+      WHERE oi.order_id = v_order.id
+        AND oi.item_id = inv.id
+        AND oi.quantity > COALESCE(oi.cancelled_quantity, 0);
+    END IF;
 
     UPDATE order_items
     SET status = 'cancelled', cancelled_quantity = quantity, cancelled_at = NOW()
@@ -318,10 +324,12 @@ BEGIN
       v_tax_cents := ROUND(v_item.tax_amount * 100 * v_new_cancelled / v_item.quantity)
                    - ROUND(v_item.tax_amount * 100 * v_old_cancelled / v_item.quantity);
 
-      UPDATE inventory
-      SET amount = amount + (v_cancel_qty * GREATEST(COALESCE(v_item.base_units_per_sale, 1), 1))
-      WHERE id = v_item.item_id;
-      IF NOT FOUND THEN RAISE EXCEPTION 'Inventory item not found'; END IF;
+      IF NOT v_order.is_test THEN
+        UPDATE inventory
+        SET amount = amount + (v_cancel_qty * GREATEST(COALESCE(v_item.base_units_per_sale, 1), 1))
+        WHERE id = v_item.item_id;
+        IF NOT FOUND THEN RAISE EXCEPTION 'Inventory item not found'; END IF;
+      END IF;
 
       UPDATE order_items
       SET cancelled_quantity = v_new_cancelled,
@@ -380,10 +388,12 @@ BEGIN
   IF v_order.payment_status NOT IN ('unpaid','pending','failed') THEN RAISE EXCEPTION 'Paid orders require a refund'; END IF;
   IF v_order.status = 'cancelled' THEN RETURN FALSE; END IF;
 
-  UPDATE inventory AS inv
-  SET amount = inv.amount + ((oi.quantity - COALESCE(oi.cancelled_quantity, 0)) * GREATEST(COALESCE(oi.base_units_per_sale, 1), 1))
-  FROM order_items AS oi
-  WHERE oi.order_id = p_order_id AND oi.item_id = inv.id AND oi.quantity > COALESCE(oi.cancelled_quantity, 0);
+  IF NOT v_order.is_test THEN
+    UPDATE inventory AS inv
+    SET amount = inv.amount + ((oi.quantity - COALESCE(oi.cancelled_quantity, 0)) * GREATEST(COALESCE(oi.base_units_per_sale, 1), 1))
+    FROM order_items AS oi
+    WHERE oi.order_id = p_order_id AND oi.item_id = inv.id AND oi.quantity > COALESCE(oi.cancelled_quantity, 0);
+  END IF;
 
   UPDATE order_items
   SET status = 'cancelled', cancelled_quantity = quantity, cancelled_at = NOW(), cancelled_by = p_actor_id
@@ -426,10 +436,12 @@ BEGIN
   v_new_cancelled := COALESCE(v_item.cancelled_quantity, 0) + p_cancel_qty;
   IF p_cancel_qty <= 0 OR v_new_cancelled > v_item.quantity THEN RAISE EXCEPTION 'Invalid cancellation quantity'; END IF;
 
-  UPDATE inventory
-  SET amount = amount + (p_cancel_qty * GREATEST(COALESCE(v_item.base_units_per_sale, 1), 1))
-  WHERE id = v_item.item_id;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Inventory item not found'; END IF;
+  IF NOT v_order.is_test THEN
+    UPDATE inventory
+    SET amount = amount + (p_cancel_qty * GREATEST(COALESCE(v_item.base_units_per_sale, 1), 1))
+    WHERE id = v_item.item_id;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Inventory item not found'; END IF;
+  END IF;
 
   UPDATE order_items
   SET cancelled_quantity = v_new_cancelled,

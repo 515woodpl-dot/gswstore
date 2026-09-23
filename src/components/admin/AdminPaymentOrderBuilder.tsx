@@ -33,11 +33,12 @@ export default function AdminPaymentOrderBuilder() {
   const [applyTax, setApplyTax] = useState(true);
   const [zip, setZip] = useState("");
   const [taxLoading, setTaxLoading] = useState(false);
+  const [testMode, setTestMode] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
   const [error, setError] = useState("");
-  const [result, setResult] = useState<{ orderNumber: string; total: number; paymentLinkUrl: string; emailSent: boolean } | null>(null);
+  const [result, setResult] = useState<{ orderNumber: string; total: number; paymentLinkUrl: string; emailSent: boolean; testMode: boolean } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -125,6 +126,7 @@ export default function AdminPaymentOrderBuilder() {
           customerNotes: customerNotes.trim(),
           internalNotes: internalNotes.trim(),
           requestKey,
+          testMode,
           applyTax,
           taxZip: zip,
           discount: discountType ? { type: discountType, value: discountValue } : undefined,
@@ -134,7 +136,7 @@ export default function AdminPaymentOrderBuilder() {
       });
       const data = await res.json();
       if (!res.ok || data.ok === false) { setError(data.error || "Could not create the order."); setSaving(false); return; }
-      setResult({ orderNumber: data.orderNumber, total: data.total, paymentLinkUrl: data.paymentLinkUrl, emailSent: data.emailSent !== false });
+      setResult({ orderNumber: data.orderNumber, total: data.total, paymentLinkUrl: data.paymentLinkUrl, emailSent: data.emailSent !== false, testMode: data.testMode === true });
     } catch {
       setError("Network error. Please try again.");
     }
@@ -144,11 +146,11 @@ export default function AdminPaymentOrderBuilder() {
   if (result) {
     return (
       <div className="mx-auto max-w-xl px-4 py-12 text-center sm:px-6">
-        <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-8">
-          <p className="text-sm font-semibold uppercase tracking-widest text-emerald-700">Payment link sent</p>
+        <div className={`rounded-3xl border p-8 ${result.testMode ? "border-violet-200 bg-violet-50" : "border-emerald-200 bg-emerald-50"}`}>
+          <p className={`text-sm font-semibold uppercase tracking-widest ${result.testMode ? "text-violet-700" : "text-emerald-700"}`}>{result.testMode ? "Test order created" : "Payment link sent"}</p>
           <h1 className="mt-2 text-2xl font-black text-slate-950">{result.orderNumber}</h1>
-          <p className="mt-2 text-slate-700">{formatPrice(result.total)} due — {result.emailSent ? "the customer has been emailed a secure payment link." : "the payment link was created, but email delivery failed. Copy the link now or resend it from Orders."}</p>
-          <a href={result.paymentLinkUrl} target="_blank" rel="noreferrer" className="mt-4 inline-block text-sm font-semibold text-brand-navy underline">View the payment page →</a>
+          <p className="mt-2 text-slate-700">{result.testMode ? `${formatPrice(result.total)} simulated total. No inventory, Square payment, email, or sales reporting was changed.` : `${formatPrice(result.total)} due — ${result.emailSent ? "the customer has been emailed a secure payment link." : "the payment link was created, but email delivery failed. Copy the link now or resend it from Orders."}`}</p>
+          {!result.testMode && <a href={result.paymentLinkUrl} target="_blank" rel="noreferrer" className="mt-4 inline-block text-sm font-semibold text-brand-navy underline">View the payment page →</a>}
           <div className="mt-6 flex justify-center gap-3">
             <Link href="/admin/orders" className="rounded-xl bg-brand-navy px-4 py-2 text-sm font-semibold text-white">Go to Orders</Link>
             <button onClick={() => { setResult(null); setRequestKey(crypto.randomUUID()); setLines([]); setCustName(""); setCustEmail(""); setCustPhone(""); setCustomerNotes(""); setInternalNotes(""); setDiscountType(""); setDiscountValue(0); setDiscountReason(""); }}
@@ -255,6 +257,12 @@ export default function AdminPaymentOrderBuilder() {
 
         {/* Summary / discount / tax / submit */}
         <aside className="h-fit space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+          <label className={`block cursor-pointer rounded-xl border p-3 ${testMode ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-slate-50"}`}>
+            <span className="flex items-center gap-2 text-sm font-bold text-slate-900">
+              <input type="checkbox" checked={testMode} onChange={(e) => setTestMode(e.target.checked)} /> Test mode
+            </span>
+            <span className="mt-1 block text-xs leading-5 text-slate-600">Runs the complete admin workflow without changing inventory, contacting Square, sending email, or appearing in sales reports.</span>
+          </label>
           <div>
             <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Order Discount</label>
             <div className="flex gap-2">
@@ -298,7 +306,7 @@ export default function AdminPaymentOrderBuilder() {
 
           <button onClick={submit} disabled={saving}
             className="w-full rounded-xl bg-brand-navy px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
-            {saving ? "Sending…" : "Send Payment Link"}
+            {saving ? (testMode ? "Creating Test…" : "Sending…") : (testMode ? "Create Test Order" : "Send Payment Link")}
           </button>
         </aside>
       </div>

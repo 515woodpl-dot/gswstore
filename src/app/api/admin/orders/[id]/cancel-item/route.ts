@@ -102,6 +102,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
       const newTotalCents = netSubtotalCents + taxCents;
 
+      if (order.is_test) {
+        return NextResponse.json({ ok: true, newTotal: newTotalCents / 100, testMode: true });
+      }
+
       // Record that the old link is gone before issuing its replacement.
       if (order.square_payment_link_id && order.square_payment_link_status === "active") {
         const { error: replaceError } = await admin.from("orders").update({ square_payment_link_status: "replaced" }).eq("id", orderId);
@@ -186,6 +190,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const refundableCents = Math.round((Number(order.amount_paid || 0) - Number(order.amount_refunded || 0)) * 100);
     if (totalRefundCents > refundableCents) {
       return NextResponse.json({ error: "This refund would exceed the amount still available to refund on this order." }, { status: 409 });
+    }
+    if (order.is_test) {
+      const testRefundId = randomUUID();
+      const { error: testIntentError } = await admin.from("order_refunds").insert({
+        id: testRefundId,
+        order_id: orderId,
+        order_item_id: item.id,
+        square_refund_id: `TEST-${testRefundId}`,
+        square_payment_id: order.square_payment_id,
+        amount: totalRefundCents / 100,
+        status: "pending",
+        reason: `${item.name} × ${cancelQty}: ${reason}${note ? ` — ${note}` : ""}`,
+        created_by: auth.userId,
+        meta: { kind: "partial", lines: [{ orderItemId: item.id, cancelQty, itemName: item.name }] },
+      });
+      if (testIntentError) return NextResponse.json({ error: "Another test refund is already in progress for this order." }, { status: 409 });
+      const { error: reasonError } = await admin.from("order_items").update({ cancellation_reason: reason, cancellation_note: note }).eq("id", item.id);
+      if (reasonError) throw new Error(`Could not save the cancellation reason: ${reasonError.message}`);
+      await finalizeRefund(admin, testRefundId);
+      return NextResponse.json({ ok: true, refundAmount: totalRefundCents / 100, status: "completed", testMode: true });
     }
     if (!order.square_payment_id) {
       return NextResponse.json({ error: "No Square payment is on file for this order." }, { status: 409 });

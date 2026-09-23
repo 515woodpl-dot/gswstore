@@ -276,9 +276,12 @@ export default function AdminPaymentOrderBuilder() {
                   className="w-24 rounded-xl border border-slate-300 px-2 py-2 text-sm" />
               )}
             </div>
-            {discountType && (
-              <input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="Reason for discount"
-                className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
+            {totalDiscount > 0 && (
+              <label className="mt-2 block">
+                <span className="mb-1 block text-xs font-semibold text-amber-800">Discount reason (required)</span>
+                <input value={discountReason} onChange={(e) => { setDiscountReason(e.target.value); setError(""); }} placeholder="e.g. Contractor pricing"
+                  className="w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm" />
+              </label>
             )}
           </div>
 

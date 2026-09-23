@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
     if (error || !row) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
     const order: Order = { ...row, items: row.order_items };
+    if (order.is_test) return NextResponse.json({ ok: true, skipped: "test_order" });
 
     // Resolve the customer's email from auth.users via service role
     const { createClient: createAdminClient } = await import("@supabase/supabase-js");

@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
     const customerPhone = typeof body.customerPhone === "string" ? body.customerPhone.trim() : "";
     const customerNotes = typeof body.customerNotes === "string" ? body.customerNotes.trim() : "";
     const internalNotes = typeof body.internalNotes === "string" ? body.internalNotes.trim() : "";
+    const testMode = body.testMode === true;
     const requestKey = typeof body.requestKey === "string" ? body.requestKey.trim() : "";
     const taxZip = typeof body.taxZip === "string" ? body.taxZip.trim() : "";
     const applyTax = body.applyTax !== false;
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
       const qty = Number(l.quantity);
       const unitsPerSale = Math.max(1, Number(item.units_per_sale) || 1);
       if (!Number.isInteger(qty) || qty <= 0) throw new Error(`Invalid quantity for ${item.name}.`);
-      if (Number(item.amount) < qty * unitsPerSale) {
+      if (!testMode && Number(item.amount) < qty * unitsPerSale) {
         throw new Error(`${item.name} does not have enough stock (only ${Math.floor(Number(item.amount) / unitsPerSale)} available).`);
       }
       return {
@@ -149,7 +150,7 @@ export async function POST(request: NextRequest) {
     claimedRequestKey = requestKey;
 
     // ── Reserve inventory now (mirrors walk-in-sale: decrement = reservation) ──
-    for (const line of computed.lines) {
+    for (const line of testMode ? [] : computed.lines) {
       const item = inventoryById.get(line.itemId)!;
       const unitsPerSale = Math.max(1, Number(item.units_per_sale) || 1);
       const baseQty = line.quantity * unitsPerSale;
@@ -168,12 +169,16 @@ export async function POST(request: NextRequest) {
       inventoryChanges.push({ id: item.id, before, after });
     }
 
-    const { data: customer, error: customerError } = await admin
-      .from("walk_in_customers")
-      .upsert({ email: customerEmail, name: customerName, phone: customerPhone }, { onConflict: "email" })
-      .select("id")
-      .single();
-    if (customerError || !customer) throw new Error("Could not save the customer.");
+    let customer: { id: string } | null = null;
+    if (!testMode) {
+      const { data, error: customerError } = await admin
+        .from("walk_in_customers")
+        .upsert({ email: customerEmail, name: customerName, phone: customerPhone }, { onConflict: "email" })
+        .select("id")
+        .single();
+      if (customerError || !data) throw new Error("Could not save the customer.");
+      customer = data;
+    }
 
     const { data: authUser } = await admin.auth.admin.getUserById(auth.userId);
     const soldByName =
@@ -181,7 +186,7 @@ export async function POST(request: NextRequest) {
       authUser.user?.email?.split("@")[0] ||
       "Staff";
 
-    const num = orderNumber();
+    const num = orderNumber(testMode ? "TEST" : "GSW");
     const total = plan.totalCents / 100;
 
     const { data: order, error: orderError } = await admin
@@ -191,6 +196,9 @@ export async function POST(request: NextRequest) {
         user_id: null,
         status: "awaiting_payment",
         payment_status: "unpaid",
+        is_test: testMode,
+        customer_name: customerName,
+        customer_email: customerEmail,
         total,
         subtotal: computed.subtotalCents / 100,
         discount_total: computed.discountTotalCents / 100,
@@ -204,7 +212,7 @@ export async function POST(request: NextRequest) {
         internal_notes: internalNotes,
         attention_note: "",
         source: "admin_payment_link",
-        walk_in_customer_id: customer.id,
+        walk_in_customer_id: customer?.id ?? null,
         customer_phone: customerPhone,
         fulfillment: "pickup",
         sold_by_id: auth.userId,
@@ -251,6 +259,19 @@ export async function POST(request: NextRequest) {
     });
     const { data: insertedItems, error: itemsError } = await admin.from("order_items").insert(itemRows).select("*");
     if (itemsError) throw new Error("Could not save the order items.");
+
+    if (testMode) {
+      await logOrderEvent(admin, {
+        orderId: order.id, eventType: "order_created", actorId: auth.userId, actorName: soldByName,
+        newValue: { total, itemCount: itemRows.length, testMode: true },
+      });
+      const response = { ok: true, orderId: order.id, orderNumber: num, total, paymentLinkUrl: "", emailSent: false, testMode: true };
+      const { error: requestCompleteError } = await admin.from("admin_order_requests").update({
+        status: "completed", order_id: order.id, response, updated_at: new Date().toISOString(),
+      }).eq("request_key", requestKey);
+      if (requestCompleteError) console.error("[PaymentLink] test request completion record failed:", requestCompleteError.message);
+      return NextResponse.json(response);
+    }
 
     // ── Square: create the hosted order + payment link ─────────────────────
     // Tax is sent as its own real line item (not a Square tax object) so the

@@ -15,6 +15,7 @@ export type OrderEventType =
   | "payment_link_replaced"
   | "payment_email_sent"
   | "payment_confirmed"
+  | "test_payment_simulated"
   | "payment_failed"
   | "item_cancelled"
   | "quantity_partially_cancelled"

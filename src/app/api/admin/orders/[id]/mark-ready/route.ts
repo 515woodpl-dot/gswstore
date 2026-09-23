@@ -46,7 +46,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   const { data: customer }: { data: CustomerRow | null } = claimed.walk_in_customer_id
     ? await admin.from("walk_in_customers").select("name,email").eq("id", claimed.walk_in_customer_id).single()
     : { data: null };
-  if (customer?.email) {
+  if (customer?.email && !claimed.is_test) {
     try {
       await sendStatusEmail({ ...claimed, items: claimed.order_items }, customer.email, customer.name);
       await logOrderEvent(admin, { orderId, eventType: "ready_email_sent", actorId: auth.userId, actorName });

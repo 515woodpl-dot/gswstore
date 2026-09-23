@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
 
     const { data: order } = await admin.from("orders").select("*, order_items(*)").eq("id", orderId).single();
     if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
+    if (order.is_test) return NextResponse.json({ error: "Test orders do not send payment links or emails." }, { status: 409 });
     let paymentLinkUrl: string | null = order.square_payment_link_status === "active" ? order.square_payment_link_url : null;
     let regenerated = false;
     if (!paymentLinkUrl) {

@@ -19,6 +19,7 @@ export default async function AlertsPage() {
   const { data } = await sb
     .from("orders")
     .select("*, order_items(*)")
+    .eq("is_test", false)
     .order("created_at", { ascending: false })
     .limit(20);
 

@@ -93,6 +93,7 @@ export default function AdminPaymentOrderPanel({ order, onChanged }: { order: Or
     <div className="mt-3 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
       {/* Payment / Square summary */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
+        {order.is_test && <span className="rounded-full bg-violet-100 px-2.5 py-1 font-bold text-violet-700">Sandbox</span>}
         <span className={`rounded-full px-2.5 py-1 font-semibold ${PAYMENT_CLS[order.payment_status || "unpaid"]}`}>
           {PAYMENT_LABEL[order.payment_status || "unpaid"]}
         </span>
@@ -166,11 +167,15 @@ export default function AdminPaymentOrderPanel({ order, onChanged }: { order: Or
 
       {/* Order-level actions */}
       <div className="flex flex-wrap gap-2">
+        {order.is_test && !isPaid && order.status === "awaiting_payment" && (
+          <button disabled={busy} onClick={() => post(`/api/admin/orders/${order.id}/simulate-payment`, {})}
+            className="rounded-xl bg-violet-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Simulate Payment</button>
+        )}
         {order.square_payment_link_status === "active" && (
           <button disabled={busy} onClick={() => post("/api/admin/orders/payment-link/resend", { orderId: order.id })}
             className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50">Resend Payment Link</button>
         )}
-        {order.status === "awaiting_payment" && ["unpaid", "failed"].includes(order.payment_status || "unpaid") && order.square_payment_link_status !== "active" && (
+        {!order.is_test && order.status === "awaiting_payment" && ["unpaid", "failed"].includes(order.payment_status || "unpaid") && order.square_payment_link_status !== "active" && (
           <button disabled={busy} onClick={() => post("/api/admin/orders/payment-link/resend", { orderId: order.id })}
             className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 disabled:opacity-50">Generate Payment Link</button>
         )}

@@ -57,6 +57,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       await logOrderEvent(admin, { orderId, eventType: "order_cancelled", actorId: auth.userId, actorName, reason: fullReason });
       return NextResponse.json({ ok: true });
     }
+    if (order.is_test) {
+      const testRefundId = randomUUID();
+      const { error: testIntentError } = await admin.from("order_refunds").insert({
+        id: testRefundId,
+        order_id: orderId,
+        order_item_id: null,
+        square_refund_id: `TEST-${testRefundId}`,
+        square_payment_id: order.square_payment_id,
+        amount: refundableCents / 100,
+        status: "pending",
+        reason: fullReason,
+        created_by: auth.userId,
+        meta: { kind: "full" },
+      });
+      if (testIntentError) return NextResponse.json({ error: "Another test refund is already in progress for this order." }, { status: 409 });
+      await admin.from("orders").update({ cancellation_reason: fullReason, cancelled_by: auth.userId }).eq("id", orderId);
+      await finalizeRefund(admin, testRefundId);
+      return NextResponse.json({ ok: true, status: "completed", refundAmount: refundableCents / 100, testMode: true });
+    }
     if (!order.square_payment_id) {
       return NextResponse.json({ error: "No Square payment is on file for this order." }, { status: 409 });
     }

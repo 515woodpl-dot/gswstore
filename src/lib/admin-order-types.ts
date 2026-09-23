@@ -34,6 +34,7 @@ export interface AdminOrderRow {
   order_number: string;
   status: string;
   payment_status: string;
+  is_test: boolean;
   total: number;
   subtotal: number;
   discount_total: number;

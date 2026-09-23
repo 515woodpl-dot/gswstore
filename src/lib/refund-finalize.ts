@@ -41,7 +41,7 @@ export async function finalizeRefund(admin: SupabaseClient, refundRowId: string)
       reason: claimed.reason, newValue: { amount },
     });
 
-    if (customerEmail) {
+    if (customerEmail && !order.is_test) {
       await sendRefundEmail(order, customerEmail, customerName, {
         refundAmount: amount, remainingTotal: 0, full: true, receiptUrl: order.square_receipt_url,
       }).catch((e) => console.error("[Refund] email failed:", e));
@@ -55,7 +55,7 @@ export async function finalizeRefund(admin: SupabaseClient, refundRowId: string)
     reason: claimed.reason, newValue: { amount, newTotal: Number(order.total) },
   });
 
-  if (customerEmail && amount > 0) {
+  if (customerEmail && amount > 0 && !order.is_test) {
     await sendRefundEmail(order, customerEmail, customerName, {
       refundedItemName: meta.lines.map((line) => line.itemName).filter(Boolean).join(", "),
       refundAmount: amount, remainingTotal: Number(order.total), full: false, receiptUrl: order.square_receipt_url,
@@ -92,7 +92,7 @@ export async function finalizeUnpaidFullCancellation(
   const { data: customer }: { data: CustomerRow | null } = order.walk_in_customer_id
     ? await admin.from("walk_in_customers").select("name,email").eq("id", order.walk_in_customer_id).single()
     : { data: null };
-  if (customer?.email) {
+  if (customer?.email && !order.is_test) {
     await sendCancellationEmail(order, customer.email, customer.name, reason).catch((e: unknown) => console.error("[Cancel] email failed:", e));
   }
 }

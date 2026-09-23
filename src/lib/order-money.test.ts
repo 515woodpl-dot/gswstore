@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { computeOrder, toSquareLinePlan } from "./order-money";
+import { computeOrder, orderNumber, toSquareLinePlan } from "./order-money";
 
 test("Square plan preserves cents when a line discount cannot divide evenly", () => {
   const order = computeOrder(
@@ -25,4 +25,8 @@ test("Square plan preserves cents for an order-level discount", () => {
 
   assert.equal(plan.totalCents, order.totalCents);
   assert.equal(plan.lines.length, 2);
+});
+
+test("test orders receive an unmistakable non-production number", () => {
+  assert.match(orderNumber("TEST"), /^TEST-\d{8}-[A-F0-9]{8}$/);
 });

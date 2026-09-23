@@ -134,11 +134,40 @@ export default function AdminPaymentOrderBuilder() {
           lines: lines.map((l) => ({ itemId: l.item.id, quantity: l.qty, lineDiscount: l.lineDiscount })),
         }),
       });
-      const data = await res.json();
-      if (!res.ok || data.ok === false) { setError(data.error || "Could not create the order."); setSaving(false); return; }
-      setResult({ orderNumber: data.orderNumber, total: data.total, paymentLinkUrl: data.paymentLinkUrl, emailSent: data.emailSent !== false, testMode: data.testMode === true });
-    } catch {
-      setError("Network error. Please try again.");
+      const responseText = await res.text();
+      let data: Record<string, unknown> = {};
+      try {
+        data = responseText ? JSON.parse(responseText) as Record<string, unknown> : {};
+      } catch {
+        setError(
+          res.ok
+            ? "The server returned an invalid response. Please contact support."
+            : `The server could not complete the request (HTTP ${res.status}). Check the deployment logs and try again.`,
+        );
+        setSaving(false);
+        return;
+      }
+      if (!res.ok || data.ok === false) {
+        setError(typeof data.error === "string" ? data.error : "Could not create the order.");
+        setSaving(false);
+        return;
+      }
+      if (typeof data.orderNumber !== "string" || typeof data.total !== "number" || typeof data.paymentLinkUrl !== "string") {
+        setError("The server response was incomplete. Check the deployment logs before trying again.");
+        setSaving(false);
+        return;
+      }
+      setResult({
+        orderNumber: data.orderNumber,
+        total: data.total,
+        paymentLinkUrl: data.paymentLinkUrl,
+        emailSent: data.emailSent !== false,
+        testMode: data.testMode === true,
+      });
+    } catch (requestError) {
+      setError(requestError instanceof Error
+        ? `Could not reach the server: ${requestError.message}`
+        : "Could not reach the server. Check your connection and try again.");
     }
     setSaving(false);
   }

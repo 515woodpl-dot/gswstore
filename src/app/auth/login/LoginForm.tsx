@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import PasswordInput from "@/components/PasswordInput";
 
@@ -10,7 +10,6 @@ export default function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/";
   const timeout = params.get("timeout") === "1";
@@ -18,7 +17,15 @@ export default function LoginForm() {
   async function handle(e: React.FormEvent) {
     e.preventDefault(); setLoading(true); setError("");
     const { error: err } = await createClient().auth.signInWithPassword({ email, password });
-    if (err) { setError(err.message); setLoading(false); return; }
+    if (err) {
+      setError(
+        err.code === "invalid_credentials"
+          ? "An account with this information doesn’t exist, or the password is incorrect."
+          : err.message,
+      );
+      setLoading(false);
+      return;
+    }
     window.location.href = next;
   }
 

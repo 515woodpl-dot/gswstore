@@ -3,14 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
-import { useAuth } from "@/hooks/useAuth";
 import type { InventoryItem } from "@/types";
-
-function genOrderNumber(dateStr: string) {
-  const d = dateStr.replace(/-/g, "");
-  const r = Math.random().toString(36).slice(2).padEnd(6, "0").slice(0, 6).toUpperCase();
-  return `GSW-${d}-M${r.slice(0, 5)}`;
-}
 
 interface Line {
   key: string;
@@ -26,7 +19,6 @@ interface Line {
 
 export default function ManualSale() {
   const sb = createClient();
-  const { user } = useAuth();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [query, setQuery] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
@@ -98,77 +90,30 @@ export default function ManualSale() {
 
     setSaving(true);
     try {
-      // Compose backdated timestamp
-      const createdAt = new Date(`${saleDate}T${saleTime || "12:00"}:00`).toISOString();
+      const response = await fetch("/api/admin/manual-sale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          saleDate,
+          saleTime,
+          customerName: custName,
+          customerEmail: custEmail,
+          manualNote,
+          discountReason,
+          lines,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Failed to create sale");
 
-      // Optional walk-in customer
-      let customerId: string | null = null;
-      if (custEmail.trim() && custEmail.includes("@")) {
-        const { data: cust } = await sb
-          .from("walk_in_customers")
-          .upsert({ email: custEmail.trim().toLowerCase(), name: custName.trim() || custEmail.trim() }, { onConflict: "email" })
-          .select("id")
-          .single();
-        customerId = cust?.id ?? null;
-      }
-
-      const soldByName =
-        (user?.user_metadata?.full_name as string | undefined) ||
-        (user?.email ? user.email.split("@")[0] : "Staff");
-
-      const { data: order, error: orderErr } = await sb
-        .from("orders")
-        .insert({
-          order_number: genOrderNumber(saleDate),
-          user_id: null,
-          status: "completed",
-          total,
-          notes: "",
-          source: "manual",
-          walk_in_customer_id: customerId,
-          fulfillment: "pickup",
-          sold_by_id: user?.id ?? null,
-          sold_by_name: soldByName,
-          discount_total: discountTotal,
-          manual_note: manualNote.trim(),
-          created_at: createdAt,
-        })
-        .select("id,order_number")
-        .single();
-      if (orderErr || !order) throw new Error(orderErr?.message || "Failed to create sale");
-
-      const orderItems = lines.map((l) => ({
-        order_id: order.id,
-        item_id: l.itemId ?? `manual-${l.key.slice(0, 8)}`,
-        name: l.name.trim(),
-        sku: l.sku.trim() || null,
-        image_url: null,
-        unit_price: l.soldPrice,
-        list_price: l.listPrice || l.soldPrice,
-        cost_price: 0,
-        discount_amount: Math.max(0, (l.listPrice - l.soldPrice) * l.qty),
-        discount_reason: (l.listPrice - l.soldPrice) > 0 ? discountReason.trim() : "",
-        quantity: l.qty,
-        base_units_per_sale: l.unitsPerSale ?? 1,
-      }));
-      const { error: itemsErr } = await sb.from("order_items").insert(orderItems);
-      if (itemsErr) throw new Error(itemsErr.message);
-
-      // Only decrement stock where explicitly requested (catalog items still on shelf)
-      await Promise.all(
-        lines
-          .filter((l) => l.itemId && l.decrementStock)
-          .map((l) => sb.rpc("decrement_packaged_inventory", { p_item_id: l.itemId!, p_selling_qty: l.qty }))
-      );
-
-      setDoneOrder(order.order_number);
+      setDoneOrder(result.orderNumber);
 
       // Email a receipt if a customer email was provided (fire-and-forget).
-      if (customerId) {
+      if (result.customerSaved) {
         fetch("/api/receipt", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId: order.id }),
+          body: JSON.stringify({ orderId: result.orderId }),
         }).catch(() => {});
       }
       setLines([]); setCustName(""); setCustEmail(""); setManualNote(""); setDiscountReason("");

@@ -8,13 +8,17 @@ import { BRAND } from "@/lib/brand";
 import { ADMIN_NAV } from "@/lib/adminNav";
 import { useState, useRef, useEffect } from "react";
 
-function DropdownGroup({ group, pathname }: { group: typeof ADMIN_NAV[0]; pathname: string }) {
+function activeAdminHref(pathname: string) {
+  return ADMIN_NAV
+    .flatMap((group) => group.items)
+    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
+}
+
+function DropdownGroup({ group, activeHref }: { group: typeof ADMIN_NAV[0]; activeHref: string | null }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-
-  const isActive = group.items.some((i) =>
-    i.href === "/admin/inventory" ? pathname === "/admin" || pathname === "/admin/inventory" : pathname.startsWith(i.href)
-  );
+  const isActive = group.items.some((item) => item.href === activeHref);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -40,9 +44,7 @@ function DropdownGroup({ group, pathname }: { group: typeof ADMIN_NAV[0]; pathna
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
           {group.items.map((item) => {
-            const active = item.href === "/admin/inventory"
-              ? pathname === "/admin" || pathname === "/admin/inventory"
-              : pathname.startsWith(item.href);
+            const active = item.href === activeHref;
             return (
               <Link key={item.href} href={item.href} onClick={() => setOpen(false)}
                 className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition ${
@@ -61,6 +63,7 @@ function DropdownGroup({ group, pathname }: { group: typeof ADMIN_NAV[0]; pathna
 
 export default function AdminHeader() {
   const pathname = usePathname();
+  const activeHref = activeAdminHref(pathname);
   const { signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const alertsUrl = BRAND.alertsUrl;
@@ -76,7 +79,7 @@ export default function AdminHeader() {
         {/* Desktop nav */}
         <nav className="hidden items-center gap-1 md:flex">
           {ADMIN_NAV.map((group) => (
-            <DropdownGroup key={group.label} group={group} pathname={pathname} />
+            <DropdownGroup key={group.label} group={group} activeHref={activeHref} />
           ))}
           <a href={alertsUrl}
             className="rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-brand-navy">
@@ -104,9 +107,7 @@ export default function AdminHeader() {
               <p className="mb-1 px-2 text-xs font-bold uppercase tracking-widest text-slate-400">{group.label}</p>
               <div className="space-y-0.5">
                 {group.items.map((item) => {
-                  const active = item.href === "/admin/inventory"
-                    ? pathname === "/admin" || pathname === "/admin/inventory"
-                    : pathname.startsWith(item.href);
+                  const active = item.href === activeHref;
                   return (
                     <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
                       className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${

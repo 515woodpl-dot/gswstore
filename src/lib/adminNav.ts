@@ -32,6 +32,12 @@ export const ADMIN_NAV: NavGroup[] = [
         icon: "🔗",
       },
       {
+        href: "/admin/orders",
+        label: "Check Placed Orders",
+        description: "Review placed orders, payment status, and fulfillment",
+        icon: "📋",
+      },
+      {
         href: "/admin/walk-in",
         label: "Walk-in Sale",
         description: "Ring up an in-store customer",
@@ -72,12 +78,6 @@ export const ADMIN_NAV: NavGroup[] = [
         label: "Packaging Review",
         description: "Confirm base units, selling units, and package sizes",
         icon: "📐",
-      },
-      {
-        href: "/admin/orders",
-        label: "Orders",
-        description: "Full order history, status updates, and fulfillment",
-        icon: "📋",
       },
     ],
   },

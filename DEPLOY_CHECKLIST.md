@@ -44,7 +44,15 @@ RESEND_FROM                     orders@goldenstonetools.com
 SHOP_NOTIFY_EMAIL               orders@goldenstonetools.com
 NEXT_PUBLIC_SHOP_PHONE          +1 253-449-6246
 NEXT_PUBLIC_SITE_URL            https://goldenstonetools.com
+SQUARE_SANDBOX_ACCESS_TOKEN     (Square Developer Console → Sandbox token) ← Encrypted
+SQUARE_SANDBOX_LOCATION_ID      (Square Sandbox location ID)
+SQUARE_SANDBOX_WEBHOOK_SIGNATURE_KEY  (Sandbox webhook signature key) ← Encrypted
+SQUARE_SANDBOX_WEBHOOK_NOTIFICATION_URL https://admin.yourdomain.com/api/webhooks/square?environment=sandbox
 ```
+
+In the Square Developer Console, configure the Sandbox webhook notification
+URL shown above for `payment.created`, `payment.updated`, `refund.created`, and
+`refund.updated`. Production and Sandbox credentials must never be mixed.
 
 ## ☐ 4. Become owner (AFTER signing up once)
 ```

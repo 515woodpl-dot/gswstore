@@ -26,6 +26,7 @@ interface OrderRow {
   discount_total: number;
   status: string;
   source: string | null;
+  is_test: boolean;
   sold_by_name: string;
   transaction_type: "sale" | "internal_use";
   internal_use_reason: string;
@@ -44,7 +45,7 @@ const RANGES = [
 ];
 
 export default function SalesReport({
-  orders,
+  orders: allOrders,
   inventory,
   range,
   from,
@@ -63,6 +64,11 @@ export default function SalesReport({
   const [showItems, setShowItems] = useState(false);
   const [repairingCosts, setRepairingCosts] = useState(false);
   const [costRepairMessage, setCostRepairMessage] = useState("");
+  const [showTests, setShowTests] = useState(false);
+  const orders = useMemo(
+    () => showTests ? allOrders : allOrders.filter((order) => !order.is_test),
+    [allOrders, showTests],
+  );
 
   // Totals
   const stats = useMemo(() => {
@@ -276,6 +282,10 @@ export default function SalesReport({
             Apply
           </button>
         </div>
+        <label className={`ml-auto flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ${showTests ? "bg-violet-50 text-violet-800 ring-violet-300" : "bg-white text-slate-600 ring-slate-200"}`}>
+          <input type="checkbox" checked={showTests} onChange={(event) => setShowTests(event.target.checked)} />
+          Include test orders
+        </label>
       </div>
 
       {/* Stat cards */}
@@ -475,6 +485,7 @@ export default function SalesReport({
                 <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${o.transaction_type === "internal_use" ? "bg-slate-200 text-slate-700" : o.source === "walk_in" ? "bg-sky-100 text-sky-800" : o.source === "manual" ? "bg-orange-100 text-orange-800" : "bg-violet-100 text-violet-800"}`}>
                   {o.transaction_type === "internal_use" ? "Internal use" : o.source === "walk_in" ? "Walk-in" : o.source === "manual" ? "Manual" : "Online"}
                 </span>
+                {o.is_test && <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-700">TEST</span>}
                 <p className="mt-0.5 text-xs text-slate-500">
                   {new Date(o.created_at).toLocaleString()} · {o.sold_by_name || "—"}
                 </p>

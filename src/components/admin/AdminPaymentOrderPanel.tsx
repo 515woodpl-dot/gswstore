@@ -86,6 +86,24 @@ export default function AdminPaymentOrderPanel({ order, onChanged }: { order: Or
     setTimeline(data.events || []);
   }
 
+  async function deleteTestOrder() {
+    if (!window.confirm("Delete this test order and restore all inventory it reserved? This cannot be undone.")) return;
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch(`/api/admin/orders/${order.id}/delete-test`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setMsg({ text: data.error || "Could not delete the test order.", ok: false });
+        return;
+      }
+      window.location.reload();
+    } catch {
+      setMsg({ text: "Network error.", ok: false });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const activeItems = order.items.filter((i) => (i.cancelled_quantity ?? 0) < i.quantity);
   const canCancelItems = order.status !== "cancelled" && order.status !== "completed";
 
@@ -167,15 +185,11 @@ export default function AdminPaymentOrderPanel({ order, onChanged }: { order: Or
 
       {/* Order-level actions */}
       <div className="flex flex-wrap gap-2">
-        {order.is_test && !isPaid && order.status === "awaiting_payment" && (
-          <button disabled={busy} onClick={() => post(`/api/admin/orders/${order.id}/simulate-payment`, {})}
-            className="rounded-xl bg-violet-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Simulate Payment</button>
-        )}
         {order.square_payment_link_status === "active" && (
           <button disabled={busy} onClick={() => post("/api/admin/orders/payment-link/resend", { orderId: order.id })}
             className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50">Resend Payment Link</button>
         )}
-        {!order.is_test && order.status === "awaiting_payment" && ["unpaid", "failed"].includes(order.payment_status || "unpaid") && order.square_payment_link_status !== "active" && (
+        {order.status === "awaiting_payment" && ["unpaid", "failed"].includes(order.payment_status || "unpaid") && order.square_payment_link_status !== "active" && (
           <button disabled={busy} onClick={() => post("/api/admin/orders/payment-link/resend", { orderId: order.id })}
             className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 disabled:opacity-50">Generate Payment Link</button>
         )}
@@ -199,6 +213,12 @@ export default function AdminPaymentOrderPanel({ order, onChanged }: { order: Or
         <button onClick={loadTimeline} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
           {timeline ? "Hide" : "View"} Timeline
         </button>
+        {order.is_test && (
+          <button disabled={busy} onClick={deleteTestOrder}
+            className="rounded-xl border border-violet-300 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-800 disabled:opacity-50">
+            Delete Test &amp; Restore Inventory
+          </button>
+        )}
       </div>
 
       {showCancelOrder && (

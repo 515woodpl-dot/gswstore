@@ -77,7 +77,7 @@ export async function finalizeUnpaidFullCancellation(
 
   // The external link must be inactive before local inventory is released.
   if (order.square_payment_link_id && order.square_payment_link_status === "active") {
-    await cancelPaymentLink(order.square_payment_link_id);
+    await cancelPaymentLink(order.square_payment_link_id, order.is_test ? "sandbox" : "production");
   }
 
   const { error: cancelError } = await admin.rpc("cancel_unpaid_order", {
@@ -92,7 +92,7 @@ export async function finalizeUnpaidFullCancellation(
   const { data: customer }: { data: CustomerRow | null } = order.walk_in_customer_id
     ? await admin.from("walk_in_customers").select("name,email").eq("id", order.walk_in_customer_id).single()
     : { data: null };
-  if (customer?.email && !order.is_test) {
+  if (customer?.email) {
     await sendCancellationEmail(order, customer.email, customer.name, reason).catch((e: unknown) => console.error("[Cancel] email failed:", e));
   }
 }

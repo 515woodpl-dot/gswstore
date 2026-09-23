@@ -5,12 +5,36 @@
 // being scattered across route handlers.
 import { createHmac, timingSafeEqual } from "crypto";
 
-const SQUARE_API = "https://connect.squareup.com/v2";
 const SQUARE_VERSION = "2024-07-17";
 
-function headers() {
+export type SquareEnvironment = "production" | "sandbox";
+
+function squareConfig(environment: SquareEnvironment) {
+  if (environment === "sandbox") {
+    return {
+      api: "https://connect.squareupsandbox.com/v2",
+      accessToken: process.env.SQUARE_SANDBOX_ACCESS_TOKEN,
+      locationId: process.env.SQUARE_SANDBOX_LOCATION_ID,
+      signatureKey: process.env.SQUARE_SANDBOX_WEBHOOK_SIGNATURE_KEY,
+    };
+  }
   return {
-    Authorization: `Bearer ${process.env.SQUARE_ACCESS_TOKEN}`,
+    api: "https://connect.squareup.com/v2",
+    accessToken: process.env.SQUARE_ACCESS_TOKEN,
+    locationId: process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID,
+    signatureKey: process.env.SQUARE_WEBHOOK_SIGNATURE_KEY,
+  };
+}
+
+export function isSquareEnvironmentConfigured(environment: SquareEnvironment): boolean {
+  const config = squareConfig(environment);
+  return Boolean(config.accessToken && config.locationId);
+}
+
+function headers(environment: SquareEnvironment) {
+  const config = squareConfig(environment);
+  return {
+    Authorization: `Bearer ${config.accessToken}`,
     "Content-Type": "application/json",
     "Square-Version": SQUARE_VERSION,
   };
@@ -44,10 +68,13 @@ export interface PaymentLinkResult {
  * Creates a brand-new Square Order + hosted Payment Link in one call.
  * Square's Payment Links API creates the Order for us when given `order`.
  */
-export async function createPaymentLink(args: CreatePaymentLinkArgs): Promise<PaymentLinkResult> {
-  const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
-  if (!process.env.SQUARE_ACCESS_TOKEN || !locationId) {
-    throw new Error("Square is not configured (missing access token or location id).");
+export async function createPaymentLink(
+  args: CreatePaymentLinkArgs,
+  environment: SquareEnvironment = "production",
+): Promise<PaymentLinkResult> {
+  const config = squareConfig(environment);
+  if (!config.accessToken || !config.locationId) {
+    throw new Error(`${environment === "sandbox" ? "Square Sandbox" : "Square"} is not configured (missing access token or location id).`);
   }
 
   const lineItems = args.lineItems.map((li) => ({
@@ -57,7 +84,7 @@ export async function createPaymentLink(args: CreatePaymentLinkArgs): Promise<Pa
   }));
 
   const order: Record<string, unknown> = {
-    location_id: locationId,
+    location_id: config.locationId,
     reference_id: args.referenceId,
     line_items: lineItems,
   };
@@ -87,9 +114,9 @@ export async function createPaymentLink(args: CreatePaymentLinkArgs): Promise<Pa
     (body as Record<string, unknown>)["description"] = args.note.slice(0, 4096);
   }
 
-  const res = await fetch(`${SQUARE_API}/online-checkout/payment-links`, {
+  const res = await fetch(`${config.api}/online-checkout/payment-links`, {
     method: "POST",
-    headers: headers(),
+    headers: headers(environment),
     body: JSON.stringify(body),
   });
   const data = await res.json();
@@ -110,10 +137,14 @@ export async function createPaymentLink(args: CreatePaymentLinkArgs): Promise<Pa
  * an outdated amount. A missing link is already inactive; every other failure
  * is fatal because issuing a replacement would leave two payable totals.
  */
-export async function cancelPaymentLink(paymentLinkId: string): Promise<void> {
-  const res = await fetch(`${SQUARE_API}/online-checkout/payment-links/${paymentLinkId}`, {
+export async function cancelPaymentLink(
+  paymentLinkId: string,
+  environment: SquareEnvironment = "production",
+): Promise<void> {
+  const config = squareConfig(environment);
+  const res = await fetch(`${config.api}/online-checkout/payment-links/${paymentLinkId}`, {
     method: "DELETE",
-    headers: headers(),
+    headers: headers(environment),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => null);
@@ -135,11 +166,12 @@ export interface RefundResult {
   status: string;
 }
 
-export async function createRefund(args: RefundArgs): Promise<RefundResult> {
+export async function createRefund(args: RefundArgs, environment: SquareEnvironment = "production"): Promise<RefundResult> {
   if (args.amountCents <= 0) throw new Error("Refund amount must be greater than zero.");
-  const res = await fetch(`${SQUARE_API}/refunds`, {
+  const config = squareConfig(environment);
+  const res = await fetch(`${config.api}/refunds`, {
     method: "POST",
-    headers: headers(),
+    headers: headers(environment),
     body: JSON.stringify({
       idempotency_key: args.idempotencyKey,
       payment_id: args.paymentId,
@@ -165,8 +197,9 @@ export interface SquarePayment {
   receipt_url?: string;
 }
 
-export async function getPayment(paymentId: string): Promise<SquarePayment> {
-  const res = await fetch(`${SQUARE_API}/payments/${paymentId}`, { headers: headers() });
+export async function getPayment(paymentId: string, environment: SquareEnvironment = "production"): Promise<SquarePayment> {
+  const config = squareConfig(environment);
+  const res = await fetch(`${config.api}/payments/${paymentId}`, { headers: headers(environment) });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.errors?.[0]?.detail || `Square error ${res.status}`);
   return data.payment as SquarePayment;
@@ -181,8 +214,9 @@ export function verifySquareWebhookSignature(
   rawBody: string,
   signatureHeader: string | null,
   notificationUrl: string,
+  environment: SquareEnvironment = "production",
 ): boolean {
-  const signatureKey = process.env.SQUARE_WEBHOOK_SIGNATURE_KEY;
+  const signatureKey = squareConfig(environment).signatureKey;
   if (!signatureKey || !signatureHeader) return false;
 
   const expected = createHmac("sha256", signatureKey)

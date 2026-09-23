@@ -137,6 +137,7 @@ export interface Order {
   updated_at: string;
   items: OrderItem[];
   is_test?: boolean;
+  test_inventory_reserved?: boolean;
 
   // Admin-created payment-link orders:
   payment_status?: PaymentStatus;

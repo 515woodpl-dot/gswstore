@@ -35,6 +35,7 @@ export interface AdminOrderRow {
   status: string;
   payment_status: string;
   is_test: boolean;
+  test_inventory_reserved?: boolean;
   total: number;
   subtotal: number;
   discount_total: number;

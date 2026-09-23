@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { createSale, rollbackCreatedSale, SaleCreationError, type CreatedSale } from "@/lib/create-sale";
 import { orderNumber, type OrderDiscount } from "@/lib/order-money";
-import { cancelPaymentLink, createPaymentLink } from "@/lib/square-checkout";
+import { cancelPaymentLink, createPaymentLink, isSquareEnvironmentConfigured } from "@/lib/square-checkout";
 import { logOrderEvent } from "@/lib/order-events";
 import { sendPaymentRequestEmail } from "@/lib/notifications";
 import type { Order } from "@/types";
@@ -41,6 +41,12 @@ export async function POST(request: NextRequest) {
     const requestKey = typeof body.requestKey === "string" ? body.requestKey.trim() : "";
     const taxZip = typeof body.taxZip === "string" ? body.taxZip.trim() : "";
     const applyTax = body.applyTax !== false;
+
+    if (testMode && !isSquareEnvironmentConfigured("sandbox")) {
+      return NextResponse.json({
+        error: "Square Sandbox is not configured. Add SQUARE_SANDBOX_ACCESS_TOKEN and SQUARE_SANDBOX_LOCATION_ID before running an end-to-end test.",
+      }, { status: 409 });
+    }
 
     const discount: OrderDiscount | undefined =
       body.discount && (body.discount.type === "percent" || body.discount.type === "fixed")
@@ -100,16 +106,12 @@ export async function POST(request: NextRequest) {
     }
     claimedRequestKey = requestKey;
 
-    let customer: { id: string } | null = null;
-    if (!testMode) {
-      const { data, error: customerError } = await admin
-        .from("walk_in_customers")
-        .upsert({ email: customerEmail, name: customerName, phone: customerPhone }, { onConflict: "email" })
-        .select("id")
-        .single();
-      if (customerError || !data) throw new Error("Could not save the customer.");
-      customer = data;
-    }
+    const { data: customer, error: customerError } = await admin
+      .from("walk_in_customers")
+      .upsert({ email: customerEmail, name: customerName, phone: customerPhone }, { onConflict: "email" })
+      .select("id")
+      .single();
+    if (customerError || !customer) throw new Error("Could not save the customer.");
 
     const { data: authUser } = await admin.auth.admin.getUserById(auth.userId);
     const soldByName =
@@ -130,13 +132,14 @@ export async function POST(request: NextRequest) {
         itemId: String(line.itemId),
         quantity: Number(line.quantity),
         lineDiscount: Number(line.lineDiscount) || 0,
-        decrementInventory: !testMode,
+        decrementInventory: true,
       })),
       orderValues: ({ discountTotal }) => ({
         user_id: null,
         status: "awaiting_payment",
         payment_status: "unpaid",
         is_test: testMode,
+        test_inventory_reserved: testMode,
         customer_name: customerName,
         customer_email: customerEmail,
         discount_type: discount?.type || "",
@@ -146,7 +149,7 @@ export async function POST(request: NextRequest) {
         notes: customerNotes,
         internal_notes: internalNotes,
         attention_note: "",
-        walk_in_customer_id: customer?.id ?? null,
+        walk_in_customer_id: customer.id,
         customer_phone: customerPhone,
         fulfillment: "pickup",
         sold_by_id: auth.userId,
@@ -155,19 +158,6 @@ export async function POST(request: NextRequest) {
     });
     const { order, items: insertedItems, squarePlan: plan, total } = createdSale;
     await admin.from("admin_order_requests").update({ order_id: order.id, updated_at: new Date().toISOString() }).eq("request_key", requestKey);
-
-    if (testMode) {
-      await logOrderEvent(admin, {
-        orderId: order.id, eventType: "order_created", actorId: auth.userId, actorName: soldByName,
-        newValue: { total, itemCount: insertedItems.length, testMode: true },
-      });
-      const response = { ok: true, orderId: order.id, orderNumber: num, total, paymentLinkUrl: "", emailSent: false, testMode: true };
-      const { error: requestCompleteError } = await admin.from("admin_order_requests").update({
-        status: "completed", order_id: order.id, response, updated_at: new Date().toISOString(),
-      }).eq("request_key", requestKey);
-      if (requestCompleteError) console.error("[PaymentLink] test request completion record failed:", requestCompleteError.message);
-      return NextResponse.json(response);
-    }
 
     // ── Square: create the hosted order + payment link ─────────────────────
     // Tax is sent as its own real line item (not a Square tax object) so the
@@ -184,7 +174,7 @@ export async function POST(request: NextRequest) {
         lineItems: squareLineItems,
         buyerEmail: customerEmail,
         note: `Order ${num} — ${customerName}`,
-      });
+      }, testMode ? "sandbox" : "production");
     } catch (squareErr) {
       // Order + items are saved, but no link went out — surface this clearly
       // so the admin can retry sending the link without recreating the order.
@@ -216,7 +206,7 @@ export async function POST(request: NextRequest) {
     }).eq("id", order.id);
     if (linkSaveError) {
       try {
-        await cancelPaymentLink(link.paymentLinkId);
+        await cancelPaymentLink(link.paymentLinkId, testMode ? "sandbox" : "production");
       } catch (cancelError) {
         await admin.from("admin_order_requests").update({ status: "recoverable", order_id: order.id, updated_at: nowIso }).eq("request_key", requestKey);
         console.error("[PaymentLink] CRITICAL: link was created but neither saved nor cancelled", { orderId: order.id, squareOrderId: link.squareOrderId, paymentLinkId: link.paymentLinkId, cancelError });
@@ -233,7 +223,7 @@ export async function POST(request: NextRequest) {
 
     await logOrderEvent(admin, {
       orderId: order.id, eventType: "order_created", actorId: auth.userId, actorName: soldByName,
-      newValue: { total, itemCount: insertedItems.length },
+      newValue: { total, itemCount: insertedItems.length, testMode },
     });
     await logOrderEvent(admin, {
       orderId: order.id, eventType: "payment_link_created", actorId: auth.userId, actorName: soldByName,
@@ -254,7 +244,7 @@ export async function POST(request: NextRequest) {
       // Link is still valid — the admin can resend from the order screen.
     }
 
-    const response = { ok: true, orderId: order.id, orderNumber: num, total, paymentLinkUrl: link.url, emailSent };
+    const response = { ok: true, orderId: order.id, orderNumber: num, total, paymentLinkUrl: link.url, emailSent, testMode };
     const { error: requestCompleteError } = await admin.from("admin_order_requests").update({
       status: "completed", order_id: order.id, response, updated_at: new Date().toISOString(),
     }).eq("request_key", requestKey);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getZipLocation } from "@/lib/zip-location";
 
 // POST — upload WA DOR ZIP+4 tax rate file
 // Accepts the raw .txt file content, parses it, and upserts into tax_rates.
@@ -109,6 +110,13 @@ export async function GET(request: NextRequest) {
     }
 
     const sb = await createClient();
+    const location = getZipLocation(zip);
+    if (!location) {
+      return NextResponse.json({ error: "No city was found for this ZIP." }, { status: 404 });
+    }
+    if (location.stateCode !== "WA") {
+      return NextResponse.json({ error: "This store currently supports Washington ZIP codes only." }, { status: 409 });
+    }
 
     if (plus4 && plus4.length === 4) {
       // Exact ZIP+4 lookup
@@ -118,7 +126,7 @@ export async function GET(request: NextRequest) {
         .eq("zip", zip)
         .eq("plus4", plus4)
         .single();
-      if (data) return NextResponse.json({ zip, plus4, ...data });
+      if (data) return NextResponse.json({ zip, plus4, ...location, ...data });
     }
 
     // ZIP-only: return the most common rate (mode) for this ZIP
@@ -140,7 +148,7 @@ export async function GET(request: NextRequest) {
     const dominant = Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0];
     const match = rates.find((r) => String(r.combined_rate) === dominant)!;
 
-    return NextResponse.json({ zip, rate_count: rates.length, ...match });
+    return NextResponse.json({ zip, rate_count: rates.length, ...location, ...match });
   } catch (err) {
     console.error("[Tax] lookup error:", err instanceof Error ? err.message : "unknown");
     return NextResponse.json({ error: "Lookup failed." }, { status: 500 });

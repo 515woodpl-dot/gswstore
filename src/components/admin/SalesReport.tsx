@@ -24,6 +24,14 @@ interface OrderRow {
   created_at: string;
   total: number;
   discount_total: number;
+  tax_total: number;
+  tax_rate: number;
+  tax_city: string;
+  tax_zip: string;
+  tax_exempt: boolean;
+  buyer_type: "personal" | "company";
+  payment_method: "cash" | "zelle" | "square" | "legacy_unknown";
+  reseller_permit_status: "not_required" | "approved" | "rejected";
   status: string;
   source: string | null;
   is_test: boolean;
@@ -168,7 +176,7 @@ export default function SalesReport({
 
   function exportCsv() {
     const rows: string[][] = [
-      ["Order", "Date", "Source", "Sold by", "Item", "SKU", "Qty", "List price", "Sold price", "Cost per base unit", "Base units per sale", "Line cost", "Discount", "Discount reason", "Line total", "Line profit"],
+      ["Order", "Date", "Source", "Sold by", "Purchase for", "Payment method", "Tax city", "Tax ZIP", "Tax rate", "Tax charged", "Tax exempt", "Permit status", "Item", "SKU", "Qty", "List price", "Sold price", "Cost per base unit", "Base units per sale", "Line cost", "Discount", "Discount reason", "Line total", "Line profit"],
     ];
     for (const o of orders) {
       if (o.transaction_type === "internal_use") continue;
@@ -181,6 +189,14 @@ export default function SalesReport({
           new Date(o.created_at).toLocaleString(),
           o.source === "walk_in" ? "Walk-in" : o.source === "manual" ? "Manual" : "Online",
           o.sold_by_name || "",
+          o.buyer_type === "company" ? "Company" : "Personal",
+          o.payment_method === "square" ? "Square Up" : o.payment_method === "zelle" ? "Zelle" : o.payment_method === "cash" ? "Cash" : "Legacy / unknown",
+          o.tax_city || "",
+          o.tax_zip || "",
+          (Number(o.tax_rate || 0) * 100).toFixed(2) + "%",
+          Number(o.tax_total || 0).toFixed(2),
+          o.tax_exempt ? "Yes" : "No",
+          o.reseller_permit_status || "not_required",
           it.name,
           it.sku ?? "",
           String(it.quantity),
@@ -498,6 +514,9 @@ export default function SalesReport({
             {expanded === o.id && (
               <div className="border-t border-slate-100 bg-slate-50 px-4 py-3">
                 {o.transaction_type === "internal_use" && <p className="mb-3 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Excluded from sales, discounts, profit, and margin. {o.internal_use_reason && `Reason: ${o.internal_use_reason}`}</p>}
+                <p className="mb-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+                  <strong>{o.buyer_type === "company" ? "Company" : "Personal use"}</strong> · {o.payment_method === "square" ? "Square Up" : o.payment_method === "zelle" ? "Zelle" : o.payment_method === "cash" ? "Cash" : "Legacy / unknown"} · Tax jurisdiction: {o.tax_city || "—"}{o.tax_zip ? `, ${o.tax_zip}` : ""} · {o.tax_exempt ? "Tax exempt (permit approved)" : `${(Number(o.tax_rate || 0) * 100).toFixed(2)}% / ${formatPrice(Number(o.tax_total || 0))} tax`}
+                </p>
                 <table className="w-full text-xs">
                   <thead className="text-slate-400">
                     <tr>

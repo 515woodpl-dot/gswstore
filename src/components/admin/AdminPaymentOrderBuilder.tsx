@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
 import type { InventoryItem } from "@/types";
+import SaleComplianceFields, { emptySaleCompliance, type SaleComplianceValue } from "@/components/admin/SaleComplianceFields";
 
 interface Line {
   item: InventoryItem;
@@ -32,9 +33,7 @@ export default function AdminPaymentOrderBuilder() {
   const [discountReason, setDiscountReason] = useState("");
 
   const [taxRate, setTaxRate] = useState(0);
-  const [applyTax, setApplyTax] = useState(true);
-  const [zip, setZip] = useState("");
-  const [taxLoading, setTaxLoading] = useState(false);
+  const [compliance, setCompliance] = useState<SaleComplianceValue>({ ...emptySaleCompliance });
   const [testMode, setTestMode] = useState(false);
 
   const [saving, setSaving] = useState(false);
@@ -61,18 +60,6 @@ export default function AdminPaymentOrderBuilder() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function lookupTax(z: string) {
-    setZip(z);
-    const clean = z.trim();
-    if (clean.length !== 5 || !/^\d{5}$/.test(clean)) { setTaxRate(0); return; }
-    setTaxLoading(true);
-    try {
-      const res = await fetch(`/api/admin/tax-rates?zip=${clean}`);
-      if (res.ok) { const d = await res.json(); setTaxRate(Number(d.combined_rate) || 0); }
-    } catch { /* leave tax rate as-is */ }
-    setTaxLoading(false);
-  }
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -113,7 +100,7 @@ export default function AdminPaymentOrderBuilder() {
     ? Math.round(afterLineDiscount * (Math.min(100, Math.max(0, discountValue)) / 100) * 100) / 100
     : discountType === "fixed" ? Math.min(afterLineDiscount, Math.max(0, discountValue)) : 0;
   const taxable = Math.max(0, afterLineDiscount - orderDiscount);
-  const taxAmount = applyTax ? Math.round(taxable * taxRate * 100) / 100 : 0;
+  const taxAmount = compliance.buyerType === "company" && compliance.resellerDecision === "approved" ? 0 : Math.round(taxable * taxRate * 100) / 100;
   const total = taxable + taxAmount;
   const totalDiscount = lineDiscounts + orderDiscount;
 
@@ -147,6 +134,8 @@ export default function AdminPaymentOrderBuilder() {
     if (!custName.trim()) { setError("Enter the customer's name."); return; }
     if (!custEmail.trim() || !custEmail.includes("@")) { setError("Enter a valid customer email."); return; }
     if (totalDiscount > 0 && !discountReason.trim()) { setError("A discount was applied — please enter a reason."); return; }
+    if (!compliance.buyerType || !compliance.taxCity.trim() || !/^\d{5}$/.test(compliance.taxZip)) { setError("Complete the required buyer and tax jurisdiction fields."); return; }
+    if (compliance.buyerType === "company" && (!compliance.resellerPermitPath || !compliance.resellerDecision)) { setError("Upload and review the reseller permit before continuing."); return; }
 
     setSaving(true);
     try {
@@ -161,8 +150,7 @@ export default function AdminPaymentOrderBuilder() {
           internalNotes: internalNotes.trim(),
           requestKey,
           testMode,
-          applyTax,
-          taxZip: zip,
+          ...compliance,
           discount: discountType ? { type: discountType, value: discountValue } : undefined,
           discountReason: discountReason.trim(),
           lines: lines.map((l) => ({ itemId: l.item.id, quantity: l.qty, lineDiscount: l.lineDiscount })),
@@ -231,7 +219,7 @@ export default function AdminPaymentOrderBuilder() {
           </a>
           <div className="mt-6 flex justify-center gap-3">
             <Link href="/admin/orders" className="rounded-xl bg-brand-navy px-4 py-2 text-sm font-semibold text-white">Go to Orders</Link>
-            <button onClick={() => { setResult(null); setRequestKey(crypto.randomUUID()); setLines([]); setCustName(""); setCustEmail(""); setCustPhone(""); setCustomerNotes(""); setInternalNotes(""); setDiscountType(""); setDiscountValue(0); setDiscountReason(""); }}
+            <button onClick={() => { setResult(null); setRequestKey(crypto.randomUUID()); setLines([]); setCustName(""); setCustEmail(""); setCustPhone(""); setCustomerNotes(""); setInternalNotes(""); setDiscountType(""); setDiscountValue(0); setDiscountReason(""); setCompliance({ ...emptySaleCompliance }); setTaxRate(0); }}
               className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
               Create Another
             </button>
@@ -341,6 +329,7 @@ export default function AdminPaymentOrderBuilder() {
             </span>
             <span className="mt-1 block text-xs leading-5 text-slate-600">Runs the complete workflow through Square Sandbox: reserves inventory, emails the link, and supports fulfillment. Delete the test order afterward to restore inventory and remove its records.</span>
           </label>
+          <SaleComplianceFields value={compliance} onChange={setCompliance} onTaxRate={setTaxRate} fixedPaymentMethod="square" />
           <div>
             <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Order Discount</label>
             <div className="flex gap-2">
@@ -360,19 +349,6 @@ export default function AdminPaymentOrderBuilder() {
                 <input value={discountReason} onChange={(e) => { setDiscountReason(e.target.value); setError(""); }} placeholder="e.g. Contractor pricing"
                   className="w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm" />
               </label>
-            )}
-          </div>
-
-          <div>
-            <label className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-              <input type="checkbox" checked={applyTax} onChange={(e) => setApplyTax(e.target.checked)} /> Apply Sales Tax
-            </label>
-            {applyTax && (
-              <div className="flex items-center gap-2">
-                <input value={zip} onChange={(e) => lookupTax(e.target.value)} placeholder="ZIP" maxLength={5}
-                  className="w-24 rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-                <span className="text-xs text-slate-500">{taxLoading ? "Looking up…" : taxRate > 0 ? `${(taxRate * 100).toFixed(2)}%` : "No rate found"}</span>
-              </div>
             )}
           </div>
 

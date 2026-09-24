@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
 import type { InventoryItem } from "@/types";
+import SaleComplianceFields, { emptySaleCompliance, type SaleComplianceValue } from "@/components/admin/SaleComplianceFields";
 
 interface PosLine {
   item: InventoryItem;
@@ -30,13 +31,12 @@ export default function WalkInPos() {
     taxRate: number; taxAmount: number;
   } | null>(null);
   const [taxRate, setTaxRate] = useState(0);
-  const [applyTax, setApplyTax] = useState(true);
+  const [compliance, setCompliance] = useState<SaleComplianceValue>({ ...emptySaleCompliance, taxCity: "Auburn" });
 
   // Fetch store ZIP and its tax rate on mount
   useEffect(() => {
     (async () => {
       try {
-        const settingsRes = await fetch("/api/admin/tax-rates?zip=store");
         // Get store ZIP from settings then look up rate
         const sbClient = createClient();
         const { data: settings } = await sbClient
@@ -45,6 +45,7 @@ export default function WalkInPos() {
           .eq("key", "store_zip")
           .single();
         if (settings?.value) {
+          setCompliance((current) => ({ ...current, taxZip: settings.value }));
           const rateRes = await fetch(`/api/admin/tax-rates?zip=${settings.value}`);
           if (rateRes.ok) {
             const rateData = await rateRes.json();
@@ -53,7 +54,6 @@ export default function WalkInPos() {
         }
       } catch { /* no tax rate available, default 0 */ }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -84,7 +84,7 @@ export default function WalkInPos() {
   const total = lines.reduce((s, l) => s + l.soldPrice * l.qty, 0);
   const listTotal = lines.reduce((s, l) => s + l.listPrice * l.qty, 0);
   const discountTotal = Math.max(0, listTotal - total);
-  const taxAmount = applyTax && taxRate > 0 ? Math.round(total * taxRate * 100) / 100 : 0;
+  const taxAmount = compliance.buyerType === "company" && compliance.resellerDecision === "approved" ? 0 : Math.round(total * taxRate * 100) / 100;
   const grandTotal = total + taxAmount;
 
   function addLine(item: InventoryItem) {
@@ -123,6 +123,8 @@ export default function WalkInPos() {
       setError("A discount was applied — please enter a reason.");
       return;
     }
+    if (!compliance.buyerType || !compliance.paymentMethod || !compliance.taxCity.trim() || !/^\d{5}$/.test(compliance.taxZip)) { setError("Complete the required buyer, payment, and tax jurisdiction fields."); return; }
+    if (compliance.buyerType === "company" && (!compliance.resellerPermitPath || !compliance.resellerDecision)) { setError("Upload and review the reseller permit before continuing."); return; }
 
     setSaving(true);
     try {
@@ -133,8 +135,7 @@ export default function WalkInPos() {
           customerName: custName.trim(),
           customerEmail: custEmail.trim(),
           discountReason: discountReason.trim(),
-          applyTax,
-          taxRate,
+          ...compliance,
           lines: lines.map((line) => ({
             itemId: line.item.id,
             qty: line.qty,
@@ -171,6 +172,7 @@ export default function WalkInPos() {
       setCustName("");
       setCustEmail("");
       setDiscountReason("");
+      setCompliance((current) => ({ ...emptySaleCompliance, taxZip: current.taxZip, taxCity: current.taxCity }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sale failed");
     } finally {
@@ -375,6 +377,8 @@ export default function WalkInPos() {
             </label>
           </div>
 
+          <SaleComplianceFields value={compliance} onChange={setCompliance} onTaxRate={setTaxRate} />
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <div className="flex items-center justify-between text-sm text-slate-600">
               <span>Items</span>
@@ -398,20 +402,10 @@ export default function WalkInPos() {
                 </label>
               </>
             )}
-            {taxRate > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <label className="flex cursor-pointer items-center gap-2 text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={applyTax}
-                    onChange={(e) => setApplyTax(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-brand-navy"
-                  />
-                  <span>Tax ({(taxRate * 100).toFixed(2)}%)</span>
-                </label>
-                <span className="font-semibold">{applyTax ? formatPrice(taxAmount) : "—"}</span>
-              </div>
-            )}
+            <div className="flex items-center justify-between text-sm text-slate-600">
+              <span>{taxAmount > 0 ? `Tax (${(taxRate * 100).toFixed(2)}%)` : "Tax exempt"}</span>
+              <span className="font-semibold">{formatPrice(taxAmount)}</span>
+            </div>
             <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
               <span className="text-base font-bold text-slate-950">Total</span>
               <span className="text-2xl font-black text-slate-950">{formatPrice(grandTotal)}</span>

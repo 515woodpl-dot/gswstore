@@ -19,7 +19,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const admin = adminClient();
   const { data: order, error: orderError } = await admin
     .from("orders")
-    .select("id,is_test,square_payment_link_id,square_payment_link_status")
+    .select("id,is_test,square_payment_link_id,square_payment_link_status,reseller_permit_path")
     .eq("id", orderId)
     .single();
   if (orderError || !order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
@@ -37,6 +37,10 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     );
     if (cleanupError) throw new Error(cleanupError.message);
     if (!deleted) return NextResponse.json({ error: "Order not found." }, { status: 404 });
+    if (order.reseller_permit_path) {
+      const { error: permitError } = await admin.storage.from("reseller-permits").remove([order.reseller_permit_path]);
+      if (permitError) console.warn("[TestOrder] permit cleanup failed:", permitError.message);
+    }
     console.log(`[TestOrder] ${orderId} deleted by ${auth.userId}; reserved inventory restored`);
     return NextResponse.json({ ok: true, deleted: true });
   } catch (error) {

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { createSale, SaleCreationError } from "@/lib/create-sale";
 import { orderNumber } from "@/lib/order-money";
+import { complianceOrderValues, resolveSaleCompliance } from "@/lib/sale-compliance";
 
 interface SaleLineInput {
   itemId: string;
@@ -50,8 +51,6 @@ export async function POST(request: NextRequest) {
     const customerName = typeof body.customerName === "string" ? body.customerName.trim() : "";
     const customerEmail = typeof body.customerEmail === "string" ? body.customerEmail.trim().toLowerCase() : "";
     const discountReason = typeof body.discountReason === "string" ? body.discountReason.trim() : "";
-    const requestedTaxRate = Number(body.taxRate);
-    const applyTax = body.applyTax !== false;
     const lines = parseLines(body.lines);
 
     if (!customerName || customerName.length > 200) {
@@ -60,9 +59,7 @@ export async function POST(request: NextRequest) {
     if (!customerEmail || customerEmail.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
       return NextResponse.json({ error: "Enter a valid customer email." }, { status: 400 });
     }
-    if (!Number.isFinite(requestedTaxRate) || requestedTaxRate < 0 || requestedTaxRate > 0.2) {
-      return NextResponse.json({ error: "The sales-tax rate is invalid." }, { status: 400 });
-    }
+    const compliance = await resolveSaleCompliance(admin, body);
 
     const { data: customer, error: customerError } = await admin
       .from("walk_in_customers")
@@ -76,13 +73,12 @@ export async function POST(request: NextRequest) {
       (authUser.user?.user_metadata?.full_name as string | undefined)?.trim()
       || authUser.user?.email?.split("@")[0]
       || "Staff";
-    const taxRate = applyTax ? requestedTaxRate : 0;
     const sale = await createSale({
       admin,
       source: "walk_in",
       orderNumber: orderNumber(),
       pricing: "explicit",
-      taxRate,
+      taxRate: compliance.taxRate,
       discountReason,
       lines: lines.map((line) => ({
         itemId: line.itemId,
@@ -93,11 +89,12 @@ export async function POST(request: NextRequest) {
       orderValues: ({ taxAmount }) => ({
         user_id: null,
         status: "completed",
-        notes: taxRate > 0 ? `Tax (${(taxRate * 100).toFixed(2)}%): $${taxAmount.toFixed(2)}` : "",
+        notes: compliance.taxRate > 0 ? `Tax (${(compliance.taxRate * 100).toFixed(2)}%): $${taxAmount.toFixed(2)}` : "Tax exempt — approved reseller permit",
         walk_in_customer_id: customer.id,
         fulfillment: "pickup",
         sold_by_id: auth.userId,
         sold_by_name: soldByName,
+        ...complianceOrderValues(compliance, auth.userId),
       }),
     });
 
@@ -108,7 +105,7 @@ export async function POST(request: NextRequest) {
       orderNumber: sale.order.order_number,
       total: sale.total,
       discountTotal: sale.discountTotal,
-      taxRate,
+      taxRate: compliance.taxRate,
       taxAmount: sale.taxAmount,
       soldByName,
     });

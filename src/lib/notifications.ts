@@ -405,14 +405,31 @@ async function sendEmail(
 }
 
 function emailShell(headerLabel: string, orderNumber: string, bodyHtml: string): string {
+  const siteUrl = BRAND.siteUrl.replace(/\/$/, "");
+  const logoUrl = `${siteUrl}/brand/gst-logo-white.png`;
   return `<!DOCTYPE html>
-<html><body style="margin:0;padding:0;background:#f8f9fa;font-family:sans-serif">
-<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
-  <div style="background:#1e3a5f;padding:24px 32px">
-    <h1 style="margin:0;color:#fff;font-size:1.2rem;font-weight:700">${headerLabel}</h1>
-    <p style="margin:6px 0 0;color:rgba(255,255,255,0.7);font-size:0.85rem">Order ${orderNumber}</p>
+<html lang="en"><body style="margin:0;padding:0;background:#f3f5f7;font-family:Arial,Helvetica,sans-serif;color:#172033">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">${headerLabel} for order ${orderNumber}</div>
+<div style="max-width:600px;margin:32px auto;background:#ffffff;border:1px solid #e5e9ef;border-radius:14px;overflow:hidden;box-shadow:0 3px 18px rgba(15,23,42,0.08)">
+  <div style="height:5px;background:#df5b2f;font-size:0;line-height:0">&nbsp;</div>
+  <div style="background:#172a42;padding:26px 32px;text-align:center">
+    <a href="${siteUrl}" style="display:inline-block;text-decoration:none">
+      <img src="${logoUrl}" width="280" alt="${BRAND.name}" style="display:block;width:280px;max-width:100%;height:auto;border:0;margin:0 auto" />
+    </a>
+    <div style="height:1px;background:rgba(255,255,255,0.16);margin:22px 0 18px"></div>
+    <h1 style="margin:0;color:#ffffff;font-size:22px;line-height:1.3;font-weight:700">${headerLabel}</h1>
+    <p style="margin:7px 0 0;color:#cbd5e1;font-size:13px;line-height:1.4">Order ${orderNumber}</p>
   </div>
-  <div style="padding:28px 32px">${bodyHtml}</div>
+  <div style="padding:30px 32px">${bodyHtml}</div>
+  <div style="border-top:1px solid #e5e9ef;background:#f8fafc;padding:20px 32px;text-align:center">
+    <p style="margin:0 0 5px;color:#334155;font-size:12px;font-weight:700">${BRAND.name}</p>
+    <p style="margin:0;color:#7b8797;font-size:11px;line-height:1.6">
+      ${BRAND.address}<br />
+      <a href="tel:${BRAND.phoneRaw}" style="color:#df5b2f;text-decoration:none">${BRAND.phone}</a>
+      &nbsp;&bull;&nbsp;
+      <a href="${siteUrl}" style="color:#df5b2f;text-decoration:none">stoneproductsupply.com</a>
+    </p>
+  </div>
 </div>
 </body></html>`;
 }

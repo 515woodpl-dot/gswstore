@@ -15,6 +15,9 @@ Updated September 24, 2026 on `feature/admin-payment-orders-safe`.
 
 ## Sales Report
 
+- Redesigned the report as a compact operations dashboard for desktop, tablet, and phone.
+- Added tiered KPI cards, a dense secondary metric strip, always-visible item performance, staff share bars, and expandable order summaries.
+- Mobile now uses Items, Orders, and Staff tabs with pinned item totals and compact CSV/QuickBooks controls.
 - Added filters for All, Cash, Online orders, Payment-link orders, and Walk-in orders.
 - Cash is filtered by payment method. Online, payment-link, and walk-in filters use the order source.
 - A Square transaction includes any order whose payment method is Square Up, including a walk-in paid by credit card.
@@ -25,6 +28,13 @@ Updated September 24, 2026 on `feature/admin-payment-orders-safe`.
 
 - Cash and Zelle transactions do not receive a Square processing fee.
 - Square gross, fee, and final deposit values are included in the Sales Report CSV without duplicating order-level totals across multiple item rows.
+
+## Admin interface
+
+- Applied the Sales Report visual system across the admin shell: warm neutral background, white 12px cards, restrained borders, compact typography, and rust-orange active accents.
+- Reworked the shared navigation for clearer active states, larger touch targets, a sticky desktop header, and a scroll-safe mobile menu.
+- Redesigned the admin dashboard into compact KPI cards and dense grouped tool lists.
+- Standardized page headers and spacing across orders, payment links, walk-in sales, past sales, inventory, receiving, purchase orders, packaging, categories, tax rates, discount codes, and staff access.
 
 ## Deployment
 

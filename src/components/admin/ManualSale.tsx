@@ -150,9 +150,10 @@ export default function ManualSale() {
   const inputCls = "rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-navy";
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
-      <h1 className="text-2xl font-black tracking-tight text-slate-950">Add a Past Sale</h1>
-      <p className="mt-1 text-sm text-slate-500">
+    <div className="mx-auto max-w-5xl px-3 py-4 sm:px-5 lg:px-6">
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b4532f]">Sales</p>
+      <h1 className="text-2xl font-black tracking-tight text-[#0f172a]">Add a Past Sale</h1>
+      <p className="mt-1 text-xs text-[#5b6678]">
         Record a sale that happened offline (power outage, no internet, handwritten). Backdate it to the real date so your reports and QuickBooks export stay accurate.
       </p>
 

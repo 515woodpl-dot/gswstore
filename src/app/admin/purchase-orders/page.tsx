@@ -31,11 +31,11 @@ export default async function PurchaseOrdersPage() {
     .order("name");
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-      <div className="mb-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-soft sm:p-6">
-        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-brand-gold">Admin</p>
-        <h1 className="text-3xl font-black tracking-tight text-slate-950">Purchase Orders</h1>
-        <p className="mt-1 text-sm text-slate-500">Track inbound shipments. Receiving a PO updates cost prices and stock automatically.</p>
+    <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5 lg:px-6">
+      <div className="mb-4 rounded-xl border border-[#e6e8ec] bg-white p-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b4532f]">Inventory</p>
+        <h1 className="text-2xl font-black tracking-tight text-[#0f172a]">Purchase Orders</h1>
+        <p className="mt-1 text-xs text-[#5b6678]">Track inbound shipments. Receiving a PO updates cost prices and stock automatically.</p>
       </div>
       <PurchaseOrderManager
         initialPOs={pos ?? []}

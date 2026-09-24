@@ -230,11 +230,11 @@ export default function AdminPaymentOrderBuilder() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:py-10">
-      <div className="mb-6">
-        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-brand-gold">Admin</p>
-        <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">New Payment-Link Order</h1>
-        <p className="mt-1 text-sm text-slate-500">Build the order, then send the customer a secure Square payment link by email.</p>
+    <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5 lg:px-6">
+      <div className="mb-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b4532f]">Sales</p>
+        <h1 className="text-2xl font-black tracking-tight text-[#0f172a]">New Payment-Link Order</h1>
+        <p className="mt-1 text-xs text-[#5b6678]">Build the order, then send the customer a secure Square payment link by email.</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">

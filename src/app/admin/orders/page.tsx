@@ -24,11 +24,11 @@ export default async function AdminOrdersPage() {
   const orders: Order[] = (data ?? []).map((o) => ({ ...o, items: o.order_items }));
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-      <div className="mb-8 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-soft sm:flex-row sm:items-end sm:justify-between sm:p-6">
+    <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5 lg:px-6">
+      <div className="mb-4 flex flex-col gap-3 rounded-xl border border-[#e6e8ec] bg-white p-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-brand-gold">Admin</p>
-          <h1 className="text-3xl font-black tracking-tight text-slate-950">Orders</h1>
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b4532f]">Sales</p>
+          <h1 className="text-2xl font-black tracking-tight text-[#0f172a]">Check Placed Orders</h1>
         </div>
         <div className="flex gap-2">
           <Link href="/admin/orders/new" className="rounded-xl bg-brand-navy px-4 py-2 text-sm font-semibold text-white hover:bg-brand-navy/90">

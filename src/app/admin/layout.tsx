@@ -3,10 +3,10 @@ import RegisterSW from "@/components/RegisterSW";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#fffdfb_0%,#f7fbfc_100%)] text-slate-700">
+    <div className="admin-shell min-h-screen bg-[#fbfaf8] text-[#5b6678]">
       <RegisterSW />
       <AdminHeader />
-      {children}
+      <div className="admin-shell-content">{children}</div>
     </div>
   );
 }

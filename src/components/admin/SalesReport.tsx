@@ -95,8 +95,10 @@ export default function SalesReport({
   loadError?: string;
 }) {
   const router = useRouter();
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [showItems, setShowItems] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>("first");
+  const [showUnsold, setShowUnsold] = useState(false);
+  const [showAllOrders, setShowAllOrders] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"items" | "orders" | "staff">("items");
   const [repairingCosts, setRepairingCosts] = useState(false);
   const [costRepairMessage, setCostRepairMessage] = useState("");
   const [showTests, setShowTests] = useState(false);
@@ -299,326 +301,122 @@ export default function SalesReport({
     URL.revokeObjectURL(url);
   }
 
+  const listRevenue = stats.byItem.reduce((sum, item) => sum + item.listRevenue, 0);
+  const unsoldCount = stats.byItem.filter((item) => item.qty === 0).length;
+  const visibleItems = showUnsold ? stats.byItem : stats.byItem.filter((item) => item.qty > 0);
+  const expandedOrderId = expanded === "first" ? orders[0]?.id ?? null : expanded;
+  const displayedOrders = showAllOrders ? orders : orders.slice(0, 5);
+
+  function itemPanel(mobile = false) {
+    if (mobile) {
+      return (
+        <div className="divide-y divide-[#e6e8ec]">
+          {visibleItems.map((item) => (
+            <div key={item.name} className={`grid grid-cols-[1fr_auto] gap-3 px-3 py-3 ${item.qty === 0 ? "opacity-40" : ""}`}>
+              <div className="min-w-0"><p className="truncate text-xs font-bold text-[#0f172a]">{item.name}</p><p className="mt-0.5 text-[10px] text-[#5b6678]">{item.qty} sold · {item.stock} in stock</p></div>
+              <div className="text-right tabular-nums"><p className="text-xs font-bold text-[#0f172a]">{item.qty ? formatPrice(item.revenue) : "—"}</p><p className={`mt-0.5 text-[10px] font-bold ${item.costMissing ? "text-[#9a4a14]" : item.profit < 0 ? "text-[#b4233a]" : "text-[#23694a]"}`}>{item.qty ? item.costMissing ? "Cost missing" : formatPrice(item.profit) : "—"}</p></div>
+            </div>
+          ))}
+          <div className="sticky bottom-0 grid grid-cols-3 gap-2 bg-[#0f172a] px-3 py-3 text-white shadow-[0_-4px_16px_rgba(15,23,42,.12)]">
+            <MiniTotal label="Units" value={String(stats.units)} /><MiniTotal label="Revenue" value={formatPrice(stats.revenue)} /><MiniTotal label="Profit" value={stats.missingCostUnits ? "Unknown" : formatPrice(stats.profit)} />
+          </div>
+        </div>
+      );
+    }
+    return (
+      <section className="overflow-hidden rounded-xl border border-[#e6e8ec] bg-white">
+        <div className="flex items-center justify-between border-b border-[#e6e8ec] px-4 py-3">
+          <div><h2 className="text-sm font-bold text-[#0f172a]">Inventory and profit by item</h2><p className="text-[11px] text-[#5b6678]">Sales, cost and margin for this period</p></div>
+          {unsoldCount > 0 && <button type="button" onClick={() => setShowUnsold((value) => !value)} className="min-h-9 rounded-lg border border-[#e6e8ec] px-3 text-[11px] font-bold text-[#5b6678] hover:bg-[#fbfaf8]">{showUnsold ? `Hide ${unsoldCount} unsold` : `Show ${unsoldCount} unsold`}</button>}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] table-fixed text-[11px] tabular-nums">
+            <thead className="bg-[#fbfaf8] text-[10px] font-bold uppercase tracking-wide text-[#5b6678]"><tr><th className="w-[28%] px-3 py-2 text-left">Item</th><th className="px-2 py-2 text-right">Qty</th><th className="px-2 py-2 text-right">Stock</th><th className="px-2 py-2 text-right max-lg:hidden">List</th><th className="px-2 py-2 text-right">Discount</th><th className="px-2 py-2 text-right">Net</th><th className="px-2 py-2 text-right">Cost</th><th className="px-2 py-2 text-right">Profit</th><th className="px-3 py-2 text-right">Margin</th></tr></thead>
+            <tbody>{visibleItems.map((item) => {
+              const margin = item.revenue > 0 ? item.profit / item.revenue * 100 : 0;
+              const negative = !item.costMissing && item.profit < 0;
+              return <tr key={item.name} className={`h-[25px] border-t border-[#eef0f2] ${item.qty === 0 ? "text-slate-300" : "text-[#5b6678]"}`}>
+                <td className="truncate px-3 font-semibold text-[#0f172a]">{negative && <span className="mr-1 text-[#9a4a14]">▲</span>}{item.name}</td><td className="px-2 text-right">{item.qty || "—"}</td><td className="px-2 text-right">{item.stock}</td><td className="px-2 text-right max-lg:hidden">{item.qty ? formatPrice(item.listRevenue) : "—"}</td><td className="px-2 text-right text-[#9a4a14]">{item.discounts ? `−${formatPrice(item.discounts)}` : "—"}</td><td className="px-2 text-right font-semibold text-[#0f172a]">{item.qty ? formatPrice(item.revenue) : "—"}</td><td className={`px-2 text-right ${item.costMissing && item.qty ? "font-bold text-[#9a4a14]" : ""}`}>{item.qty ? item.costMissing ? "Missing" : formatPrice(item.cost) : "—"}</td><td className={`px-2 text-right font-bold ${negative ? "text-[#b4233a]" : item.qty ? "text-[#23694a]" : ""}`}>{item.qty ? item.costMissing ? "—" : formatPrice(item.profit) : "—"}</td><td className={`px-3 text-right font-bold ${negative ? "text-[#b4233a]" : item.qty ? "text-[#23694a]" : ""}`}>{item.qty ? item.costMissing ? "—" : `${margin.toFixed(1)}%` : "—"}</td>
+              </tr>;
+            })}</tbody>
+            <tfoot><tr className="h-8 border-t-2 border-[#cbd1d8] bg-[#fbfaf8] font-bold text-[#0f172a]"><td className="px-3">Totals</td><td className="px-2 text-right">{stats.units}</td><td className="px-2 text-right">{stats.byItem.reduce((sum, item) => sum + item.stock, 0)}</td><td className="px-2 text-right max-lg:hidden">{formatPrice(listRevenue)}</td><td className="px-2 text-right text-[#9a4a14]">{stats.discounts ? `−${formatPrice(stats.discounts)}` : "—"}</td><td className="px-2 text-right">{formatPrice(stats.revenue)}</td><td className="px-2 text-right">{stats.missingCostUnits ? "Incomplete" : formatPrice(stats.cost)}</td><td className="px-2 text-right text-[#23694a]">{stats.missingCostUnits ? "—" : formatPrice(stats.profit)}</td><td className="px-3 text-right text-[#23694a]">{stats.missingCostUnits ? "—" : `${stats.margin.toFixed(1)}%`}</td></tr></tfoot>
+          </table>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#e6e8ec] bg-[#fbfaf8] px-4 py-2 text-[10px] text-[#5b6678]"><span>Net revenue excludes sales tax. Square deposit uses 2.60% + $0.15 per transaction.</span>{stats.missingCostUnits > 0 && <button type="button" onClick={repairHistoricalCosts} disabled={repairingCosts} className="font-bold text-[#9a4a14] disabled:opacity-50">{repairingCosts ? "Repairing…" : `Repair ${stats.missingCostUnits} missing costs`}</button>}</div>
+        {costRepairMessage && <p className="border-t border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-semibold text-amber-900">{costRepairMessage}</p>}
+      </section>
+    );
+  }
+
+  function staffPanel() {
+    return <section className="rounded-xl border border-[#e6e8ec] bg-white p-4"><h2 className="text-sm font-bold text-[#0f172a]">By staff member</h2><div className="mt-3 space-y-3">{stats.byStaff.length === 0 ? <p className="text-xs text-[#5b6678]">No staff sales in this period.</p> : stats.byStaff.map(([name, member]) => {
+      const share = stats.revenue > 0 ? member.revenue / stats.revenue * 100 : 0;
+      return <div key={name}><div className="flex items-end justify-between gap-3 text-xs"><div><p className="font-bold text-[#0f172a]">{name}</p><p className="text-[10px] text-[#5b6678]">{member.count} orders{member.discounts ? ` · −${formatPrice(member.discounts)} discounts` : ""}</p></div><p className="font-bold tabular-nums text-[#0f172a]">{formatPrice(member.revenue)}</p></div><div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[#eceff2]"><div className="h-full rounded-full bg-[#b4532f]" style={{ width: `${Math.max(2, share)}%` }} /></div></div>;
+    })}</div></section>;
+  }
+
+  function ordersPanel(mobile = false) {
+    return <section className={`overflow-hidden rounded-xl border border-[#e6e8ec] bg-white ${mobile ? "" : "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col"}`}><div className="flex items-center justify-between border-b border-[#e6e8ec] px-4 py-3"><h2 className="text-sm font-bold text-[#0f172a]">Orders</h2><span className="text-[10px] font-bold uppercase tracking-wide text-[#5b6678]">Newest first</span></div><div className={`${mobile ? "" : "xl:overflow-y-auto"}`}>
+      {displayedOrders.length === 0 ? <p className="px-4 py-8 text-center text-xs text-[#5b6678]">No sales in this period.</p> : displayedOrders.map((order) => {
+        const isOpen = expandedOrderId === order.id;
+        const square = squareAmounts(order);
+        return <article key={order.id} className="border-b border-[#eef0f2] last:border-0"><button type="button" onClick={() => setExpanded(isOpen ? null : order.id)} className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-2 text-left hover:bg-[#fbfaf8]"><div className="min-w-0"><p className="truncate font-mono text-[11px] font-bold text-[#0f172a]">{order.order_number}</p><p className="mt-0.5 text-[10px] text-[#5b6678]">{new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {order.source === "admin_payment_link" ? "Payment link" : order.source === "walk_in" ? "Walk-in" : order.source === "manual" ? "Manual" : "Online"} · {order.sold_by_name || "—"}</p></div><div className="shrink-0 text-right"><p className="text-xs font-black tabular-nums text-[#0f172a]">{formatPrice(order.total)}</p><p className="text-[9px] font-bold uppercase text-[#5b6678]">{order.payment_method === "square" ? "Square" : order.payment_method || "Legacy"}</p></div></button>{isOpen && <div className="border-t border-[#eef0f2] bg-[#fbfaf8] px-3 py-3"><div className="mb-2 flex flex-wrap gap-1 text-[9px] font-bold uppercase"><span className="rounded bg-white px-2 py-1 text-[#5b6678] ring-1 ring-[#e6e8ec]">{order.buyer_type === "company" ? "Company" : "Personal"}</span><span className="rounded bg-white px-2 py-1 text-[#5b6678] ring-1 ring-[#e6e8ec]">{order.tax_city || "No city"} {order.tax_zip || ""} · {formatPrice(order.tax_total || 0)} tax</span>{order.is_test && <span className="rounded bg-violet-100 px-2 py-1 text-violet-700">Test</span>}</div><div className="space-y-1.5">{order.order_items.map((item) => <CompactOrderItem key={item.id} item={item} onSaved={() => router.refresh()} />)}</div>{square.gross > 0 && <p className="mt-2 rounded-lg bg-emerald-50 px-2 py-1.5 text-[10px] text-emerald-900">Square: {formatPrice(square.gross)} − {formatPrice(square.fee)} = <strong>{formatPrice(square.deposit)} deposit</strong></p>}{(order.source === "walk_in" || order.source === "manual") && <div className="mt-3 flex min-h-11 flex-wrap items-center justify-end gap-3 border-t border-[#e6e8ec] pt-2">{order.transaction_type !== "internal_use" && <InternalUseButton orderId={order.id} onSaved={() => router.refresh()} />}<DeleteSaleButton orderId={order.id} orderNumber={order.order_number} onDeleted={() => router.refresh()} /></div>}</div>}</article>;
+      })}
+      {orders.length > 5 && <button type="button" onClick={() => setShowAllOrders((value) => !value)} className="min-h-11 w-full border-t border-[#e6e8ec] px-4 text-xs font-bold text-[#b4532f] hover:bg-[#fbfaf8]">{showAllOrders ? "Show newest 5" : `${orders.length - 5} more orders · View all`}</button>}
+    </div></section>;
+  }
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="admin-dashboard mx-auto max-w-[1400px] px-3 py-4 sm:px-5 lg:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-950">Sales Report</h1>
-          <p className="mt-1 text-sm text-slate-500">{from} → {to} · {stats.orders} orders</p>
+          <h1 className="text-xl font-black tracking-tight text-[#0f172a] sm:text-2xl">Sales Report <span className="font-medium text-[#5b6678]">· {from}–{to} · {stats.orders} orders</span></h1>
         </div>
-        <div className="flex gap-2">
-          <button onClick={exportCsv} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
-            ⬇ CSV
-          </button>
-          <button onClick={exportQuickBooks} className="rounded-xl bg-brand-navy px-4 py-2 text-sm font-bold text-white hover:bg-slate-800">
-            ⬇ QuickBooks
-          </button>
+        <div className="flex items-center gap-2">
+          <select aria-label="Kind of sale" value={saleKind} onChange={(event) => { setSaleKind(event.target.value as SaleKindFilter); setExpanded("first"); }} className="h-11 rounded-lg border border-[#e6e8ec] bg-white px-3 text-xs font-bold text-[#0f172a] xl:hidden">{SALE_KINDS.map((kind) => <option key={kind.key} value={kind.key}>{kind.label} ({saleKindCounts[kind.key]})</option>)}</select>
+          <div className="hidden rounded-lg border border-[#e6e8ec] bg-white p-1 xl:flex">{SALE_KINDS.map((kind) => <button key={kind.key} type="button" onClick={() => { setSaleKind(kind.key); setExpanded("first"); }} className={`rounded-md px-2.5 py-1.5 text-[11px] font-bold ${saleKind === kind.key ? "bg-[#b4532f] text-white" : "text-[#5b6678] hover:bg-[#fbfaf8]"}`}>{kind.label} <span className="font-medium opacity-65">{saleKindCounts[kind.key]}</span></button>)}</div>
+          <button onClick={exportCsv} className="h-11 rounded-lg border border-[#e6e8ec] bg-white px-3 text-xs font-bold text-[#0f172a] hover:bg-[#fbfaf8]">CSV</button>
+          <button onClick={exportQuickBooks} aria-label="Export for QuickBooks" className="h-11 rounded-lg bg-[#0f172a] px-3 text-xs font-bold text-white hover:bg-slate-800"><span className="sm:hidden">QB</span><span className="hidden sm:inline">QuickBooks</span></button>
         </div>
       </div>
 
       {loadError && <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Could not load the complete report: {loadError}</div>}
       {!loadError && orders.length === 0 && <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">No sales were found from {from} through {to}. Choose Last 90 days or All time to include older sales.</div>}
 
-      {/* Range filters */}
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-1 rounded-xl border border-[#e6e8ec] bg-white p-2">
         {RANGES.map((r) => (
           <button key={r.key} onClick={() => applyRange(r.key)}
-            className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${range === r.key ? "bg-brand-navy text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"}`}>
-            {r.label}
+            className={`hidden h-9 rounded-lg px-2.5 text-xs font-bold transition sm:block ${range === r.key ? "bg-[#0f172a] text-white" : "text-[#5b6678] hover:bg-[#fbfaf8]"}`}>
+            {r.label.replace("Last ", "").replace("This ", "")}
           </button>
         ))}
-        <div className="ml-2 flex items-center gap-1 text-sm">
-          <input type="date" defaultValue={from} id="from-date" className="rounded-lg border border-slate-200 px-2 py-1" />
+        <select aria-label="Date range" value={range} onChange={(event) => applyRange(event.target.value)} className="h-11 flex-1 rounded-lg border border-[#e6e8ec] px-3 text-xs font-bold sm:hidden">{RANGES.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select>
+        <div className="hidden items-center gap-1 text-xs lg:flex">
+          <input type="date" defaultValue={from} id="from-date" className="h-9 rounded-lg border border-[#e6e8ec] px-2" />
           <span className="text-slate-400">→</span>
-          <input type="date" defaultValue={to} id="to-date" className="rounded-lg border border-slate-200 px-2 py-1" />
+          <input type="date" defaultValue={to} id="to-date" className="h-9 rounded-lg border border-[#e6e8ec] px-2" />
           <button
             onClick={() => {
               const f = (document.getElementById("from-date") as HTMLInputElement).value;
               const t = (document.getElementById("to-date") as HTMLInputElement).value;
               if (f && t) applyCustom(f, t);
             }}
-            className="rounded-lg bg-slate-100 px-3 py-1 font-semibold text-slate-700 hover:bg-slate-200">
+            className="h-9 rounded-lg bg-[#eef0f2] px-3 font-bold text-[#0f172a] hover:bg-[#e2e6ea]">
             Apply
           </button>
         </div>
-        <label className={`ml-auto flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ${showTests ? "bg-violet-50 text-violet-800 ring-violet-300" : "bg-white text-slate-600 ring-slate-200"}`}>
+        <label className="ml-auto flex min-h-9 cursor-pointer items-center gap-2 px-2 text-xs font-bold text-[#5b6678]">
           <input type="checkbox" checked={showTests} onChange={(event) => setShowTests(event.target.checked)} />
           Include test orders
         </label>
       </div>
 
-      {/* Sale-kind filters. Cash intentionally filters by payment method;
-          the other choices filter by the order's creation source. */}
-      <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
-        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Kind of sale</p>
-        <div className="flex flex-wrap gap-2">
-          {SALE_KINDS.map((kind) => (
-            <button
-              key={kind.key}
-              type="button"
-              onClick={() => { setSaleKind(kind.key); setExpanded(null); }}
-              className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${saleKind === kind.key ? "bg-brand-gold text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-            >
-              {kind.label} ({saleKindCounts[kind.key]})
-            </button>
-          ))}
-        </div>
-        <p className="mt-2 text-xs text-slate-500">Cash includes every sale paid in cash. Online, payment-link, and walk-in choices are based on where the order was created.</p>
-      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><StatCard label="Net revenue" value={formatPrice(stats.revenue)} note={`List ${formatPrice(listRevenue)} less ${formatPrice(stats.discounts)} discounts`} accent="text-[#23694a]" /><StatCard label="Cost" value={stats.missingCostUnits ? "Incomplete" : formatPrice(stats.cost)} note={`${stats.units} units sold`} accent="text-[#0f172a]" /><StatCard label="Profit" value={stats.missingCostUnits ? "Unknown" : formatPrice(stats.profit)} note={stats.missingCostUnits ? `${stats.missingCostUnits} units need cost` : "Revenue less landed cost"} accent={stats.profit < 0 ? "text-[#b4233a]" : "text-[#23694a]"} /><StatCard label="Margin" value={stats.missingCostUnits ? "Unknown" : `${stats.margin.toFixed(1)}%`} note="Across sold inventory" accent={stats.margin < 20 ? "text-[#9a4a14]" : "text-[#23694a]"} /></div>
+      <div className="mt-2 flex gap-2 overflow-x-auto rounded-xl border border-[#e6e8ec] bg-white px-3 py-2 sm:grid sm:grid-cols-8 sm:divide-x sm:divide-[#e6e8ec]"><SecondaryMetric label="Walk-in" value={formatPrice(stats.walkIn)} /><SecondaryMetric label="Online" value={formatPrice(stats.online)} /><SecondaryMetric label="Square gross" value={formatPrice(stats.squareGross)} /><SecondaryMetric label="Fees" value={`−${formatPrice(stats.squareFees)}`} caution /><SecondaryMetric label="Deposit" value={formatPrice(stats.squareDeposit)} positive /><SecondaryMetric label="Discounts" value={`−${formatPrice(stats.discounts)}`} caution /><SecondaryMetric label="Units" value={String(stats.units)} /><SecondaryMetric label="Internal" value={String(stats.internalUnits)} /></div>
 
-      {/* Stat cards */}
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Net product revenue" value={formatPrice(stats.revenue)} accent="text-emerald-700" />
-        <StatCard label={stats.missingCostUnits > 0 ? "Cost (incomplete)" : "Cost"} value={formatPrice(stats.cost)} accent="text-slate-700" />
-        <StatCard label={stats.missingCostUnits > 0 ? "Profit (incomplete)" : "Profit"} value={stats.missingCostUnits > 0 ? "Unknown" : formatPrice(stats.profit)} accent={stats.missingCostUnits > 0 ? "text-amber-700" : stats.profit >= 0 ? "text-emerald-700" : "text-rose-700"} />
-        <StatCard label={stats.missingCostUnits > 0 ? "Margin (incomplete)" : "Margin"} value={stats.missingCostUnits > 0 ? "Unknown" : `${stats.margin.toFixed(1)}%`} accent={stats.missingCostUnits > 0 ? "text-amber-700" : stats.margin >= 20 ? "text-emerald-700" : "text-amber-700"} />
-      </div>
+      <div className="mt-3 hidden gap-4 md:grid xl:grid-cols-[minmax(0,960px)_minmax(320px,400px)]"><div>{itemPanel()}</div><aside className="grid gap-4 md:grid-cols-2 xl:flex xl:max-h-[590px] xl:flex-col xl:grid-cols-none">{staffPanel()}{ordersPanel()}</aside></div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Discounts given" value={formatPrice(stats.discounts)} accent="text-amber-700" />
-        <StatCard label="Units sold" value={String(stats.units)} />
-        <StatCard label="Walk-in revenue" value={formatPrice(stats.walkIn)} />
-        <StatCard label="Online revenue" value={formatPrice(stats.online)} />
-        <StatCard label="Square gross" value={formatPrice(stats.squareGross)} />
-        <StatCard label="Square fees" value={`−${formatPrice(stats.squareFees)}`} accent="text-amber-700" />
-        <StatCard label="Final Square deposit" value={formatPrice(stats.squareDeposit)} accent="text-emerald-700" />
-        {stats.internalUnits > 0 && <StatCard label="Internal-use units" value={String(stats.internalUnits)} accent="text-slate-700" />}
-      </div>
-      <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
-        Net product revenue is the item amount actually collected after discounts, excluding sales tax. Final Square deposit is estimated per Square transaction as the full order total minus 2.60% and $0.15. Cash and Zelle sales have no Square fee. Cost is captured from inventory when the item is sold, so later receiving-cost changes do not alter past profit.
-      </p>
-      {stats.missingCostUnits > 0 && (
-        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-5 text-amber-950">
-          <p>Cost is missing for {stats.missingCostUnits} sold unit{stats.missingCostUnits === 1 ? "" : "s"}. Profit and margin stay hidden so the report never treats unknown cost as $0.</p>
-          <p className="mt-1 text-xs text-amber-800">If these products now have an Average Landed Cost in Inventory, you can use that current cost as the best available historical estimate.</p>
-          <button
-            type="button"
-            onClick={repairHistoricalCosts}
-            disabled={repairingCosts}
-            className="mt-3 rounded-lg bg-amber-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-amber-950 disabled:cursor-wait disabled:opacity-60"
-          >
-            {repairingCosts ? "Repairing costs..." : "Backfill from current inventory costs"}
-          </button>
-          {costRepairMessage && <p className="mt-2 text-xs font-semibold">{costRepairMessage}</p>}
-        </div>
-      )}
-
-      {/* Item profit breakdown button */}
-      <div className="mt-4 flex justify-end">
-        <button onClick={() => setShowItems(!showItems)}
-          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-          {showItems ? "Hide item breakdown" : "📦 View profit by item"}
-        </button>
-      </div>
-
-      {/* Per-item profit breakdown */}
-      {showItems && stats.byItem.length > 0 && (
-        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-bold text-slate-950">Inventory and profit by item</h2>
-          <p className="mt-1 text-xs text-slate-400">All inventory products are shown. List sales less discounts equals net revenue. Cost = what you paid × qty sold.</p>
-
-          {/* Mobile: the nine-column table becomes one readable card per item. */}
-          <div className="mt-4 space-y-3 lg:hidden">
-            {stats.byItem.map((item) => {
-              const margin = item.revenue > 0 ? (item.profit / item.revenue) * 100 : 0;
-              return (
-                <article key={item.name} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="min-w-0 text-sm font-bold leading-5 text-slate-900">{item.name}</h3>
-                    <div className="shrink-0 text-right text-[11px] font-semibold text-slate-500">
-                      <p>{item.qty} sold</p>
-                      <p>{item.stock} in stock</p>
-                    </div>
-                  </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-slate-200 pt-3">
-                    <MobileMetric label="List sales" value={formatPrice(item.listRevenue)} />
-                    <MobileMetric label="Discounts" value={item.discounts > 0 ? `-${formatPrice(item.discounts)}` : "-"} valueClass="text-amber-700" />
-                    <MobileMetric label="Net revenue" value={formatPrice(item.revenue)} strong />
-                    <MobileMetric label="Cost" value={item.costMissing ? "Missing" : formatPrice(item.cost)} valueClass={item.costMissing ? "text-amber-700" : "text-slate-700"} />
-                  </dl>
-                  <div className="mt-3 flex items-end justify-between rounded-xl bg-white px-3 py-2.5 ring-1 ring-slate-200">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Profit</p>
-                      <p className={`mt-0.5 text-lg font-black ${item.costMissing ? "text-amber-700" : item.profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                        {item.costMissing ? "Unknown" : formatPrice(item.profit)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Margin</p>
-                      <p className={`mt-0.5 text-sm font-black ${item.costMissing ? "text-amber-700" : margin >= 20 ? "text-emerald-700" : margin >= 0 ? "text-amber-600" : "text-rose-700"}`}>
-                        {item.costMissing ? "Unknown" : `${margin.toFixed(1)}%`}
-                      </p>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-
-            <section className="rounded-2xl bg-brand-navy p-4 text-white">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-white/60">Report totals</p>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <MobileTotal label="Units sold" value={String(stats.units)} />
-                <MobileTotal label="In stock" value={String(stats.byItem.reduce((sum, item) => sum + item.stock, 0))} />
-                <MobileTotal label="List sales" value={formatPrice(stats.byItem.reduce((sum, item) => sum + item.listRevenue, 0))} />
-                <MobileTotal label="Discounts" value={stats.discounts > 0 ? `-${formatPrice(stats.discounts)}` : "-"} />
-                <MobileTotal label="Net revenue" value={formatPrice(stats.revenue)} />
-                <MobileTotal label="Cost" value={stats.missingCostUnits > 0 ? "Incomplete" : formatPrice(stats.cost)} />
-                <MobileTotal label="Profit" value={stats.missingCostUnits > 0 ? "Unknown" : formatPrice(stats.profit)} />
-                <MobileTotal label="Margin" value={stats.missingCostUnits > 0 ? "Unknown" : `${stats.margin.toFixed(1)}%`} />
-              </div>
-            </section>
-          </div>
-
-          {/* Desktop: retain the dense comparison table where it has room. */}
-          <div className="mt-3 hidden overflow-x-auto lg:block">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-xs text-slate-400">
-                  <th className="pb-2 text-left font-semibold">Item</th>
-                  <th className="pb-2 text-right font-semibold">Qty</th>
-                  <th className="pb-2 text-right font-semibold">In stock</th>
-                  <th className="pb-2 text-right font-semibold">List sales</th>
-                  <th className="pb-2 text-right font-semibold">Discounts</th>
-                  <th className="pb-2 text-right font-semibold">Net revenue</th>
-                  <th className="pb-2 text-right font-semibold">Cost</th>
-                  <th className="pb-2 text-right font-semibold">Profit</th>
-                  <th className="pb-2 text-right font-semibold">Margin</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.byItem.map((item) => {
-                  const margin = item.revenue > 0 ? (item.profit / item.revenue) * 100 : 0;
-                  return (
-                    <tr key={item.name} className="border-b border-slate-100 last:border-0">
-                      <td className="py-2 font-semibold text-slate-800">{item.name}</td>
-                      <td className="py-2 text-right text-slate-600">{item.qty}</td>
-                      <td className="py-2 text-right text-slate-600">{item.stock}</td>
-                      <td className="py-2 text-right text-slate-600">{formatPrice(item.listRevenue)}</td>
-                      <td className="py-2 text-right text-amber-700">{item.discounts > 0 ? `−${formatPrice(item.discounts)}` : "—"}</td>
-                      <td className="py-2 text-right font-semibold text-slate-900">{formatPrice(item.revenue)}</td>
-                      <td className={`py-2 text-right ${item.costMissing ? "font-semibold text-amber-700" : "text-slate-500"}`}>{item.costMissing ? "Missing" : formatPrice(item.cost)}</td>
-                      <td className={`py-2 text-right font-bold ${item.costMissing ? "text-amber-700" : item.profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                        {item.costMissing ? "—" : formatPrice(item.profit)}
-                      </td>
-                      <td className={`py-2 text-right text-xs font-semibold ${item.costMissing ? "text-amber-700" : margin >= 20 ? "text-emerald-600" : margin >= 0 ? "text-amber-600" : "text-rose-600"}`}>
-                        {item.costMissing ? "—" : `${margin.toFixed(1)}%`}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-slate-300">
-                  <td className="pt-2 font-bold text-slate-950">Totals</td>
-                  <td className="pt-2 text-right font-semibold">{stats.units}</td>
-                  <td className="pt-2 text-right font-semibold">{stats.byItem.reduce((sum, item) => sum + item.stock, 0)}</td>
-                  <td className="pt-2 text-right font-semibold">{formatPrice(stats.byItem.reduce((sum, item) => sum + item.listRevenue, 0))}</td>
-                  <td className="pt-2 text-right font-semibold text-amber-700">{stats.discounts > 0 ? `−${formatPrice(stats.discounts)}` : "—"}</td>
-                  <td className="pt-2 text-right font-bold text-slate-900">{formatPrice(stats.revenue)}</td>
-                  <td className={`pt-2 text-right font-semibold ${stats.missingCostUnits > 0 ? "text-amber-700" : "text-slate-500"}`}>{stats.missingCostUnits > 0 ? "Incomplete" : formatPrice(stats.cost)}</td>
-                  <td className={`pt-2 text-right font-black ${stats.missingCostUnits > 0 ? "text-amber-700" : stats.profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                    {stats.missingCostUnits > 0 ? "—" : formatPrice(stats.profit)}
-                  </td>
-                  <td className={`pt-2 text-right text-xs font-bold ${stats.missingCostUnits > 0 ? "text-amber-700" : stats.margin >= 20 ? "text-emerald-600" : "text-amber-600"}`}>
-                    {stats.missingCostUnits > 0 ? "—" : `${stats.margin.toFixed(1)}%`}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* By staff */}
-      {stats.byStaff.length > 0 && (
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-bold text-slate-950">By staff member</h2>
-          <div className="mt-3 space-y-2">
-            {stats.byStaff.map(([name, s]) => (
-              <div key={name} className="flex items-center justify-between border-b border-slate-100 pb-2 text-sm last:border-0">
-                <span className="font-semibold text-slate-800">{name}</span>
-                <span className="flex gap-4 text-slate-600">
-                  <span>{s.count} orders</span>
-                  <span className="font-bold text-slate-900">{formatPrice(s.revenue)}</span>
-                  {s.discounts > 0 && <span className="text-amber-700">−{formatPrice(s.discounts)}</span>}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Order list */}
-      <h2 className="mt-8 text-base font-bold text-slate-950">Orders</h2>
-      <div className="mt-3 space-y-2">
-        {orders.length === 0 && (
-          <p className="rounded-2xl border border-dashed border-slate-300 py-12 text-center text-sm text-slate-500">
-            No sales in this period.
-          </p>
-        )}
-        {orders.map((o) => {
-          const orderDiscount = o.order_items.reduce((sum, item) => sum + Number(item.discount_amount || 0), 0);
-          const square = squareAmounts(o);
-          return <div key={o.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <button onClick={() => setExpanded(expanded === o.id ? null : o.id)}
-              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50">
-              <div>
-                <span className="font-mono text-sm font-bold text-slate-900">{o.order_number}</span>
-                <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${o.transaction_type === "internal_use" ? "bg-slate-200 text-slate-700" : o.source === "walk_in" ? "bg-sky-100 text-sky-800" : o.source === "manual" ? "bg-orange-100 text-orange-800" : "bg-violet-100 text-violet-800"}`}>
-                  {o.transaction_type === "internal_use" ? "Internal use" : o.source === "walk_in" ? "Walk-in" : o.source === "manual" ? "Manual" : "Online"}
-                </span>
-                {o.is_test && <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-700">TEST</span>}
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {new Date(o.created_at).toLocaleString()} · {o.sold_by_name || "—"}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="font-black text-slate-900">{formatPrice(o.total)}</p>
-                {orderDiscount > 0 && <p className="text-xs font-semibold text-amber-700">−{formatPrice(orderDiscount)}</p>}
-              </div>
-            </button>
-            {expanded === o.id && (
-              <div className="border-t border-slate-100 bg-slate-50 px-4 py-3">
-                {o.transaction_type === "internal_use" && <p className="mb-3 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Excluded from sales, discounts, profit, and margin. {o.internal_use_reason && `Reason: ${o.internal_use_reason}`}</p>}
-                <p className="mb-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
-                  <strong>{o.buyer_type === "company" ? "Company" : "Personal use"}</strong> · {o.payment_method === "square" ? "Square Up" : o.payment_method === "zelle" ? "Zelle" : o.payment_method === "cash" ? "Cash" : "Legacy / unknown"} · Tax jurisdiction: {o.tax_city || "—"}{o.tax_zip ? `, ${o.tax_zip}` : ""} · {o.tax_exempt ? "Tax exempt (permit approved)" : `${(Number(o.tax_rate || 0) * 100).toFixed(2)}% / ${formatPrice(Number(o.tax_total || 0))} tax`}
-                </p>
-                {square.gross > 0 && (
-                  <p className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-                    <strong>Square deposit:</strong> {formatPrice(square.gross)} gross − {formatPrice(square.fee)} fee = <strong>{formatPrice(square.deposit)} final deposit</strong>
-                  </p>
-                )}
-                <table className="w-full text-xs">
-                  <thead className="text-slate-400">
-                    <tr>
-                      <th className="text-left font-semibold">Item</th>
-                      <th className="text-right font-semibold">Qty</th>
-                      <th className="text-right font-semibold">List</th>
-                      <th className="text-right font-semibold">Sold</th>
-                      <th className="text-right font-semibold">Discount</th>
-                      <th className="text-right font-semibold">Cost</th>
-                      <th className="text-right font-semibold">Profit</th>
-                      <th className="text-right font-semibold">Edit</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {o.order_items.map((it) => (
-                      <EditableItemRow key={it.id} item={it} onSaved={() => router.refresh()} />
-                    ))}
-                  </tbody>
-                </table>
-                <p className="mt-2 text-right text-xs text-slate-400">Editing a price updates the order total, profit, and exports.</p>
-                {(o.source === "walk_in" || o.source === "manual") && (
-                  <div className="mt-3 border-t border-slate-200 pt-3 text-right">
-                    {o.transaction_type !== "internal_use" && <InternalUseButton orderId={o.id} onSaved={() => router.refresh()} />}
-                    <DeleteSaleButton orderId={o.id} orderNumber={o.order_number} onDeleted={() => router.refresh()} />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>;
-        })}
-      </div>
+      <div className="mt-3 md:hidden"><div className="grid grid-cols-3 rounded-xl border border-[#e6e8ec] bg-white p-1">{(["items", "orders", "staff"] as const).map((tab) => <button key={tab} type="button" onClick={() => setMobileTab(tab)} className={`min-h-11 rounded-lg text-xs font-bold capitalize ${mobileTab === tab ? "bg-[#0f172a] text-white" : "text-[#5b6678]"}`}>{tab}</button>)}</div><div className="mt-2 overflow-hidden rounded-xl border border-[#e6e8ec] bg-white">{mobileTab === "items" && itemPanel(true)}{mobileTab === "orders" && ordersPanel(true)}{mobileTab === "staff" && <div className="border-0">{staffPanel()}</div>}</div></div>
     </div>
   );
 }
@@ -633,34 +431,35 @@ function InternalUseButton({ orderId, onSaved }: { orderId: string; onSaved: () 
   return <button onClick={markInternal} className="mr-4 text-xs font-semibold text-slate-700 hover:text-slate-950">Mark internal use</button>;
 }
 
-function StatCard({ label, value, accent = "text-slate-950" }: { label: string; value: string; accent?: string }) {
+function StatCard({ label, value, note, accent = "text-[#0f172a]" }: { label: string; value: string; note: string; accent?: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className={`mt-1 text-xl font-black tracking-tight ${accent}`}>{value}</p>
+    <div className="min-h-[92px] rounded-xl border border-[#e6e8ec] bg-white p-3 sm:p-4">
+      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#5b6678]">{label}</p>
+      <p className={`mt-1 text-xl font-black tracking-tight tabular-nums sm:text-[26px] ${accent}`}>{value}</p>
+      <p className="mt-1 truncate text-[10px] text-[#5b6678]">{note}</p>
     </div>
   );
 }
 
-function MobileMetric({ label, value, valueClass = "text-slate-700", strong = false }: { label: string; value: string; valueClass?: string; strong?: boolean }) {
+function SecondaryMetric({ label, value, positive = false, caution = false }: { label: string; value: string; positive?: boolean; caution?: boolean }) {
+  return (
+    <div className="min-w-[92px] px-2 sm:min-w-0">
+      <p className="text-[9px] font-bold uppercase tracking-wide text-[#5b6678]">{label}</p>
+      <p className={`mt-0.5 text-xs font-black tabular-nums ${positive ? "text-[#23694a]" : caution ? "text-[#9a4a14]" : "text-[#0f172a]"}`}>{value}</p>
+    </div>
+  );
+}
+
+function MiniTotal({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</dt>
-      <dd className={`mt-0.5 text-sm ${strong ? "font-black" : "font-semibold"} ${valueClass}`}>{value}</dd>
+      <p className="text-[8px] font-bold uppercase tracking-wide text-white/55">{label}</p>
+      <p className="mt-0.5 text-[11px] font-black tabular-nums">{value}</p>
     </div>
   );
 }
 
-function MobileTotal({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-white/10 px-3 py-2.5">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-white/55">{label}</p>
-      <p className="mt-0.5 break-words text-sm font-black text-white">{value}</p>
-    </div>
-  );
-}
-
-function EditableItemRow({ item, onSaved }: { item: OrderItemRow; onSaved: () => void }) {
+function CompactOrderItem({ item, onSaved }: { item: OrderItemRow; onSaved: () => void }) {
   const [editing, setEditing] = useState(false);
   const [price, setPrice] = useState(item.unit_price.toFixed(2));
   const [reason, setReason] = useState(item.discount_reason ?? "");
@@ -695,56 +494,14 @@ function EditableItemRow({ item, onSaved }: { item: OrderItemRow; onSaved: () =>
 
   if (editing) {
     return (
-      <tr className="border-t border-slate-100 bg-amber-50/40">
-        <td className="py-2 text-slate-800" colSpan={2}>
-          <span className="font-semibold">{item.name}</span>
-          <span className="ml-2 text-slate-400">× {item.quantity}</span>
-        </td>
-        <td className="py-2 text-right text-slate-500">{item.list_price != null ? formatPrice(item.list_price) : "—"}</td>
-        <td className="py-2 text-right">
-          <span className="text-slate-400">$</span>
-          <input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)}
-            className="ml-1 w-20 rounded border border-slate-300 px-2 py-1 text-right text-xs" autoFocus />
-        </td>
-        <td className="py-2 text-right" colSpan={4}>
-          <div className="flex flex-col items-end gap-1">
-            {wouldDiscount && (
-              <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Discount reason"
-                className="w-full max-w-[180px] rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs" />
-            )}
-            {error && <span className="text-rose-600">{error}</span>}
-            <div className="flex gap-1">
-              <button onClick={save} disabled={saving} className="rounded bg-brand-navy px-2 py-1 text-xs font-bold text-white disabled:opacity-50">
-                {saving ? "…" : "Save"}
-              </button>
-              <button onClick={() => { setEditing(false); setPrice(item.unit_price.toFixed(2)); setError(""); }} className="rounded border border-slate-200 px-2 py-1 text-xs">
-                Cancel
-              </button>
-            </div>
-          </div>
-        </td>
-      </tr>
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-2"><p className="truncate text-[11px] font-bold text-[#0f172a]">{item.name} × {item.quantity}</p><div className="mt-2 flex gap-2"><input type="number" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} className="h-9 w-24 rounded border border-amber-300 px-2 text-xs" autoFocus />{wouldDiscount && <input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Discount reason" className="h-9 min-w-0 flex-1 rounded border border-amber-300 px-2 text-xs" />}</div>{error && <p className="mt-1 text-[10px] font-bold text-[#b4233a]">{error}</p>}<div className="mt-2 flex gap-2"><button onClick={save} disabled={saving} className="min-h-9 rounded-lg bg-[#0f172a] px-3 text-[10px] font-bold text-white disabled:opacity-50">{saving ? "Saving…" : "Save"}</button><button onClick={() => { setEditing(false); setPrice(item.unit_price.toFixed(2)); setError(""); }} className="min-h-9 rounded-lg border border-[#e6e8ec] px-3 text-[10px] font-bold text-[#5b6678]">Cancel</button></div></div>
     );
   }
 
+  const lineCost = costForSale(item.cost_price, item.quantity, item.base_units_per_sale);
+  const lineProfit = item.unit_price * item.quantity - lineCost;
   return (
-    <tr className="border-t border-slate-100">
-      <td className="py-1.5 text-slate-800">
-        {item.name}
-        {item.discount_reason && <span className="ml-1 text-amber-700">({item.discount_reason})</span>}
-      </td>
-      <td className="py-1.5 text-right">{item.quantity}</td>
-      <td className="py-1.5 text-right text-slate-500">{item.list_price != null ? formatPrice(item.list_price) : "—"}</td>
-      <td className="py-1.5 text-right font-semibold">{formatPrice(item.unit_price)}</td>
-      <td className="py-1.5 text-right text-amber-700">{Number(item.discount_amount) > 0 ? `−${formatPrice(item.discount_amount)}` : "—"}</td>
-      <td className={`py-1.5 text-right ${costMissing ? "font-semibold text-amber-700" : "text-slate-500"}`}>{costMissing ? "Missing" : formatPrice(costForSale(item.cost_price, item.quantity, item.base_units_per_sale))}</td>
-      <td className={`py-1.5 text-right font-semibold ${costMissing ? "text-amber-700" : item.unit_price * item.quantity - costForSale(item.cost_price, item.quantity, item.base_units_per_sale) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-        {costMissing ? "—" : formatPrice(item.unit_price * item.quantity - costForSale(item.cost_price, item.quantity, item.base_units_per_sale))}
-      </td>
-      <td className="py-1.5 text-right">
-        <button onClick={() => setEditing(true)} className="font-semibold text-brand-navy hover:underline">Edit</button>
-      </td>
-    </tr>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-lg bg-white px-2 py-1.5 text-[10px] ring-1 ring-[#e6e8ec]"><div className="min-w-0"><p className="truncate font-semibold text-[#0f172a]">{item.name} × {item.quantity}</p><p className="text-[#5b6678]">Cost {costMissing ? "missing" : formatPrice(lineCost)} · <span className={costMissing ? "text-[#9a4a14]" : lineProfit < 0 ? "text-[#b4233a]" : "text-[#23694a]"}>Profit {costMissing ? "—" : formatPrice(lineProfit)}</span></p></div><p className="font-bold tabular-nums text-[#0f172a]">{formatPrice(item.unit_price * item.quantity)}</p><button type="button" onClick={() => setEditing(true)} className="min-h-9 px-1 font-bold text-[#b4532f]">Edit</button></div>
   );
 }
 

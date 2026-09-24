@@ -30,9 +30,9 @@ function DropdownGroup({ group, activeHref }: { group: typeof ADMIN_NAV[0]; acti
 
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-          isActive ? "bg-brand-gold text-white" : "text-slate-600 hover:bg-slate-100 hover:text-brand-navy"
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open}
+        className={`flex min-h-10 items-center gap-1 rounded-lg px-3 text-sm font-semibold transition ${
+          isActive ? "bg-[#b4532f] text-white" : "text-[#5b6678] hover:bg-[#f2f0ed] hover:text-[#0f172a]"
         }`}>
         {group.label}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
@@ -42,13 +42,13 @@ function DropdownGroup({ group, activeHref }: { group: typeof ADMIN_NAV[0]; acti
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+        <div className="absolute left-0 top-full z-50 mt-1 min-w-[220px] overflow-hidden rounded-xl border border-[#e6e8ec] bg-white p-1 shadow-[0_12px_32px_rgba(15,23,42,.12)]">
           {group.items.map((item) => {
             const active = item.href === activeHref;
             return (
               <Link key={item.href} href={item.href} onClick={() => setOpen(false)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition ${
-                  active ? "bg-brand-navy text-white" : "text-slate-700 hover:bg-slate-50"
+                className={`flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
+                  active ? "bg-[#0f172a] text-white" : "text-[#5b6678] hover:bg-[#fbfaf8] hover:text-[#0f172a]"
                 }`}>
                 <span>{item.icon}</span>
                 {item.label}
@@ -69,11 +69,11 @@ export default function AdminHeader() {
   const alertsUrl = BRAND.alertsUrl;
 
   return (
-    <header className="border-b border-slate-200 bg-white/95 text-slate-900 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-40 border-b border-[#e6e8ec] bg-white/95 text-[#0f172a] backdrop-blur">
+      <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-3 sm:px-5 lg:px-6">
         <div className="flex items-center gap-3">
           <BrandLogo href="/admin" className="shrink-0" compact />
-          <span className="rounded-full bg-brand-gold px-2 py-0.5 text-xs font-bold uppercase text-white">Admin</span>
+          <span className="rounded-md bg-[#f4e5df] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#9a4a14]">Admin</span>
         </div>
 
         {/* Desktop nav */}
@@ -82,17 +82,17 @@ export default function AdminHeader() {
             <DropdownGroup key={group.label} group={group} activeHref={activeHref} />
           ))}
           <a href={alertsUrl}
-            className="rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-brand-navy">
+            className="flex min-h-10 items-center rounded-lg px-3 text-sm font-semibold text-[#5b6678] transition hover:bg-[#f2f0ed] hover:text-[#0f172a]">
             Alerts
           </a>
           <button onClick={signOut}
-            className="ml-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+            className="ml-2 min-h-10 rounded-lg border border-[#e6e8ec] px-3 text-sm font-semibold text-[#0f172a] transition hover:bg-[#fbfaf8]">
             Sign Out
           </button>
         </nav>
 
         {/* Mobile hamburger */}
-        <button onClick={() => setMobileOpen((o) => !o)} className="rounded-lg border border-slate-200 p-2 md:hidden">
+        <button onClick={() => setMobileOpen((o) => !o)} aria-label="Toggle admin navigation" aria-expanded={mobileOpen} className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#e6e8ec] md:hidden">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             {mobileOpen ? <path d="M18 6L6 18M6 6l12 12" /> : <><path d="M3 12h18M3 6h18M3 18h18" /></>}
           </svg>
@@ -101,17 +101,17 @@ export default function AdminHeader() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="border-t border-slate-100 bg-white px-4 pb-4 md:hidden">
+        <div className="max-h-[calc(100vh-4rem)] overflow-y-auto border-t border-[#e6e8ec] bg-white px-3 pb-4 md:hidden">
           {ADMIN_NAV.map((group) => (
             <div key={group.label} className="mt-3">
-              <p className="mb-1 px-2 text-xs font-bold uppercase tracking-widest text-slate-400">{group.label}</p>
+              <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#5b6678]">{group.label}</p>
               <div className="space-y-0.5">
                 {group.items.map((item) => {
                   const active = item.href === activeHref;
                   return (
                     <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
-                      className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
-                        active ? "bg-brand-navy text-white" : "text-slate-700 hover:bg-slate-100"
+                      className={`flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
+                        active ? "bg-[#0f172a] text-white" : "text-[#5b6678] hover:bg-[#fbfaf8]"
                       }`}>
                       <span>{item.icon}</span>{item.label}
                     </Link>

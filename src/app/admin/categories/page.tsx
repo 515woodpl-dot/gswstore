@@ -19,12 +19,12 @@ export default async function AdminCategoriesPage() {
   const { data: cats } = await sb.from("categories").select("id,name,prefix,color").order("name");
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-      <div className="mb-8 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-soft sm:flex-row sm:items-end sm:justify-between sm:p-6">
+    <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5 lg:px-6">
+      <div className="mb-4 flex flex-col gap-3 rounded-xl border border-[#e6e8ec] bg-white p-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-brand-gold">Admin</p>
-          <h1 className="text-3xl font-black tracking-tight text-slate-950">Inventory</h1>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b4532f]">Admin</p>
+          <h1 className="text-2xl font-black tracking-tight text-[#0f172a]">Categories</h1>
+          <p className="mt-1 max-w-xl text-xs text-[#5b6678]">
             Manage stock, featured items, and store visibility from one place.
           </p>
         </div>
@@ -40,7 +40,7 @@ export default async function AdminCategoriesPage() {
         </div>
       </div>
 
-      <div className="mb-6 flex gap-2 border-b border-slate-200">
+      <div className="mb-4 flex gap-2 overflow-x-auto border-b border-[#e6e8ec]">
         <Link href="/admin/inventory" className="pb-3 px-4 text-sm font-semibold text-slate-500 hover:text-slate-900">Inventory</Link>
         <a href="/admin/categories" className="border-b-2 border-brand-navy pb-3 px-4 text-sm font-bold text-brand-navy">Categories</a>
       </div>

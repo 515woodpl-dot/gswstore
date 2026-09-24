@@ -2,6 +2,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { createSale, SaleCreationError } from "@/lib/create-sale";
+import { complianceOrderValues, resolveSaleCompliance } from "@/lib/sale-compliance";
 
 interface ManualLineInput {
   key?: string;
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
     const customerEmail = typeof body.customerEmail === "string" ? body.customerEmail.trim().toLowerCase() : "";
     const manualNote = typeof body.manualNote === "string" ? body.manualNote.trim() : "";
     const discountReason = typeof body.discountReason === "string" ? body.discountReason.trim() : "";
+    const compliance = await resolveSaleCompliance(admin, body);
 
     let customerId: string | null = null;
     if (customerEmail && customerEmail.includes("@")) {
@@ -73,7 +75,7 @@ export async function POST(request: NextRequest) {
       source: "manual",
       orderNumber: manualOrderNumber(saleDate),
       pricing: "explicit",
-      taxRate: 0,
+      taxRate: compliance.taxRate,
       discountReason,
       lines: lines.map((line) => ({
         itemId: typeof line.itemId === "string" && line.itemId.trim() ? line.itemId.trim() : null,
@@ -96,6 +98,7 @@ export async function POST(request: NextRequest) {
         sold_by_name: soldByName,
         manual_note: manualNote,
         created_at: createdAt.toISOString(),
+        ...complianceOrderValues(compliance, auth.userId),
       },
     });
 

@@ -89,6 +89,8 @@ export type PaymentStatus = "unpaid" | "pending" | "paid" | "partially_refunded"
 export type OrderItemStatus = "active" | "cancelled";
 
 export type OrderSource = "online" | "walk_in" | "manual" | "admin_payment_link";
+export type BuyerType = "personal" | "company";
+export type PaymentMethod = "cash" | "zelle" | "square" | "legacy_unknown";
 
 export interface OrderItem {
   id: string;
@@ -147,6 +149,17 @@ export interface Order {
   discount_reason?: string;
   tax_rate?: number;
   tax_total?: number;
+  tax_zip?: string;
+  tax_city?: string;
+  tax_exempt?: boolean;
+  buyer_type?: BuyerType;
+  payment_method?: PaymentMethod;
+  reseller_permit_status?: "not_required" | "approved" | "rejected";
+  reseller_permit_path?: string | null;
+  reseller_permit_filename?: string;
+  reseller_permit_uploaded_at?: string | null;
+  reseller_permit_reviewed_at?: string | null;
+  reseller_permit_reviewed_by?: string | null;
   amount_paid?: number;
   amount_refunded?: number;
   internal_notes?: string;

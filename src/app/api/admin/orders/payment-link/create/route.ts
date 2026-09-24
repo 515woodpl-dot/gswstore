@@ -5,6 +5,7 @@ import { createSale, rollbackCreatedSale, SaleCreationError, type CreatedSale } 
 import { orderNumber, type OrderDiscount } from "@/lib/order-money";
 import { cancelPaymentLink, createPaymentLink, isSquareEnvironmentConfigured } from "@/lib/square-checkout";
 import { logOrderEvent } from "@/lib/order-events";
+import { complianceOrderValues, resolveSaleCompliance } from "@/lib/sale-compliance";
 
 interface RawLineInput {
   itemId: string;
@@ -43,8 +44,6 @@ export async function POST(request: NextRequest) {
     const internalNotes = typeof body.internalNotes === "string" ? body.internalNotes.trim() : "";
     const testMode = body.testMode === true;
     const requestKey = typeof body.requestKey === "string" ? body.requestKey.trim() : "";
-    const taxZip = typeof body.taxZip === "string" ? body.taxZip.trim() : "";
-    const applyTax = body.applyTax !== false;
 
     if (testMode && !isSquareEnvironmentConfigured("sandbox")) {
       return NextResponse.json({
@@ -79,28 +78,7 @@ export async function POST(request: NextRequest) {
     }
 
     const rawLines = body.lines as RawLineInput[];
-    let taxRate = 0;
-    if (applyTax) {
-      if (!/^\d{5}$/.test(taxZip)) {
-        return NextResponse.json({ error: "Enter a valid 5-digit ZIP to calculate sales tax." }, { status: 400 });
-      }
-      const { data: rates, error: taxError } = await admin
-        .from("tax_rates")
-        .select("combined_rate")
-        .eq("zip", taxZip);
-      if (taxError || !rates?.length) {
-        return NextResponse.json({ error: "No sales-tax rate was found for that ZIP." }, { status: 409 });
-      }
-      const frequency = new Map<string, number>();
-      for (const row of rates) {
-        const key = String(row.combined_rate);
-        frequency.set(key, (frequency.get(key) ?? 0) + 1);
-      }
-      taxRate = Number([...frequency.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]);
-      if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 0.25) {
-        throw new Error("The configured sales-tax rate is invalid.");
-      }
-    }
+    const compliance = await resolveSaleCompliance(admin, body, "square");
     const { error: requestClaimError } = await admin.from("admin_order_requests").insert({ request_key: requestKey });
     if (requestClaimError) {
       if (requestClaimError.code !== "23505") throw new Error(`Could not start the order: ${requestClaimError.message}`);
@@ -129,7 +107,7 @@ export async function POST(request: NextRequest) {
       source: "admin_payment_link",
       orderNumber: num,
       pricing: "discounted_catalog",
-      taxRate,
+      taxRate: compliance.taxRate,
       orderDiscount: discount,
       discountReason,
       lines: rawLines.map((line) => ({
@@ -158,6 +136,7 @@ export async function POST(request: NextRequest) {
         fulfillment: "pickup",
         sold_by_id: auth.userId,
         sold_by_name: soldByName,
+        ...complianceOrderValues(compliance, auth.userId),
       }),
     });
     const { order, items: insertedItems, squarePlan: plan, total } = createdSale;

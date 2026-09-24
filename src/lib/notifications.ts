@@ -276,6 +276,13 @@ interface ReceiptData {
   soldByName?: string;
   createdAt?: string;
   source?: string;
+  taxTotal?: number;
+  taxRate?: number;
+  taxCity?: string;
+  taxZip?: string;
+  taxExempt?: boolean;
+  buyerType?: string;
+  paymentMethod?: string;
 }
 
 export async function sendReceiptEmail(
@@ -314,6 +321,8 @@ export async function sendReceiptEmail(
     ? `<tr><td colspan="2" style="padding:6px 12px;text-align:right;color:#b45309;font-size:0.85rem">Total savings</td>
        <td style="padding:6px 12px;text-align:right;color:#b45309;font-size:0.85rem">−$${receipt.discountTotal.toFixed(2)}</td></tr>`
     : "";
+  const taxRow = `<tr><td colspan="2" style="padding:6px 12px;text-align:right;color:#4b5563;font-size:0.85rem">${receipt.taxExempt ? "Sales tax (approved reseller permit)" : `Sales tax${receipt.taxRate ? ` (${(receipt.taxRate * 100).toFixed(2)}%)` : ""}`}</td><td style="padding:6px 12px;text-align:right;color:#4b5563;font-size:0.85rem">$${(receipt.taxTotal ?? 0).toFixed(2)}</td></tr>`;
+  const transactionLabel = receipt.paymentMethod === "square" ? "Square Up" : receipt.paymentMethod === "zelle" ? "Zelle" : receipt.paymentMethod === "cash" ? "Cash" : "Legacy / unknown";
 
   const html = `<!DOCTYPE html>
 <html>
@@ -338,12 +347,15 @@ export async function sendReceiptEmail(
       <tbody>${itemRows}</tbody>
       <tfoot>
         ${discountRow}
+        ${taxRow}
         <tr style="background:#f9fafb">
           <td colspan="2" style="padding:10px 12px;font-weight:700;color:#111827">Total Paid</td>
           <td style="padding:10px 12px;text-align:right;font-weight:700;color:#111827;font-size:1.05rem">$${receipt.total.toFixed(2)}</td>
         </tr>
       </tfoot>
     </table>
+
+    <p style="margin:0 0 16px;color:#6b7280;font-size:0.78rem">Tax jurisdiction: ${receipt.taxCity || "Not recorded"}${receipt.taxZip ? `, ${receipt.taxZip}` : ""} · Transaction: ${transactionLabel} · Purchase: ${receipt.buyerType === "company" ? "Company" : "Personal use"}</p>
 
     <p style="margin:0;font-size:0.78rem;color:#9ca3af;text-align:center">
       Thank you for shopping at ${BRAND.name}.<br>
@@ -461,7 +473,7 @@ export async function sendPaymentRequestEmail(
   const totals = `<table width="100%" style="font-size:0.9rem;color:#374151;margin-bottom:20px">
       <tr><td style="padding:3px 0">Subtotal</td><td style="padding:3px 0;text-align:right">${formatPrice(order.subtotal ?? order.total)}</td></tr>
       ${order.discount_total ? `<tr><td style="padding:3px 0;color:#b45309">Discount</td><td style="padding:3px 0;text-align:right;color:#b45309">−${formatPrice(order.discount_total)}</td></tr>` : ""}
-      ${order.tax_total ? `<tr><td style="padding:3px 0">Tax</td><td style="padding:3px 0;text-align:right">${formatPrice(order.tax_total)}</td></tr>` : ""}
+      <tr><td style="padding:3px 0">Tax${order.tax_exempt ? " (approved reseller permit)" : order.tax_rate ? ` (${(order.tax_rate * 100).toFixed(2)}%)` : ""}</td><td style="padding:3px 0;text-align:right">${formatPrice(order.tax_total || 0)}</td></tr>
       <tr><td style="padding:6px 0;font-weight:700;font-size:1rem">Amount Due</td><td style="padding:6px 0;text-align:right;font-weight:700;font-size:1rem">${formatPrice(order.total)}</td></tr>
     </table>`;
 
@@ -476,6 +488,7 @@ export async function sendPaymentRequestEmail(
     ${updateBanner}
     ${itemsTable(order.items)}
     ${totals}
+    <p style="margin:-10px 0 18px;color:#6b7280;font-size:0.78rem">Tax jurisdiction: ${order.tax_city || "Not recorded"}${order.tax_zip ? `, ${order.tax_zip}` : ""} · Transaction: Square Up</p>
     ${order.notes ? `<p style="background:#f0f7ff;border-radius:6px;padding:12px 14px;font-size:0.85rem;color:#374151;margin-bottom:20px"><strong>Note:</strong> ${order.notes}</p>` : ""}
     <a href="${paymentLinkUrl}" style="display:inline-block;background:#1e3a5f;color:#fff;text-decoration:none;font-weight:700;font-size:0.95rem;padding:13px 28px;border-radius:10px">Review &amp; Pay →</a>
     <p style="margin:20px 0 0;font-size:0.78rem;color:#9ca3af">Questions? Reply to this email or call ${BRAND.phone}.</p>
@@ -495,13 +508,14 @@ export async function sendPaymentLinkConfirmationEmail(order: Order, customerEma
   const totals = `<table width="100%" style="font-size:0.9rem;color:#374151;margin-bottom:20px">
       <tr><td style="padding:3px 0">Subtotal</td><td style="padding:3px 0;text-align:right">${formatPrice(order.subtotal ?? order.total)}</td></tr>
       ${order.discount_total ? `<tr><td style="padding:3px 0;color:#b45309">Discount</td><td style="padding:3px 0;text-align:right;color:#b45309">−${formatPrice(order.discount_total)}</td></tr>` : ""}
-      ${order.tax_total ? `<tr><td style="padding:3px 0">Tax</td><td style="padding:3px 0;text-align:right">${formatPrice(order.tax_total)}</td></tr>` : ""}
+      <tr><td style="padding:3px 0">Tax${order.tax_exempt ? " (approved reseller permit)" : order.tax_rate ? ` (${(order.tax_rate * 100).toFixed(2)}%)` : ""}</td><td style="padding:3px 0;text-align:right">${formatPrice(order.tax_total || 0)}</td></tr>
       <tr><td style="padding:6px 0;font-weight:700;font-size:1rem">Amount Paid</td><td style="padding:6px 0;text-align:right;font-weight:700;font-size:1rem;color:#047857">${formatPrice(order.amount_paid ?? order.total)}</td></tr>
     </table>`;
   const body = `
     <p style="margin:0 0 16px;color:#374151">Hi ${customerName || "there"}, thanks — your payment for order ${order.order_number} was successful. We're preparing your order now and will email you when it's ready.</p>
     ${itemsTable(order.items)}
     ${totals}
+    <p style="margin:-10px 0 18px;color:#6b7280;font-size:0.78rem">Tax jurisdiction: ${order.tax_city || "Not recorded"}${order.tax_zip ? `, ${order.tax_zip}` : ""} · Transaction: Square Up</p>
     ${order.square_receipt_url ? `<a href="${order.square_receipt_url}" style="display:inline-block;color:#1e3a5f;font-size:0.85rem;font-weight:600;text-decoration:underline;margin-bottom:8px">View Square receipt →</a>` : ""}
     <p style="margin:16px 0 0;font-size:0.78rem;color:#9ca3af">Questions? Reply to this email or call ${BRAND.phone}.</p>
   `;

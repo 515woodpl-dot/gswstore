@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     const { data: order } = await sb
       .from("orders")
-      .select("order_number,total,discount_total,created_at,source,sold_by_name,walk_in_customer_id,user_id,is_test,order_items(name,quantity,unit_price,list_price,discount_amount)")
+      .select("order_number,total,discount_total,tax_total,tax_rate,tax_city,tax_zip,tax_exempt,buyer_type,payment_method,created_at,source,sold_by_name,walk_in_customer_id,user_id,is_test,order_items(name,quantity,unit_price,list_price,discount_amount)")
       .eq("id", orderId)
       .single();
     if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
@@ -60,6 +60,13 @@ export async function POST(request: NextRequest) {
       soldByName: order.sold_by_name ?? "",
       createdAt: order.created_at,
       source: order.source ?? "",
+      taxTotal: Number(order.tax_total ?? 0),
+      taxRate: Number(order.tax_rate ?? 0),
+      taxCity: order.tax_city ?? "",
+      taxZip: order.tax_zip ?? "",
+      taxExempt: order.tax_exempt === true,
+      buyerType: order.buyer_type ?? "personal",
+      paymentMethod: order.payment_method ?? "legacy_unknown",
     };
 
     const sentTo: string[] = [];

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
 import type { InventoryItem } from "@/types";
+import SaleComplianceFields, { emptySaleCompliance, type SaleComplianceValue } from "@/components/admin/SaleComplianceFields";
 
 interface Line {
   key: string;
@@ -30,6 +31,8 @@ export default function ManualSale() {
   const [custEmail, setCustEmail] = useState("");
   const [manualNote, setManualNote] = useState("");
   const [discountReason, setDiscountReason] = useState("");
+  const [taxRate, setTaxRate] = useState(0);
+  const [compliance, setCompliance] = useState<SaleComplianceValue>({ ...emptySaleCompliance });
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -57,6 +60,8 @@ export default function ManualSale() {
   const total = lines.reduce((s, l) => s + l.soldPrice * l.qty, 0);
   const listTotal = lines.reduce((s, l) => s + l.listPrice * l.qty, 0);
   const discountTotal = Math.max(0, listTotal - total);
+  const taxAmount = compliance.buyerType === "company" && compliance.resellerDecision === "approved" ? 0 : Math.round(total * taxRate * 100) / 100;
+  const grandTotal = total + taxAmount;
 
   function addCatalogLine(item: InventoryItem) {
     const base = item.sale_price ?? item.store_price;
@@ -87,6 +92,8 @@ export default function ManualSale() {
     if (lines.some((l) => !l.name.trim())) { setError("Every line needs an item name."); return; }
     if (!saleDate) { setError("Enter the sale date."); return; }
     if (discountTotal > 0 && !discountReason.trim()) { setError("A discount was applied — enter a reason."); return; }
+    if (!compliance.buyerType || !compliance.paymentMethod || !compliance.taxCity.trim() || !/^\d{5}$/.test(compliance.taxZip)) { setError("Complete the required buyer, payment, and tax jurisdiction fields."); return; }
+    if (compliance.buyerType === "company" && (!compliance.resellerPermitPath || !compliance.resellerDecision)) { setError("Upload and review the reseller permit before continuing."); return; }
 
     setSaving(true);
     try {
@@ -100,6 +107,7 @@ export default function ManualSale() {
           customerEmail: custEmail,
           manualNote,
           discountReason,
+          ...compliance,
           lines,
         }),
       });
@@ -116,7 +124,7 @@ export default function ManualSale() {
           body: JSON.stringify({ orderId: result.orderId }),
         }).catch(() => {});
       }
-      setLines([]); setCustName(""); setCustEmail(""); setManualNote(""); setDiscountReason("");
+      setLines([]); setCustName(""); setCustEmail(""); setManualNote(""); setDiscountReason(""); setCompliance({ ...emptySaleCompliance }); setTaxRate(0);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save sale");
     } finally {
@@ -159,6 +167,8 @@ export default function ManualSale() {
           <input type="time" value={saleTime} onChange={(e) => setSaleTime(e.target.value)} className={`w-full ${inputCls}`} />
         </label>
       </div>
+
+      <div className="mt-4"><SaleComplianceFields value={compliance} onChange={setCompliance} onTaxRate={setTaxRate} /></div>
       <label className="mt-3 block">
         <span className="mb-1.5 block text-sm font-semibold text-slate-800">Why is this being entered manually? (optional)</span>
         <input value={manualNote} onChange={(e) => setManualNote(e.target.value)} className={`w-full ${inputCls}`} placeholder="e.g. Power outage 3/14, written on paper receipt #42" />
@@ -245,7 +255,8 @@ export default function ManualSale() {
       <div className="mt-6 flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5">
         <div>
           {discountTotal > 0 && <p className="text-sm text-slate-500 line-through">{formatPrice(listTotal)}</p>}
-          <p className="text-2xl font-black text-slate-950">{formatPrice(total)}</p>
+          {taxAmount > 0 && <p className="text-sm text-slate-600">Tax: {formatPrice(taxAmount)}</p>}
+          <p className="text-2xl font-black text-slate-950">{formatPrice(grandTotal)}</p>
         </div>
         <button onClick={save} disabled={saving || lines.length === 0} className="rounded-xl bg-brand-navy px-6 py-3 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-60">
           {saving ? "Saving…" : "Record Past Sale"}

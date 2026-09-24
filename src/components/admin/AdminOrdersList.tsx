@@ -158,6 +158,17 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
                     </div>
                   )}
 
+                  {(order.tax_zip || order.payment_method !== "legacy_unknown") && (
+                    <div className="mb-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 sm:grid-cols-3">
+                      <div><span className="block font-bold uppercase tracking-wide text-slate-500">Customer</span>{order.buyer_type === "company" ? "Company" : "Personal use"}</div>
+                      <div><span className="block font-bold uppercase tracking-wide text-slate-500">Transaction</span>{order.payment_method === "square" ? "Square Up" : order.payment_method === "zelle" ? "Zelle" : order.payment_method === "cash" ? "Cash" : "Legacy / unknown"}</div>
+                      <div><span className="block font-bold uppercase tracking-wide text-slate-500">Tax jurisdiction</span>{order.tax_city || "—"}{order.tax_zip ? `, ${order.tax_zip}` : ""} · {order.tax_exempt ? "Exempt" : `${((order.tax_rate || 0) * 100).toFixed(2)}% / ${formatPrice(order.tax_total || 0)}`}</div>
+                      {order.buyer_type === "company" && order.reseller_permit_path && (
+                        <div className="sm:col-span-3"><span className="font-bold uppercase tracking-wide text-slate-500">Reseller permit: </span><span className={order.reseller_permit_status === "approved" ? "font-bold text-emerald-700" : "font-bold text-orange-700"}>{order.reseller_permit_status === "approved" ? "Approved — tax exempt" : "Not approved — tax charged"}</span> · <a href={`/api/admin/reseller-permits?path=${encodeURIComponent(order.reseller_permit_path)}`} target="_blank" rel="noreferrer" className="font-bold text-brand-navy underline">View {order.reseller_permit_filename || "permit"}</a></div>
+                      )}
+                    </div>
+                  )}
+
                   {order.source === "admin_payment_link" ? (
                     <AdminPaymentOrderPanel
                       order={order}

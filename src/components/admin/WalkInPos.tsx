@@ -286,9 +286,10 @@ export default function WalkInPos() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <h1 className="text-2xl font-black tracking-tight text-slate-950">Walk-in Checkout</h1>
-      <p className="mt-1 text-sm text-slate-500">Ring up an in-store sale. Prices are editable. Order is recorded as completed and stock is decremented.</p>
+    <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5 lg:px-6">
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b4532f]">Sales</p>
+      <h1 className="text-2xl font-black tracking-tight text-[#0f172a]">Walk-in Checkout</h1>
+      <p className="mt-1 text-xs text-[#5b6678]">Ring up an in-store sale. Prices are editable. Order is recorded as completed and stock is decremented.</p>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
         {/* Left: search + lines */}

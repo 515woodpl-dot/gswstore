@@ -92,16 +92,17 @@ export default function TaxRatesManager({ storeZip, uploadedAt, rowCount }: Prop
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
-      <h1 className="text-2xl font-black tracking-tight text-slate-950">Tax Rates</h1>
-      <p className="mt-1 text-sm text-slate-500">
+    <div className="mx-auto max-w-4xl px-3 py-4 sm:px-5 lg:px-6">
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b4532f]">Settings</p>
+      <h1 className="text-2xl font-black tracking-tight text-[#0f172a]">Tax Rates</h1>
+      <p className="mt-1 text-xs text-[#5b6678]">
         Upload the WA Department of Revenue ZIP+4 tax rate file each quarter. Rates are used automatically for walk-in and delivery orders.
       </p>
 
       {/* Store ZIP */}
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
         <h2 className="text-base font-bold text-slate-950">Store ZIP code</h2>
-        <p className="mt-1 text-sm text-slate-500">Your store's ZIP — used as the default tax rate for walk-in sales.</p>
+        <p className="mt-1 text-sm text-slate-500">Your store&apos;s ZIP — used as the default tax rate for walk-in sales.</p>
         <div className="mt-3 flex gap-2">
           <input
             value={zip}

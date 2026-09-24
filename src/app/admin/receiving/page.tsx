@@ -30,12 +30,12 @@ export default async function AdminReceivingPage() {
   ]);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-      <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <main className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5 lg:px-6">
+      <div className="mb-4 flex flex-col gap-3 rounded-xl border border-[#e6e8ec] bg-white p-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-brand-blue">Inventory</p>
-          <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">Receive Stock</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b4532f]">Inventory</p>
+          <h1 className="text-2xl font-black tracking-tight text-[#0f172a]">Receive Stock</h1>
+          <p className="mt-1 max-w-2xl text-xs text-[#5b6678]">
             Group a supplier shipment under one batch token and calculate each product&apos;s true landed cost.
           </p>
         </div>
@@ -44,7 +44,7 @@ export default async function AdminReceivingPage() {
         </Link>
       </div>
 
-      <div className="mb-6 flex gap-2 overflow-x-auto border-b border-slate-200">
+      <div className="mb-4 flex gap-2 overflow-x-auto border-b border-[#e6e8ec]">
         <Link href="/admin/inventory" className="whitespace-nowrap px-4 pb-3 text-sm font-semibold text-slate-500 hover:text-slate-900">Products</Link>
         <Link href="/admin/receiving" className="whitespace-nowrap border-b-2 border-brand-navy px-4 pb-3 text-sm font-bold text-brand-navy">Receive Stock</Link>
         <Link href="/admin/inventory/packaging" className="whitespace-nowrap px-4 pb-3 text-sm font-semibold text-slate-500 hover:text-slate-900">Packaging Review</Link>

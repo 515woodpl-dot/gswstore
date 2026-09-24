@@ -60,9 +60,10 @@ export default function DiscountCodesManager({ initialCodes, setupError }: { ini
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="text-3xl font-black text-slate-950">Online Discount Codes</h1>
-      <p className="mt-2 text-sm text-slate-500">One active code appears in the store banner and applies at checkout.</p>
+    <div className="mx-auto max-w-4xl px-3 py-4 sm:px-5 lg:px-6">
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b4532f]">Settings</p>
+      <h1 className="text-2xl font-black text-[#0f172a]">Online Discount Codes</h1>
+      <p className="mt-1 text-xs text-[#5b6678]">One active code appears in the store banner and applies at checkout.</p>
 
       <div className="mt-6 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-4">
         <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Campaign name" className="rounded-xl border border-slate-300 p-2" />

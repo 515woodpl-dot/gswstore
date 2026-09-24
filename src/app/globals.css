@@ -50,6 +50,26 @@ textarea:focus-visible {
   }
 }
 
+/* Shared admin tokens and restrained surface treatment. */
+.admin-shell {
+  --admin-ink: #0f172a;
+  --admin-muted: #5b6678;
+  --admin-accent: #b4532f;
+  --admin-positive: #23694a;
+  --admin-warning: #9a4a14;
+  --admin-negative: #b4233a;
+  --admin-border: #e6e8ec;
+  --admin-paper: #fbfaf8;
+}
+
+.admin-shell-content :where(.rounded-3xl) {
+  border-radius: 0.75rem;
+}
+
+.admin-shell-content :where(.shadow-soft, .shadow-sm) {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
 /* ── Receipt print styles ────────────────────────────────────────────────────
    When printing from the walk-in screen, hide the entire page and show
    only the #gsw-receipt element at the correct thermal-printer width. */

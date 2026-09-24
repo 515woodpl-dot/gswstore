@@ -14,11 +14,11 @@ export default async function StaffPage() {
   if (auth.role !== "owner") redirect("/admin?error=owners_only");
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-      <div className="mb-8 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-soft sm:flex-row sm:items-end sm:justify-between sm:p-6">
+    <div className="mx-auto max-w-4xl px-3 py-4 sm:px-5 lg:px-6">
+      <div className="mb-4 flex flex-col gap-3 rounded-xl border border-[#e6e8ec] bg-white p-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-brand-gold">Admin</p>
-          <h1 className="text-3xl font-black tracking-tight text-slate-950">Staff Access</h1>
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b4532f]">Settings</p>
+          <h1 className="text-2xl font-black tracking-tight text-[#0f172a]">Staff Access</h1>
         </div>
         <div className="flex gap-3">
           <Link href="/admin/inventory" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-brand-gold hover:bg-brand-gold/5">Inventory</Link>

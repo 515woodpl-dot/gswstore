@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/admin";
 import { ADMIN_NAV } from "@/lib/adminNav";
-import { BRAND } from "@/lib/brand";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -27,65 +26,63 @@ export default async function AdminDashboardPage() {
   ]);
 
   const stats = [
-    { label: "Orders today", value: String(todayOrders ?? 0), accent: "text-emerald-700" },
-    { label: "Pending orders", value: String(pendingOrders ?? 0), accent: pendingOrders ? "text-amber-700" : "text-slate-700" },
-    { label: "Low stock items", value: String(lowStock?.length ?? 0), accent: lowStock?.length ? "text-rose-700" : "text-slate-700" },
+    { label: "Orders today", value: String(todayOrders ?? 0), detail: "Created since midnight", accent: "text-[#23694a]" },
+    { label: "Pending orders", value: String(pendingOrders ?? 0), detail: "Need payment or fulfillment", accent: pendingOrders ? "text-[#9a4a14]" : "text-[#0f172a]" },
+    { label: "Low stock", value: String(lowStock?.length ?? 0), detail: "Products below 10 units", accent: lowStock?.length ? "text-[#b4233a]" : "text-[#0f172a]" },
   ];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="mb-8">
-        <p className="text-xs font-bold uppercase tracking-[0.24em] text-brand-gold">Stone Product Supply</p>
-        <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">Admin Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-500">
+    <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5 lg:px-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b4532f]">Stone Product Supply</p>
+          <h1 className="mt-0.5 text-2xl font-black tracking-tight text-[#0f172a]">Admin Dashboard</h1>
+          <p className="mt-1 text-xs text-[#5b6678]">
           {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-        </p>
+          </p>
+        </div>
+        <Link href="/admin/orders/new" className="flex min-h-11 items-center rounded-lg bg-[#0f172a] px-4 text-sm font-bold text-white hover:bg-slate-800">+ Payment-link order</Link>
       </div>
 
-      {/* Quick stats */}
-      <div className="mb-8 grid grid-cols-3 gap-3">
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
         {stats.map((s) => (
-          <div key={s.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{s.label}</p>
-            <p className={`mt-1 text-2xl font-black ${s.accent}`}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Nav groups as cards */}
-      <div className="space-y-8">
-        {ADMIN_NAV.map((group) => (
-          <div key={group.label}>
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-slate-400">{group.label}</h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {group.items.map((item) => (
-                <Link key={item.href} href={item.href}
-                  className={`group flex items-start gap-4 rounded-3xl bg-white p-5 shadow-sm ring-1 transition active:scale-[0.98] hover:shadow-md ${group.color}`}>
-                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-2xl ${group.color}`}>
-                    {item.icon}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-black text-slate-950">{item.label}</p>
-                    <p className="mt-0.5 text-sm leading-5 text-slate-500">{item.description}</p>
-                  </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                    className="mt-1 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-brand-navy">
-                    <path d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
-              ))}
+          <div key={s.label} className="rounded-xl border border-[#e6e8ec] bg-white p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#5b6678]">{s.label}</p>
+            <div className="mt-1 flex items-end justify-between gap-3">
+              <p className={`text-[28px] font-black leading-none tabular-nums ${s.accent}`}>{s.value}</p>
+              <p className="text-right text-[10px] text-[#5b6678]">{s.detail}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Alerts shortcut */}
-      <div className="mt-8 flex justify-center">
-        <a href={BRAND.alertsUrl}
-          className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
-          🔔 Go to Alerts
-        </a>
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        {ADMIN_NAV.map((group) => (
+          <section key={group.label} className="overflow-hidden rounded-xl border border-[#e6e8ec] bg-white">
+            <div className="flex h-11 items-center justify-between border-b border-[#e6e8ec] bg-[#fbfaf8] px-4">
+              <h2 className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#0f172a]">{group.label}</h2>
+              <span className="text-[10px] tabular-nums text-[#5b6678]">{group.items.length} tools</span>
+            </div>
+            <div className="divide-y divide-[#eef0f2]">
+              {group.items.map((item) => (
+                <Link key={item.href} href={item.href}
+                  className="group flex min-h-[72px] items-center gap-3 px-4 py-3 transition hover:bg-[#fbfaf8]">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f2f0ed] text-lg">
+                    {item.icon}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-[#0f172a]">{item.label}</p>
+                    <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-[#5b6678]">{item.description}</p>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                    className="shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-[#b4532f]">
+                    <path d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export type BuyerType = "personal" | "company";
 export type PaymentMethod = "cash" | "zelle" | "square";
@@ -32,23 +32,28 @@ export default function SaleComplianceFields({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [taxStatus, setTaxStatus] = useState("");
+  const zipLookupSequence = useRef(0);
 
   function patch(next: Partial<SaleComplianceValue>) {
     onChange({ ...value, ...next });
   }
 
   async function lookupZip(zip: string) {
-    patch({ taxZip: zip });
+    const requestId = ++zipLookupSequence.current;
+    onChange({ ...value, taxZip: zip, taxCity: "" });
     if (!/^\d{5}$/.test(zip)) { onTaxRate?.(0); setTaxStatus(""); return; }
     setTaxStatus("Looking up…");
     try {
       const response = await fetch(`/api/admin/tax-rates?zip=${zip}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "No rate found");
+      if (requestId !== zipLookupSequence.current) return;
       const rate = Number(data.combined_rate) || 0;
+      onChange({ ...value, taxZip: zip, taxCity: String(data.city || "") });
       onTaxRate?.(rate);
-      setTaxStatus(`${(rate * 100).toFixed(2)}% rate`);
+      setTaxStatus(`${data.city}, ${data.stateCode} · ${(rate * 100).toFixed(2)}%`);
     } catch (error) {
+      if (requestId !== zipLookupSequence.current) return;
       onTaxRate?.(0);
       setTaxStatus(error instanceof Error ? error.message : "No rate found");
     }
@@ -87,11 +92,12 @@ export default function SaleComplianceFields({
             </select>
           )}
         </label>
-        <label><span className="mb-1 block text-xs font-semibold text-slate-700">Tax city</span>
-          <input value={value.taxCity} onChange={(e) => patch({ taxCity: e.target.value })} placeholder="Auburn" className={selectCls} />
-        </label>
         <label><span className="mb-1 block text-xs font-semibold text-slate-700">Tax ZIP</span>
-          <div className="flex items-center gap-2"><input value={value.taxZip} onChange={(e) => void lookupZip(e.target.value.replace(/\D/g, "").slice(0, 5))} inputMode="numeric" placeholder="98002" className={selectCls} /><span className="shrink-0 text-xs text-slate-500">{taxStatus}</span></div>
+          <input value={value.taxZip} onChange={(e) => void lookupZip(e.target.value.replace(/\D/g, "").slice(0, 5))} inputMode="numeric" placeholder="98002" className={selectCls} />
+          {taxStatus && <span className="mt-1 block text-xs text-slate-500">{taxStatus}</span>}
+        </label>
+        <label><span className="mb-1 block text-xs font-semibold text-slate-700">Tax city</span>
+          <input value={value.taxCity} readOnly placeholder="Filled from ZIP" className={`${selectCls} bg-slate-50`} />
         </label>
       </div>
 

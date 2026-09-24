@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SaleCreationError } from "@/lib/create-sale";
+import { getZipLocation } from "@/lib/zip-location";
 
 export type BuyerType = "personal" | "company";
 export type PaymentMethod = "cash" | "zelle" | "square";
@@ -33,9 +34,11 @@ export async function resolveSaleCompliance(
   if (!paymentMethod) throw new SaleCreationError("Choose Cash, Zelle, or Square Up as the transaction type.", 400);
 
   const taxZip = typeof body.taxZip === "string" ? body.taxZip.trim() : "";
-  const taxCity = typeof body.taxCity === "string" ? body.taxCity.trim() : "";
   if (!/^\d{5}$/.test(taxZip)) throw new SaleCreationError("Enter the 5-digit ZIP used for sales tax.", 400);
-  if (!taxCity || taxCity.length > 120) throw new SaleCreationError("Enter the city used for sales tax.", 400);
+  const zipLocation = getZipLocation(taxZip);
+  if (!zipLocation) throw new SaleCreationError("No city was found for that ZIP code.", 409);
+  if (zipLocation.stateCode !== "WA") throw new SaleCreationError("This store currently supports Washington ZIP codes only.", 409);
+  const taxCity = zipLocation.city;
 
   let taxExempt = false;
   let resellerPermitStatus: ResellerPermitStatus = "not_required";

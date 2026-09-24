@@ -190,7 +190,7 @@ export default function TaxRatesManager({ storeZip, uploadedAt, rowCount }: Prop
               <p>❌ {String(lookupResult.error)}</p>
             ) : (
               <div className="space-y-1">
-                <p className="font-bold text-slate-900">ZIP {lookupResult.zip as string}</p>
+                <p className="font-bold text-slate-900">{lookupResult.city as string}, {lookupResult.stateCode as string} · ZIP {lookupResult.zip as string}</p>
                 <p>Combined rate: <strong>{((lookupResult.combined_rate as number) * 100).toFixed(2)}%</strong></p>
                 <p className="text-slate-500">State: {((lookupResult.state_rate as number) * 100).toFixed(2)}% · Local: {((lookupResult.local_rate as number) * 100).toFixed(2)}%</p>
                 {(lookupResult.rate_count as number) > 1 && (

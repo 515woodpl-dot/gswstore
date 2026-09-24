@@ -5,6 +5,8 @@ Updated September 24, 2026 on `feature/admin-payment-orders-safe`.
 ## Sales compliance
 
 - Walk-in, manual, and payment-link sales require a buyer type, payment method, tax city, and tax ZIP.
+- Entering a ZIP now automatically resolves and displays its canonical city and state; staff no longer type the tax city manually.
+- Sale creation independently derives the city from the ZIP on the server and currently accepts Washington ZIP codes only, preventing a mismatched city from being saved.
 - Supported payment methods are Cash, Zelle, and Square Up.
 - Sales tax is calculated server-side from the ZIP rate; client-provided totals or tax rates are not trusted.
 - Company purchases require a reseller permit in PDF, JPG, or PNG format.
@@ -58,7 +60,7 @@ git push origin feature/admin-payment-orders-safe
 
 - TypeScript: passed
 - Application-targeted ESLint: passed
-- Automated tests: 18 passed
+- Automated tests: 20 passed
 - Next.js production build: passed
 
 The repository-wide lint command still reports pre-existing errors in legacy third-party files under `public/`.

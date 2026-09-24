@@ -42,6 +42,33 @@ interface OrderRow {
 }
 interface InventoryRow { id: string; name: string; amount: number; }
 
+type SaleKindFilter = "all" | "cash" | "online" | "payment_link" | "walk_in";
+
+const SALE_KINDS: { key: SaleKindFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "cash", label: "Cash" },
+  { key: "online", label: "Online orders" },
+  { key: "payment_link", label: "Payment-link orders" },
+  { key: "walk_in", label: "Walk-in orders" },
+];
+
+function matchesSaleKind(order: OrderRow, kind: SaleKindFilter) {
+  if (kind === "cash") return order.payment_method === "cash";
+  if (kind === "online") return order.source === "online";
+  if (kind === "payment_link") return order.source === "admin_payment_link";
+  if (kind === "walk_in") return order.source === "walk_in";
+  return true;
+}
+
+function squareAmounts(order: OrderRow) {
+  if (order.payment_method !== "square" || order.transaction_type === "internal_use") {
+    return { gross: 0, fee: 0, deposit: 0 };
+  }
+  const grossCents = Math.max(0, Math.round(Number(order.total || 0) * 100));
+  const feeCents = grossCents > 0 ? Math.round(grossCents * 0.026) + 15 : 0;
+  return { gross: grossCents / 100, fee: feeCents / 100, deposit: Math.max(0, grossCents - feeCents) / 100 };
+}
+
 const RANGES = [
   { key: "today", label: "Today" },
   { key: "week", label: "Last 7 days" },
@@ -73,14 +100,22 @@ export default function SalesReport({
   const [repairingCosts, setRepairingCosts] = useState(false);
   const [costRepairMessage, setCostRepairMessage] = useState("");
   const [showTests, setShowTests] = useState(false);
-  const orders = useMemo(
+  const [saleKind, setSaleKind] = useState<SaleKindFilter>("all");
+  const testFilteredOrders = useMemo(
     () => showTests ? allOrders : allOrders.filter((order) => !order.is_test),
     [allOrders, showTests],
   );
+  const orders = useMemo(
+    () => testFilteredOrders.filter((order) => matchesSaleKind(order, saleKind)),
+    [saleKind, testFilteredOrders],
+  );
+  const saleKindCounts = useMemo(() => Object.fromEntries(
+    SALE_KINDS.map((kind) => [kind.key, testFilteredOrders.filter((order) => matchesSaleKind(order, kind.key)).length]),
+  ) as Record<SaleKindFilter, number>, [testFilteredOrders]);
 
   // Totals
   const stats = useMemo(() => {
-    let revenue = 0, cost = 0, discounts = 0, units = 0, walkIn = 0, online = 0, internalUnits = 0, saleOrders = 0;
+    let revenue = 0, cost = 0, discounts = 0, units = 0, walkIn = 0, online = 0, internalUnits = 0, saleOrders = 0, squareGross = 0, squareFees = 0, squareDeposit = 0;
     const byStaff: Record<string, { revenue: number; cost: number; discounts: number; count: number }> = {};
     let missingCostUnits = 0;
     const byItem: Record<string, { name: string; qty: number; stock: number; listRevenue: number; discounts: number; revenue: number; cost: number; profit: number; costMissing: boolean }> = {};
@@ -94,6 +129,10 @@ export default function SalesReport({
         continue;
       }
       saleOrders += 1;
+      const square = squareAmounts(o);
+      squareGross += square.gross;
+      squareFees += square.fee;
+      squareDeposit += square.deposit;
       const orderMerchandiseRevenue = o.order_items.reduce((sum, item) => sum + Number(item.unit_price) * item.quantity, 0);
       const orderDiscount = o.order_items.reduce((sum, item) => sum + Number(item.discount_amount || 0), 0);
       revenue += orderMerchandiseRevenue;
@@ -131,7 +170,7 @@ export default function SalesReport({
     const profit = revenue - cost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     return {
-      revenue, cost, profit, margin, discounts, units, walkIn, online, internalUnits, missingCostUnits,
+      revenue, cost, profit, margin, discounts, units, walkIn, online, internalUnits, missingCostUnits, squareGross, squareFees, squareDeposit,
       orders: saleOrders,
       byStaff: Object.entries(byStaff).sort((a, b) => b[1].revenue - a[1].revenue),
       byItem: Object.values(byItem).sort((a, b) => b.revenue - a.revenue),
@@ -176,11 +215,12 @@ export default function SalesReport({
 
   function exportCsv() {
     const rows: string[][] = [
-      ["Order", "Date", "Source", "Sold by", "Purchase for", "Payment method", "Tax city", "Tax ZIP", "Tax rate", "Tax charged", "Tax exempt", "Permit status", "Item", "SKU", "Qty", "List price", "Sold price", "Cost per base unit", "Base units per sale", "Line cost", "Discount", "Discount reason", "Line total", "Line profit"],
+      ["Order", "Date", "Source", "Sold by", "Purchase for", "Payment method", "Tax city", "Tax ZIP", "Tax rate", "Tax charged", "Tax exempt", "Permit status", "Square gross", "Square fee (2.60% + $0.15)", "Final Square deposit", "Item", "SKU", "Qty", "List price", "Sold price", "Cost per base unit", "Base units per sale", "Line cost", "Discount", "Discount reason", "Line total", "Line profit"],
     ];
     for (const o of orders) {
       if (o.transaction_type === "internal_use") continue;
-      for (const it of o.order_items) {
+      const square = squareAmounts(o);
+      for (const [itemIndex, it] of o.order_items.entries()) {
         const lineTotal = it.unit_price * it.quantity;
         const lineCost = costForSale(it.cost_price, it.quantity, it.base_units_per_sale);
         const costMissing = Number(it.cost_price || 0) <= 0 && it.quantity > 0;
@@ -197,6 +237,9 @@ export default function SalesReport({
           Number(o.tax_total || 0).toFixed(2),
           o.tax_exempt ? "Yes" : "No",
           o.reseller_permit_status || "not_required",
+          itemIndex === 0 && square.gross > 0 ? square.gross.toFixed(2) : "",
+          itemIndex === 0 && square.fee > 0 ? square.fee.toFixed(2) : "",
+          itemIndex === 0 && square.deposit > 0 ? square.deposit.toFixed(2) : "",
           it.name,
           it.sku ?? "",
           String(it.quantity),
@@ -304,6 +347,25 @@ export default function SalesReport({
         </label>
       </div>
 
+      {/* Sale-kind filters. Cash intentionally filters by payment method;
+          the other choices filter by the order's creation source. */}
+      <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Kind of sale</p>
+        <div className="flex flex-wrap gap-2">
+          {SALE_KINDS.map((kind) => (
+            <button
+              key={kind.key}
+              type="button"
+              onClick={() => { setSaleKind(kind.key); setExpanded(null); }}
+              className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${saleKind === kind.key ? "bg-brand-gold text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+            >
+              {kind.label} ({saleKindCounts[kind.key]})
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-slate-500">Cash includes every sale paid in cash. Online, payment-link, and walk-in choices are based on where the order was created.</p>
+      </div>
+
       {/* Stat cards */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label="Net product revenue" value={formatPrice(stats.revenue)} accent="text-emerald-700" />
@@ -317,10 +379,13 @@ export default function SalesReport({
         <StatCard label="Units sold" value={String(stats.units)} />
         <StatCard label="Walk-in revenue" value={formatPrice(stats.walkIn)} />
         <StatCard label="Online revenue" value={formatPrice(stats.online)} />
+        <StatCard label="Square gross" value={formatPrice(stats.squareGross)} />
+        <StatCard label="Square fees" value={`−${formatPrice(stats.squareFees)}`} accent="text-amber-700" />
+        <StatCard label="Final Square deposit" value={formatPrice(stats.squareDeposit)} accent="text-emerald-700" />
         {stats.internalUnits > 0 && <StatCard label="Internal-use units" value={String(stats.internalUnits)} accent="text-slate-700" />}
       </div>
       <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
-        Net product revenue is the item amount actually collected after discounts, excluding sales tax. Cost is captured from inventory when the item is sold, so later receiving-cost changes do not alter past profit.
+        Net product revenue is the item amount actually collected after discounts, excluding sales tax. Final Square deposit is estimated per Square transaction as the full order total minus 2.60% and $0.15. Cash and Zelle sales have no Square fee. Cost is captured from inventory when the item is sold, so later receiving-cost changes do not alter past profit.
       </p>
       {stats.missingCostUnits > 0 && (
         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-5 text-amber-950">
@@ -493,6 +558,7 @@ export default function SalesReport({
         )}
         {orders.map((o) => {
           const orderDiscount = o.order_items.reduce((sum, item) => sum + Number(item.discount_amount || 0), 0);
+          const square = squareAmounts(o);
           return <div key={o.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <button onClick={() => setExpanded(expanded === o.id ? null : o.id)}
               className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50">
@@ -517,6 +583,11 @@ export default function SalesReport({
                 <p className="mb-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
                   <strong>{o.buyer_type === "company" ? "Company" : "Personal use"}</strong> · {o.payment_method === "square" ? "Square Up" : o.payment_method === "zelle" ? "Zelle" : o.payment_method === "cash" ? "Cash" : "Legacy / unknown"} · Tax jurisdiction: {o.tax_city || "—"}{o.tax_zip ? `, ${o.tax_zip}` : ""} · {o.tax_exempt ? "Tax exempt (permit approved)" : `${(Number(o.tax_rate || 0) * 100).toFixed(2)}% / ${formatPrice(Number(o.tax_total || 0))} tax`}
                 </p>
+                {square.gross > 0 && (
+                  <p className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                    <strong>Square deposit:</strong> {formatPrice(square.gross)} gross − {formatPrice(square.fee)} fee = <strong>{formatPrice(square.deposit)} final deposit</strong>
+                  </p>
+                )}
                 <table className="w-full text-xs">
                   <thead className="text-slate-400">
                     <tr>

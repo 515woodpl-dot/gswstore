@@ -55,6 +55,9 @@ Updated September 25, 2026 on `master`.
 - Long Application values now span the card as wrapping tags, with duplicate entries removed.
 - Tightened specifications, pickup and returns, and review spacing to remove the large blank area.
 - Removed visible Markdown emphasis markers from product descriptions.
+- Moved a fixed-height customer review preview into the unused space beneath product details.
+- The preview stays inside the product grid and shows at most two compact review cards.
+- Read more reviews and Write a review now open the full review list, rating breakdown, and form in a modal so the page layout does not expand.
 
 ## Deployment
 

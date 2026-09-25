@@ -109,6 +109,7 @@ export default async function ProductPage({ params }: Props) {
               <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold">Product details</p>
               <Accordion sections={sections} defaultOpen={0} />
             </div>
+            <div id="reviews"><ProductReviews itemId={item!.id} initialReviews={reviews!} /></div>
           </div>
         </div>
 
@@ -157,10 +158,8 @@ export default async function ProductPage({ params }: Props) {
       </section>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-        <div id="reviews"><ProductReviews itemId={item!.id} initialReviews={reviews!} /></div>
-
         {related.length > 0 && (
-          <section className="mt-20 border-t border-slate-300 pt-12">
+          <section className="border-t border-slate-300 pt-10">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold">Keep the job moving</p>
             <h2 className="font-display mt-2 text-4xl font-black uppercase tracking-[-0.05em] text-brand-navy">More in {item!.category_name}</h2>
             <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

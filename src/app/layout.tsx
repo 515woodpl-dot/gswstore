@@ -37,18 +37,18 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const sb = await createClient();
-  const { data: cats } = await sb
-    .from("categories")
-    .select("id,name")
-    .order("sort_order");
-  const { data: promotion } = await sb.from("discount_codes").select("name,code,percent_off").eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const [{ data: cats }, { data: promotion }, { data: products }] = await Promise.all([
+    sb.from("categories").select("id,name").order("sort_order"),
+    sb.from("discount_codes").select("name,code,percent_off").eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    sb.from("inventory").select("id,name,sku,brand,category_name").eq("store_visible", true).is("parent_id", null).order("name"),
+  ]);
 
   return (
     <html lang="en">
       <body className="min-h-screen font-sans">
         <IdleSessionGuard />
         <CartProvider>
-          <StoreShell categories={cats ?? []} promotion={promotion ? { name: promotion.name, code: promotion.code, percentOff: Number(promotion.percent_off) } : null}>{children}</StoreShell>
+          <StoreShell categories={cats ?? []} products={products ?? []} promotion={promotion ? { name: promotion.name, code: promotion.code, percentOff: Number(promotion.percent_off) } : null}>{children}</StoreShell>
         </CartProvider>
       </body>
     </html>

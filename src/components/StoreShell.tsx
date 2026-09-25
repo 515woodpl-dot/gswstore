@@ -8,10 +8,7 @@ import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { BRAND } from "@/lib/brand";
 import { SHOP_PHONE, SHOP_PHONE_RAW } from "@/lib/utils";
-
-function SearchGlyph() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current stroke-[1.8]"><circle cx="10.5" cy="10.5" r="6.5" /><path strokeLinecap="round" d="m16 16 5 5" /></svg>;
-}
+import StoreSearch, { type StoreSearchProduct } from "@/components/StoreSearch";
 
 function AccountGlyph() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current stroke-[1.8]"><circle cx="12" cy="8" r="3.5" /><path strokeLinecap="round" d="M5 20c.6-4 3-6 7-6s6.4 2 7 6" /></svg>;
@@ -21,7 +18,7 @@ function CartGlyph() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current stroke-[1.8]"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4h2l2 10h10.5l2-7H6" /><circle cx="9" cy="19" r="1.2" fill="currentColor" stroke="none" /><circle cx="17" cy="19" r="1.2" fill="currentColor" stroke="none" /></svg>;
 }
 
-export function StoreShell({ children, categories = [], promotion = null }: { children: ReactNode; categories?: { id: string; name: string }[]; promotion?: { name: string; code: string; percentOff: number } | null }) {
+export function StoreShell({ children, categories = [], products = [], promotion = null }: { children: ReactNode; categories?: { id: string; name: string }[]; products?: StoreSearchProduct[]; promotion?: { name: string; code: string; percentOff: number } | null }) {
   const pathname = usePathname();
   const { itemCount } = useCart();
   const { user, signOut } = useAuth();
@@ -68,12 +65,7 @@ export function StoreShell({ children, categories = [], promotion = null }: { ch
         </nav>
 
         <div className="mx-auto max-w-7xl border-x border-t border-[#d7dbdd]">
-          <form action="/#catalog" method="get" className="grid min-h-[62px] grid-cols-[auto_1fr_auto] items-center gap-3 bg-white pl-4 sm:pl-6">
-            <span className="text-brand-blue"><SearchGlyph /></span>
-            <label className="sr-only" htmlFor="store-search">Search the catalog</label>
-            <input id="store-search" name="q" type="search" placeholder="Search by product, brand, or SKU" className="min-w-0 bg-transparent text-sm outline-none placeholder:text-slate-400" />
-            <button type="submit" className="h-full bg-brand-blue px-4 text-[11px] font-black uppercase tracking-wide text-white transition hover:bg-brand-gold sm:px-6">Search<span className="hidden sm:inline"> catalog</span></button>
-          </form>
+          <StoreSearch products={products} />
         </div>
       </header>
 

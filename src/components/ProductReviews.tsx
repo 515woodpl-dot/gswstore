@@ -94,7 +94,7 @@ export default function ProductReviews({
   }
 
   return (
-    <section className="mt-16 border-t border-slate-300 pt-12">
+    <section className="mt-6 border-t border-slate-300 pt-8">
       <div className="mb-6 flex flex-col gap-1">
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold">Customer reviews</p>
         <div className="flex flex-wrap items-center gap-3">

@@ -17,7 +17,7 @@ export const revalidate = 60;
 interface Props { params: Promise<{ id: string }> }
 
 function ProductDescription({ text }: { text: string }) {
-  const paragraphs = text.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
+  const paragraphs = text.replace(/\*\*/g, "").split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
   return (
     <div className="mt-6 space-y-4 text-sm leading-7 text-slate-600">
       {paragraphs.map((paragraph, index) => <p key={index} className="whitespace-pre-line">{paragraph}</p>)}
@@ -63,6 +63,7 @@ export default async function ProductPage({ params }: Props) {
   const related = allItems!.filter((candidate) => candidate.category_name === item!.category_name && candidate.id !== item!.id).slice(0, 3);
   const galleryImages = item!.images?.length ? item!.images : (item!.image_url ? [item!.image_url] : []);
   const placeholder = "/brand/sps-logo-square.png";
+  const productDimensions = item!.dimensions || item!.attributes?.Dimensions || item!.attributes?.Dimension || item!.attributes?.Size || "";
 
   const sections = [
     {
@@ -72,7 +73,7 @@ export default async function ProductPage({ params }: Props) {
           {item!.brand && <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Brand</dt><dd className="mt-1 font-bold text-brand-navy">{item!.brand}</dd></div>}
           {item!.model_number && <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Model</dt><dd className="mt-1 font-bold text-brand-navy">{item!.model_number}</dd></div>}
           {item!.voltage && item!.voltage !== "N/A" && <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Voltage</dt><dd className="mt-1 font-bold text-brand-navy">{item!.voltage}</dd></div>}
-          {item!.dimensions && <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Dimensions</dt><dd className="mt-1 font-bold text-brand-navy">{item!.dimensions}</dd></div>}
+          {productDimensions && <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Dimensions</dt><dd className="mt-1 font-bold text-brand-navy">{productDimensions}</dd></div>}
           {item!.weight && <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Weight</dt><dd className="mt-1 font-bold text-brand-navy">{item!.weight}</dd></div>}
           {item!.material && <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Material</dt><dd className="mt-1 font-bold text-brand-navy">{item!.material}</dd></div>}
           {item!.sku && <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">SKU</dt><dd className="mt-1 font-bold text-brand-navy">{item!.sku}</dd></div>}
@@ -99,12 +100,12 @@ export default async function ProductPage({ params }: Props) {
         <span className="truncate text-brand-navy">{item!.name}</span>
       </nav>
 
-      <section className="mx-auto grid max-w-7xl gap-10 px-4 pb-20 sm:px-6 lg:grid-cols-[1.12fr_0.88fr] lg:gap-16 lg:px-8 lg:pb-24">
-        <div>
-          <ImageGallery images={galleryImages} name={item!.name} />
+      <section className="mx-auto grid max-w-7xl items-start gap-10 px-4 pb-8 sm:px-6 lg:grid-cols-[1.12fr_0.88fr] lg:gap-16 lg:px-8 lg:pb-10">
+        <div className="self-start">
+          <ImageGallery images={galleryImages} name={item!.name} dimensions={productDimensions} />
           <div className="mt-2">
             <KeyAttributes attributes={item!.attributes} />
-            <div className="mt-9">
+            <div className="mt-6">
               <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold">Product details</p>
               <Accordion sections={sections} defaultOpen={0} />
             </div>
@@ -116,7 +117,7 @@ export default async function ProductPage({ params }: Props) {
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-blue">{item!.brand || "Stone Product Supply"}</p>
             {item!.sku && <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400">SKU {item!.sku}</p>}
           </div>
-          {item!.category_name?.toLowerCase() === "sink" && item!.dimensions && <p className="mt-4 text-xs font-bold tracking-[0.12em] text-brand-blue">Sink dimensions: {item!.dimensions}</p>}
+          {item!.category_name?.toLowerCase() === "sink" && productDimensions && <p className="font-display mt-4 text-xl font-black uppercase tracking-[-0.02em] text-brand-blue sm:text-2xl">Sink dimensions: {productDimensions}</p>}
           <h1 className="font-display mt-4 text-[clamp(3.25rem,6vw,5.5rem)] font-black uppercase leading-[0.86] tracking-[-0.06em] text-brand-navy">{item!.name}</h1>
 
           <div className="mt-5 flex flex-wrap items-center gap-3 border-b border-slate-300 pb-5 text-xs">
@@ -155,7 +156,7 @@ export default async function ProductPage({ params }: Props) {
         </div>
       </section>
 
-      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
         <div id="reviews"><ProductReviews itemId={item!.id} initialReviews={reviews!} /></div>
 
         {related.length > 0 && (

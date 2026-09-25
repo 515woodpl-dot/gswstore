@@ -48,6 +48,14 @@ Updated September 24, 2026 on `feature/admin-payment-orders-safe`.
 - Product dimensions are displayed as a large overlay on the featured image and repeated in the product facts.
 - Kept the live inventory, trade-grade selection, and fast pickup benefits directly beneath the hero in a shorter row.
 
+## Product page
+
+- Enlarged product dimensions and added them as a high-contrast overlay on the main product image.
+- Reworked key attributes into a compact two-column layout.
+- Long Application values now span the card as wrapping tags, with duplicate entries removed.
+- Tightened specifications, pickup and returns, and review spacing to remove the large blank area.
+- Removed visible Markdown emphasis markers from product descriptions.
+
 ## Deployment
 
 Apply the database migration before deploying application code:

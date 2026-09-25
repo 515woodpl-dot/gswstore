@@ -46,11 +46,11 @@ export default async function StorefrontPage({ searchParams, basePath }: Props) 
 
       <TradeHero items={heroItems} />
 
-      <section className="bg-[#dfe8ed]">
+      <section className="border-y border-brand-blue/10 bg-[#dfe8ed]">
         <div className="mx-auto grid max-w-7xl divide-y divide-brand-blue/15 px-4 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:px-6 lg:px-8">
-          <p className="grid min-h-24 grid-cols-[34px_1fr] content-center py-5 text-[10px] leading-4 text-slate-600 sm:px-6 sm:first:pl-0"><span className="row-span-2 font-display font-black text-brand-gold">01</span><b className="text-xs text-brand-navy">Live local inventory</b>Know what&apos;s here before you drive.</p>
-          <p className="grid min-h-24 grid-cols-[34px_1fr] content-center py-5 text-[10px] leading-4 text-slate-600 sm:px-6"><span className="row-span-2 font-display font-black text-brand-gold">02</span><b className="text-xs text-brand-navy">Trade-grade selection</b>Products chosen for real job sites.</p>
-          <p className="grid min-h-24 grid-cols-[34px_1fr] content-center py-5 text-[10px] leading-4 text-slate-600 sm:px-6 sm:last:pr-0"><span className="row-span-2 font-display font-black text-brand-gold">03</span><b className="text-xs text-brand-navy">Fast counter pickup</b>We stage your order ahead of time.</p>
+          <p className="grid min-h-20 grid-cols-[34px_1fr] content-center py-4 text-[10px] leading-4 text-slate-600 sm:px-6 sm:first:pl-0"><span className="row-span-2 font-display font-black text-brand-gold">01</span><b className="text-xs text-brand-navy">Live local inventory</b>Know what&apos;s here before you drive.</p>
+          <p className="grid min-h-20 grid-cols-[34px_1fr] content-center py-4 text-[10px] leading-4 text-slate-600 sm:px-6"><span className="row-span-2 font-display font-black text-brand-gold">02</span><b className="text-xs text-brand-navy">Trade-grade selection</b>Products chosen for real job sites.</p>
+          <p className="grid min-h-20 grid-cols-[34px_1fr] content-center py-4 text-[10px] leading-4 text-slate-600 sm:px-6 sm:last:pr-0"><span className="row-span-2 font-display font-black text-brand-gold">03</span><b className="text-xs text-brand-navy">Fast counter pickup</b>We stage your order ahead of time.</p>
         </div>
       </section>
 

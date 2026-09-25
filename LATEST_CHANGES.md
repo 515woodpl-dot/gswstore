@@ -38,6 +38,14 @@ Updated September 24, 2026 on `feature/admin-payment-orders-safe`.
 - Redesigned the admin dashboard into compact KPI cards and dense grouped tool lists.
 - Standardized page headers and spacing across orders, payment links, walk-in sales, past sales, inventory, receiving, purchase orders, packaging, categories, tax rates, discount codes, and staff access.
 
+## Storefront hero
+
+- Shortened the featured-product presentation and reduced the image height.
+- Product images now use an uncropped contain fit so the complete inventory photo remains visible.
+- Moved the description, pricing, product links, dimensions, pickup details, location, and live stock into a compact block below the image.
+- Long descriptions use two columns on desktop and visible Markdown emphasis markers are removed.
+- Kept the live inventory, trade-grade selection, and fast pickup benefits directly beneath the hero in a shorter row.
+
 ## Deployment
 
 Apply the database migration before deploying application code:

@@ -1,213 +1,100 @@
 "use client";
 
 import Link from "next/link";
-import { BRAND } from "@/lib/brand";
+import { type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { type ReactNode, useState } from "react";
 import BrandLogo from "@/components/BrandLogo";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
+import { BRAND } from "@/lib/brand";
 import { SHOP_PHONE, SHOP_PHONE_RAW } from "@/lib/utils";
 
-function navLinkClass(active: boolean) {
-  return [
-    "inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium transition",
-    active ? "bg-brand-gold text-white shadow-sm" : "text-slate-600 hover:bg-slate-100 hover:text-brand-navy",
-  ].join(" ");
+function SearchGlyph() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current stroke-[1.8]"><circle cx="10.5" cy="10.5" r="6.5" /><path strokeLinecap="round" d="m16 16 5 5" /></svg>;
 }
 
-function mobileLinkClass(active: boolean) {
-  return [
-    "flex flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-xs font-semibold transition",
-    active ? "text-brand-gold" : "text-slate-500",
-  ].join(" ");
+function AccountGlyph() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current stroke-[1.8]"><circle cx="12" cy="8" r="3.5" /><path strokeLinecap="round" d="M5 20c.6-4 3-6 7-6s6.4 2 7 6" /></svg>;
 }
 
 function CartGlyph() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h2l2.1 10.5a2 2 0 0 0 2 1.5h7.8a2 2 0 0 0 2-1.5L21 8H6.2" />
-      <circle cx="9" cy="20" r="1.4" fill="currentColor" stroke="none" />
-      <circle cx="17" cy="20" r="1.4" fill="currentColor" stroke="none" />
-    </svg>
-  );
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current stroke-[1.8]"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4h2l2 10h10.5l2-7H6" /><circle cx="9" cy="19" r="1.2" fill="currentColor" stroke="none" /><circle cx="17" cy="19" r="1.2" fill="currentColor" stroke="none" /></svg>;
 }
 
 export function StoreShell({ children, categories = [], promotion = null }: { children: ReactNode; categories?: { id: string; name: string }[]; promotion?: { name: string; code: string; percentOff: number } | null }) {
   const pathname = usePathname();
   const { itemCount } = useCart();
   const { user, signOut } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Staff screens (admin dashboard, alerts display) don't use the customer
-  // storefront chrome — render them bare.
   const isStaffScreen = pathname.startsWith("/admin") || pathname.startsWith("/alerts")
     || (typeof window !== "undefined" && (window.location.hostname.startsWith("admin.") || window.location.hostname.startsWith("alerts.")));
-  if (isStaffScreen) {
-    return <>{children}</>;
-  }
+  if (isStaffScreen) return <>{children}</>;
 
   return (
-    <div className="min-h-screen bg-transparent text-slate-900">
-      {/* Sticky header */}
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 text-slate-900 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur">
-        {promotion && <div className="bg-brand-navy px-4 py-1.5 text-center text-xs font-bold uppercase tracking-wide text-white sm:text-sm">{promotion.name}: Save {promotion.percentOff}% online · Use code: <span className="rounded bg-white/15 px-2 py-0.5">{promotion.code}</span></div>}
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-4 py-3 sm:py-4">
-            <BrandLogo href="/" className="shrink-0" compact />
+    <div className="min-h-screen bg-[#fbfaf7] text-brand-navy">
+      <header className="relative z-40 border-b border-[#d7dbdd] bg-[#fbfaf7]/95 backdrop-blur">
+        <div className="flex min-h-10 items-center justify-center gap-8 bg-brand-navy px-4 py-2 text-center text-[11px] text-white/75">
+          <p className="m-0 flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.13)]" />
+            {promotion ? <>{promotion.name}: save {promotion.percentOff}% with <b className="text-white">{promotion.code}</b></> : <>Order by 4 PM for same-day pickup in Auburn.</>}
+          </p>
+          <a href={`tel:${SHOP_PHONE_RAW}`} className="hidden font-bold text-white hover:text-brand-gold sm:block">Need help? {SHOP_PHONE}</a>
+        </div>
 
-            {/* Search box — desktop, between logo and menu */}
-            <form action="/" method="get" className="hidden flex-1 lg:block lg:max-w-md">
-              <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 shadow-sm transition focus-within:border-brand-navy">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-slate-400"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                <input name="q" type="search" placeholder="Search tools, brands, SKUs…"
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" />
-              </label>
-            </form>
-
-            {/* Desktop nav */}
-            <nav className="hidden items-center gap-2 lg:flex">
-              <a href={`tel:${SHOP_PHONE_RAW}`}
-                className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-brand-navy">
-                📞 Call Us
-              </a>
-              {user ? (
-                <>
-                  <Link href="/account/orders" className={navLinkClass(pathname.startsWith("/account"))}>
-                    My Orders
-                  </Link>
-                  <button
-                    onClick={signOut}
-                    className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-brand-navy"
-                  >
-                    Sign Out
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link href="/auth/login" className={navLinkClass(pathname.startsWith("/auth"))}>
-                    Sign In
-                  </Link>
-                </>
-              )}
-
-              <Link
-                href="/cart"
-                aria-label="Cart"
-                className="relative inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                <CartGlyph />
-                <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-brand-gold px-2 py-0.5 text-xs font-bold text-white">
-                  {itemCount}
-                </span>
-              </Link>
-            </nav>
-
-            {/* Mobile */}
-            <div className="flex items-center gap-2 lg:hidden">
-              <Link
-                href="/cart"
-                aria-label="Cart"
-                className="relative inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                <CartGlyph />
-                <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-brand-gold px-2 py-0.5 text-xs font-bold text-white">
-                  {itemCount}
-                </span>
-              </Link>
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen((o) => !o)}
-                className="rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                aria-label="Open menu"
-              >
-                <span aria-hidden="true">☰</span>
-              </button>
-            </div>
-          </div>
-
-          {mobileMenuOpen && (
-            <div className="pb-4 lg:hidden">
-            <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-soft">
-                <form action="/" method="get" className="mb-1">
-                  <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 focus-within:border-brand-navy">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-slate-400"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                    <input name="q" type="search" placeholder="Search…" className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" />
-                  </label>
-                </form>
-                <Link href="/shop" onClick={() => setMobileMenuOpen(false)} className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Shop</Link>
-                <a href={`tel:${SHOP_PHONE_RAW}`} onClick={() => setMobileMenuOpen(false)} className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">📞 Call Us</a>
-                {user ? (
-                  <>
-                    <Link href="/account/orders" onClick={() => setMobileMenuOpen(false)} className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">My Orders</Link>
-                    <button onClick={() => { setMobileMenuOpen(false); signOut(); }} className="rounded-xl px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100">Sign Out</button>
-                  </>
-                ) : (
-                  <Link href="/auth/login" onClick={() => setMobileMenuOpen(false)} className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Sign In</Link>
-                )}
+        <div className="mx-auto flex min-h-[88px] max-w-7xl items-center justify-between gap-8 px-4 sm:px-6 lg:px-8">
+          <BrandLogo href="/" className="shrink-0" compact />
+          <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary navigation">
+            <Link href="/shop" className={`border-b-2 px-3 py-3 text-sm font-bold transition ${pathname.startsWith("/shop") ? "border-brand-gold text-brand-navy" : "border-transparent text-slate-600 hover:border-brand-gold"}`}>Shop</Link>
+            <Link href="/about" className={`border-b-2 px-3 py-3 text-sm font-bold transition ${pathname === "/about" ? "border-brand-gold text-brand-navy" : "border-transparent text-slate-600 hover:border-brand-gold"}`}>About</Link>
+          </nav>
+          <div className="flex items-center gap-4">
+            {user ? (
+              <div className="hidden items-center gap-3 sm:flex">
+                <Link href="/account/orders" className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-brand-gold"><AccountGlyph /> Orders</Link>
+                <button onClick={signOut} className="text-xs font-bold text-slate-500 hover:text-brand-gold">Sign out</button>
               </div>
-            </div>
-          )}
+            ) : (
+              <Link href="/auth/login" className="hidden items-center gap-2 text-xs font-bold text-slate-600 hover:text-brand-gold sm:inline-flex"><AccountGlyph /> Account</Link>
+            )}
+            <Link href="/cart" aria-label={`Cart with ${itemCount} items`} className="inline-flex items-center gap-2 text-xs font-bold text-slate-700 hover:text-brand-gold">
+              <CartGlyph /><span className="hidden sm:inline">Cart</span><b className="grid h-6 min-w-6 place-items-center rounded-full bg-brand-gold px-1.5 text-[10px] text-white">{itemCount}</b>
+            </Link>
+          </div>
+        </div>
+
+        <nav className="flex items-center justify-center gap-8 border-t border-slate-200 bg-white px-4 py-3 lg:hidden" aria-label="Mobile navigation">
+          <Link href="/shop" className="text-xs font-bold text-slate-700 hover:text-brand-gold">Shop</Link>
+          <Link href="/about" className="text-xs font-bold text-slate-700 hover:text-brand-gold">About</Link>
+          <Link href={user ? "/account/orders" : "/auth/login"} className="text-xs font-bold text-slate-700 hover:text-brand-gold">{user ? "My orders" : "Sign in"}</Link>
+        </nav>
+
+        <div className="mx-auto max-w-7xl border-x border-t border-[#d7dbdd]">
+          <form action="/#catalog" method="get" className="grid min-h-[62px] grid-cols-[auto_1fr_auto] items-center gap-3 bg-white pl-4 sm:pl-6">
+            <span className="text-brand-blue"><SearchGlyph /></span>
+            <label className="sr-only" htmlFor="store-search">Search the catalog</label>
+            <input id="store-search" name="q" type="search" placeholder="Search by product, brand, or SKU" className="min-w-0 bg-transparent text-sm outline-none placeholder:text-slate-400" />
+            <button type="submit" className="h-full bg-brand-blue px-4 text-[11px] font-black uppercase tracking-wide text-white transition hover:bg-brand-gold sm:px-6">Search<span className="hidden sm:inline"> catalog</span></button>
+          </form>
         </div>
       </header>
 
-      <main className="pb-24 md:pb-0">{children}</main>
+      <main>{children}</main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 py-2 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur md:hidden">
-        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-2">
-          <Link href="/cart" aria-label="Cart" className={mobileLinkClass(pathname === "/cart")}>
-            Cart
-            {itemCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-brand-gold px-1.5 py-0.5 text-[11px] font-bold text-white">{itemCount}</span>}
-          </Link>
-          <Link
-            href={user ? "/account/orders" : "/auth/login"}
-            className={mobileLinkClass(pathname.startsWith("/account") || pathname.startsWith("/auth"))}
-          >
-            {user ? "Orders" : "Sign In"}
-          </Link>
-        </div>
-      </nav>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-200 bg-slate-50">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-3 lg:px-8">
+      <footer id="contact" className="bg-brand-gold text-white">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.4fr_1fr_1fr] lg:gap-16 lg:px-8">
           <div>
-            <p className="text-lg font-bold text-brand-navy">Stone Product Supply</p>
-            <p className="mt-3 max-w-md text-sm leading-6 text-slate-600">
-              Tools, hardware, and supply essentials for crews, trades, and service teams.
-            </p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/gst-logo-horizontal.png" alt={BRAND.name} className="h-auto w-full max-w-[310px]" />
+            <p className="mt-5 max-w-sm text-sm leading-6">Tools, materials, and no-nonsense help for the stone trade.</p>
           </div>
+          <div><p className="font-display text-sm font-black uppercase tracking-wide text-white">Visit the counter</p><p className="mt-4 text-xs leading-6">{BRAND.address}</p><p className="mt-2 text-xs">Mon–Fri, 7:00 AM–5:00 PM</p></div>
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Shop Categories</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {categories.length > 0
-                ? categories.map((cat) => (
-                    <Link key={cat.id} href={`/shop?cat=${encodeURIComponent(cat.name)}`}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700 hover:border-slate-300">
-                      {cat.name}
-                    </Link>
-                  ))
-                : (
-                    <Link href="/shop"
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700 hover:border-slate-300">
-                      Browse all products
-                    </Link>
-                  )}
-            </div>
-          </div>
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Contact & Pickup</p>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              Every order is prepared for in-store pickup. No shipping — just the tools you need, ready at the counter.
-            </p>
-            <a href={`tel:${SHOP_PHONE_RAW}`} className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-brand-navy hover:underline">
-              📞 {SHOP_PHONE}
-            </a>
+            <p className="font-display text-sm font-black uppercase tracking-wide text-white">Shop categories</p>
+            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs">{categories.slice(0, 6).map((category) => <Link key={category.id} href={`/shop?cat=${encodeURIComponent(category.name)}#catalog`} className="hover:text-white">{category.name}</Link>)}</div>
+            <Link href="/about" className="mt-4 block text-xs font-bold hover:text-white">About us</Link>
+            <a href={`tel:${SHOP_PHONE_RAW}`} className="mt-3 block text-xs font-bold text-white hover:text-brand-navy">{SHOP_PHONE}</a>
           </div>
         </div>
-        <div className="border-t border-slate-200 px-4 py-4 text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} {BRAND.name}. All rights reserved.
-        </div>
+        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-2 border-t border-white/20 px-4 py-5 text-[10px] sm:flex-row sm:px-6 lg:px-8"><p>© {new Date().getFullYear()} {BRAND.name}</p><p>Pickup-first supply for working crews.</p></div>
       </footer>
     </div>
   );

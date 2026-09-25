@@ -6,7 +6,7 @@ export function StockBadge({ status }: { status: StockStatus }) {
     low_stock: { label: "Low Stock", cls: "bg-amber-50 text-amber-800 ring-1 ring-amber-200" },
     out_of_stock: { label: "Out of Stock", cls: "bg-rose-50 text-rose-700 ring-1 ring-rose-200" },
   }[status];
-  return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${meta.cls}`}>{meta.label}</span>;
+  return <span className={`inline-flex items-center px-2.5 py-1 text-[9px] font-black uppercase tracking-wide ${meta.cls}`}>{meta.label}</span>;
 }
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
@@ -28,7 +28,7 @@ export function QuantitySelector({
   value, onChange, max = 99,
 }: { value: number; onChange: (v: number) => void; max?: number }) {
   return (
-    <div className="inline-flex items-center overflow-hidden rounded-xl border border-slate-300 bg-white">
+    <div className="inline-flex min-h-[48px] items-center overflow-hidden border border-slate-300 bg-white">
       <button type="button" onClick={() => onChange(Math.max(1, value - 1))}
         className="px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100" aria-label="Decrease">−</button>
       <div className="min-w-12 border-x border-slate-200 px-3 py-2 text-center text-sm font-semibold text-slate-900">{value}</div>

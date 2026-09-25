@@ -28,38 +28,37 @@ function ProductCard({ item }: { item: InventoryItem }) {
   }
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft">
+    <article className="group flex h-full flex-col overflow-hidden border border-white/15 bg-white text-brand-navy shadow-[0_16px_35px_rgba(0,0,0,0.12)] transition hover:-translate-y-1 hover:border-brand-gold">
       <Link href={`/shop/product/${item.id}`} className="block">
-        <div className="relative aspect-[16/11] overflow-hidden bg-slate-900 sm:aspect-[4/3]">
+        <div className="relative aspect-[16/11] overflow-hidden bg-[#e5e1da] sm:aspect-[4/3]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={item.image_url || PLACEHOLDER}
             alt={item.name}
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
             onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER; }}
           />
         </div>
       </Link>
 
-      <div className="space-y-4 p-4 sm:p-5">
+      <div className="flex flex-1 flex-col p-4 sm:p-5">
         <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{item.sku}</p>
-          <h3 className="text-base font-bold tracking-tight text-slate-900 sm:text-lg">
-            <Link href={`/shop/product/${item.id}`} className="hover:text-brand-navy">{item.name}</Link>
+          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-brand-blue">{item.category_name}{item.sku ? ` · ${item.sku}` : ""}</p>
+          <h3 className="font-display text-lg font-black uppercase leading-tight tracking-[-0.025em] text-brand-navy sm:text-xl">
+            <Link href={`/shop/product/${item.id}`} className="hover:text-brand-gold">{item.name}</Link>
           </h3>
-          {item.description && <p className="text-sm leading-6 text-slate-600 line-clamp-2">{item.description}</p>}
+          {item.description && <p className="line-clamp-2 pt-1 text-xs leading-5 text-slate-500">{item.description}</p>}
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-auto flex items-end justify-between gap-3 pt-5">
           <div>
             {item.sale_price ? (
               <div className="flex items-baseline gap-2">
-                <p className="text-xl font-bold tracking-tight text-brand-primary sm:text-2xl">{formatPrice(item.sale_price)}</p>
-                <p className="text-sm font-semibold text-slate-400 line-through">{formatPrice(item.store_price)}</p>
-                <span className="rounded-full bg-brand-primary px-2 py-0.5 text-[0.6rem] font-bold uppercase text-white">Sale</span>
+                <p className="font-display text-2xl font-black tracking-tight text-brand-gold">{formatPrice(item.sale_price)}</p>
+                <p className="text-xs font-semibold text-slate-400 line-through">{formatPrice(item.store_price)}</p>
               </div>
             ) : (
-              <p className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{formatPrice(item.store_price)}</p>
+              <p className="font-display text-2xl font-black tracking-tight text-brand-navy">{formatPrice(item.store_price)}</p>
             )}
             
           </div>
@@ -68,9 +67,9 @@ function ProductCard({ item }: { item: InventoryItem }) {
             onClick={handleAdd}
             disabled={adding || !canAdd}
             className={[
-              "inline-flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-4 py-3 text-sm font-semibold transition sm:px-3 sm:py-1.5 sm:text-xs",
+              "inline-flex min-h-10 shrink-0 items-center justify-center whitespace-nowrap border px-4 py-2 text-[10px] font-black uppercase tracking-wide transition",
               added ? "bg-emerald-600 text-white" :
-              canAdd ? "bg-brand-navy text-white hover:bg-slate-800" :
+              canAdd ? "border-brand-navy bg-brand-navy text-white hover:border-brand-gold hover:bg-brand-gold" :
               "cursor-not-allowed bg-slate-200 text-slate-500",
             ].join(" ")}
           >
@@ -78,8 +77,8 @@ function ProductCard({ item }: { item: InventoryItem }) {
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{item.category_name}</span>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3">
+          <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">Pickup only</span>
           <StockBadge status={item.stock_status} />
         </div>
       </div>
@@ -111,17 +110,17 @@ export default function ShopGrid({ items, cat, q, basePath = "/" }: { items: Inv
 
   if (filtered.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
-        <p className="text-lg font-semibold text-slate-900">No products match that search.</p>
-        <p className="mt-2 text-sm text-slate-600">Try a different category or a shorter keyword.</p>
-        {(cat || q) && <Link href={basePath} className="mt-4 inline-flex rounded-xl bg-brand-navy px-4 py-2 text-sm font-semibold text-white">Clear filters</Link>}
+      <div className="border border-dashed border-white/25 bg-white/5 px-6 py-14 text-center">
+        <p className="font-display text-xl font-black uppercase text-white">No products match that search.</p>
+        <p className="mt-2 text-sm text-white/55">Try a different category or a shorter keyword.</p>
+        {(cat || q) && <Link href={`${basePath}#catalog`} className="mt-5 inline-flex bg-brand-gold px-5 py-3 text-xs font-black uppercase text-white">Clear filters</Link>}
       </div>
     );
   }
 
   return (
     <div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 sm:gap-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-5">
         {paginated.map((item) => <ProductCard key={item.id} item={item} />)}
       </div>
 
@@ -129,17 +128,17 @@ export default function ShopGrid({ items, cat, q, basePath = "/" }: { items: Inv
       {totalPages > 1 && (
         <div className="mt-8 flex items-center justify-center gap-2">
           <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40 hover:bg-slate-50">
+            className="border border-white/20 px-4 py-2 text-xs font-bold text-white disabled:opacity-30 hover:border-white">
             ← Prev
           </button>
           {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
             <button key={p} onClick={() => setPage(p)}
-              className={`h-9 w-9 rounded-xl text-sm font-bold transition ${p === page ? "bg-brand-navy text-white" : "border border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
+              className={`h-9 w-9 text-xs font-bold transition ${p === page ? "bg-brand-gold text-white" : "border border-white/20 text-white/60 hover:border-white"}`}>
               {p}
             </button>
           ))}
           <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40 hover:bg-slate-50">
+            className="border border-white/20 px-4 py-2 text-xs font-bold text-white disabled:opacity-30 hover:border-white">
             Next →
           </button>
         </div>

@@ -13,10 +13,10 @@ const config: Config = {
       },
       colors: {
         brand: {
-          navy: "#2b353f",     // primary dark — logo cube dark, buttons, headers
-          blue: "#355471",     // secondary — accents, links, hover states
-          silver: "#cac9cc",   // tertiary — badges, subtle borders, muted text
-          gold: "#355471",     // "gold" alias kept for existing class refs → now maps to brand blue
+          navy: "#13212c",
+          blue: "#315e7b",
+          silver: "#d7dbdd",
+          gold: "#d95b2e",
         },
       },
     },

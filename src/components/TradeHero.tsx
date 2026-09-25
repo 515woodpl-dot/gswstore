@@ -9,11 +9,13 @@ const FALLBACK_IMAGE = "/brand/sps-logo-square.png";
 
 export default function TradeHero({ items }: { items: InventoryItem[] }) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   useEffect(() => {
     if (items.length < 2) return;
     const timer = window.setInterval(() => {
       setActiveIndex((current) => (current + 1) % items.length);
+      setDescriptionExpanded(false);
     }, 5500);
     return () => window.clearInterval(timer);
   }, [items.length]);
@@ -24,6 +26,7 @@ export default function TradeHero({ items }: { items: InventoryItem[] }) {
   const image = item.image_url || item.images?.[0] || FALLBACK_IMAGE;
   const currentPrice = item.sale_price ?? item.store_price;
   const description = item.description.replace(/\*\*/g, "").trim();
+  const descriptionIsLong = description.length > 220;
   const productDimensions = item.dimensions || item.attributes?.Dimensions || item.attributes?.Dimension || item.attributes?.Size || "";
 
   return (
@@ -36,24 +39,36 @@ export default function TradeHero({ items }: { items: InventoryItem[] }) {
             <h1 className="font-display mt-3 text-[clamp(2.8rem,5vw,5rem)] font-black uppercase leading-[0.86] tracking-[-0.06em] text-brand-navy">
               {item.name}
             </h1>
-            {productDimensions && <p className="mt-5 inline-flex border-l-[3px] border-brand-gold pl-3 text-xs font-black uppercase tracking-[0.12em] text-brand-blue">Dimensions · {productDimensions}</p>}
             {items.length > 1 && (
               <div className="mt-7 flex items-center gap-2" aria-label="Choose a featured product">
                 {items.map((featuredItem, index) => (
-                  <button key={featuredItem.id} type="button" onClick={() => setActiveIndex(index)} aria-label={`Show ${featuredItem.name}`} aria-current={index === activeIndex} className={`h-2 transition-all ${index === activeIndex ? "w-9 bg-brand-gold" : "w-4 bg-slate-300 hover:bg-brand-blue"}`} />
+                  <button key={featuredItem.id} type="button" onClick={() => { setActiveIndex(index); setDescriptionExpanded(false); }} aria-label={`Show ${featuredItem.name}`} aria-current={index === activeIndex} className={`h-2 transition-all ${index === activeIndex ? "w-9 bg-brand-gold" : "w-4 bg-slate-300 hover:bg-brand-blue"}`} />
                 ))}
               </div>
             )}
           </header>
 
           <div>
-            <Link href={`/shop/product/${item.id}`} className="flex h-[260px] items-center justify-center overflow-hidden border border-slate-200 bg-white p-4 shadow-[0_16px_44px_rgba(19,33,44,0.10)] sm:h-[330px] sm:p-6 lg:h-[370px]">
+            <Link href={`/shop/product/${item.id}`} className="relative flex h-[260px] items-center justify-center overflow-hidden border border-slate-200 bg-white p-4 shadow-[0_16px_44px_rgba(19,33,44,0.10)] sm:h-[330px] sm:p-6 lg:h-[370px]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img key={image} src={image} alt={item.name} className={`h-full w-full object-contain ${image === FALLBACK_IMAGE ? "p-12" : ""}`} onError={(event) => { event.currentTarget.src = FALLBACK_IMAGE; event.currentTarget.className = "h-full w-full object-contain p-12"; }} />
+              {productDimensions && (
+                <span className="absolute bottom-3 left-3 border-l-4 border-brand-gold bg-brand-navy/95 px-4 py-3 text-white shadow-lg sm:bottom-5 sm:left-5 sm:px-5">
+                  <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-white/65">Dimensions</span>
+                  <span className="font-display mt-0.5 block text-2xl font-black uppercase tracking-[-0.03em] sm:text-3xl">{productDimensions}</span>
+                </span>
+              )}
             </Link>
 
             <div className="border-x border-b border-slate-200 bg-white px-4 py-5 sm:px-6">
-              {description && <p className="whitespace-pre-line text-sm leading-6 text-slate-600 lg:columns-2 lg:gap-8">{description}</p>}
+              {description && (
+                <div>
+                  <p className={`whitespace-pre-line text-sm leading-6 text-slate-600 ${descriptionExpanded ? "lg:columns-2 lg:gap-8" : descriptionIsLong ? "line-clamp-3" : ""}`}>{description}</p>
+                  {descriptionIsLong && <button type="button" onClick={() => setDescriptionExpanded((expanded) => !expanded)} aria-expanded={descriptionExpanded} className="mt-2 min-h-9 text-xs font-black text-brand-gold underline decoration-brand-gold/40 underline-offset-4 hover:text-[#b94721]">
+                    {descriptionExpanded ? "Show less" : "Read more"}
+                  </button>}
+                </div>
+              )}
               <div className="mt-5 flex flex-col gap-5 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-end gap-3">
                   {currentPrice > 0 && <strong className="font-display text-3xl font-black text-brand-navy">{formatPrice(currentPrice)}</strong>}

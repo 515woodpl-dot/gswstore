@@ -44,6 +44,8 @@ Updated September 24, 2026 on `feature/admin-payment-orders-safe`.
 - Product images now use an uncropped contain fit so the complete inventory photo remains visible.
 - Moved the description, pricing, product links, dimensions, pickup details, location, and live stock into a compact block below the image.
 - Long descriptions use two columns on desktop and visible Markdown emphasis markers are removed.
+- Long hero descriptions are collapsed to three lines with Read more and Show less controls.
+- Product dimensions are displayed as a large overlay on the featured image and repeated in the product facts.
 - Kept the live inventory, trade-grade selection, and fast pickup benefits directly beneath the hero in a shorter row.
 
 ## Deployment

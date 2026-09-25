@@ -24,6 +24,7 @@ export default function TradeHero({ items }: { items: InventoryItem[] }) {
   const image = item.image_url || item.images?.[0] || FALLBACK_IMAGE;
   const currentPrice = item.sale_price ?? item.store_price;
   const description = item.description.replace(/\*\*/g, "").trim();
+  const productDimensions = item.dimensions || item.attributes?.Dimensions || item.attributes?.Dimension || item.attributes?.Size || "";
 
   return (
     <section className="sps-grid-texture bg-[#fbfaf7]" aria-roledescription="carousel" aria-label="Featured products">
@@ -35,7 +36,7 @@ export default function TradeHero({ items }: { items: InventoryItem[] }) {
             <h1 className="font-display mt-3 text-[clamp(2.8rem,5vw,5rem)] font-black uppercase leading-[0.86] tracking-[-0.06em] text-brand-navy">
               {item.name}
             </h1>
-            {item.dimensions && <p className="mt-5 inline-flex border-l-[3px] border-brand-gold pl-3 text-xs font-black uppercase tracking-[0.12em] text-brand-blue">Dimensions · {item.dimensions}</p>}
+            {productDimensions && <p className="mt-5 inline-flex border-l-[3px] border-brand-gold pl-3 text-xs font-black uppercase tracking-[0.12em] text-brand-blue">Dimensions · {productDimensions}</p>}
             {items.length > 1 && (
               <div className="mt-7 flex items-center gap-2" aria-label="Choose a featured product">
                 {items.map((featuredItem, index) => (
@@ -64,9 +65,9 @@ export default function TradeHero({ items }: { items: InventoryItem[] }) {
                 </div>
               </div>
 
-              <dl className={`mt-5 grid gap-y-4 border-t border-slate-200 pt-4 ${item.dimensions ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
-                {item.dimensions && <div><dt className="font-display text-xs font-black uppercase text-brand-navy">Dimensions</dt><dd className="mt-1 text-[9px] leading-4 text-slate-500">{item.dimensions}</dd></div>}
-                <div className={item.dimensions ? "border-l border-slate-200 pl-4" : ""}><dt className="font-display text-xs font-black uppercase text-brand-navy">Pickup</dt><dd className="mt-1 text-[9px] leading-4 text-slate-500">Prepared at our counter</dd></div>
+              <dl className={`mt-5 grid gap-y-4 border-t border-slate-200 pt-4 ${productDimensions ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
+                {productDimensions && <div><dt className="font-display text-xs font-black uppercase text-brand-navy">Dimensions</dt><dd className="mt-1 text-[9px] leading-4 text-slate-500">{productDimensions}</dd></div>}
+                <div className={productDimensions ? "border-l border-slate-200 pl-4" : ""}><dt className="font-display text-xs font-black uppercase text-brand-navy">Pickup</dt><dd className="mt-1 text-[9px] leading-4 text-slate-500">Prepared at our counter</dd></div>
                 <div className="border-l border-slate-200 pl-4"><dt className="font-display text-xs font-black uppercase text-brand-navy">Local</dt><dd className="mt-1 text-[9px] leading-4 text-slate-500">Auburn, Washington</dd></div>
                 <div className="border-l border-slate-200 pl-4"><dt className="font-display text-xs font-black uppercase text-brand-navy">Live stock</dt><dd className="mt-1 text-[9px] leading-4 text-slate-500">{item.amount > 0 ? `${item.amount} currently available` : "Check availability"}</dd></div>
               </dl>

@@ -43,7 +43,11 @@ function ProductCard({ item }: { item: InventoryItem }) {
 
       <div className="flex flex-1 flex-col p-4 sm:p-5">
         <div className="space-y-1">
-          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-brand-blue">{item.category_name}{item.sku ? ` · ${item.sku}` : ""}</p>
+          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-brand-blue">
+            {item.category_name}{item.sku ? ` · ${item.sku}` : ""}
+            {/* Sink items (SNK...) also show their dimensions in dark grey bold */}
+            {/^SNK/i.test(item.sku ?? "") && item.dimensions ? <span className="font-black text-slate-700"> · {item.dimensions}</span> : null}
+          </p>
           <h3 className="font-display text-lg font-black uppercase leading-tight tracking-[-0.025em] text-brand-navy sm:text-xl">
             <Link href={`/shop/product/${item.id}`} className="hover:text-brand-gold">{item.name}</Link>
           </h3>

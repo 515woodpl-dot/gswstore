@@ -243,15 +243,15 @@ export default function PurchaseOrderManager({
     return (
       <div>
         <div className="mb-4 flex gap-3">
-          <button onClick={() => { resetForm(); setView("new"); }}
+          <a href="/admin/receiving"
             className="rounded-xl bg-brand-navy px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">
-            + New Purchase Order
-          </button>
+            + New order (Order &amp; Receive Stock)
+          </a>
         </div>
 
         {pos.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center text-slate-500">
-            No purchase orders yet. Create one to track inbound shipments and landed costs.
+            No older purchase orders. New orders are created in Order & Receive Stock.
           </div>
         ) : (
           <div className="space-y-3">

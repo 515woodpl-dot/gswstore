@@ -6,6 +6,9 @@ import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
 import {
   calculateLandedCosts,
+  costPerSellingUnit,
+  marginPercent,
+  priceForMargin,
   weightedAverageCost,
   type AllocationMode,
   type ExpenseKind,
@@ -34,6 +37,7 @@ interface ReceivingProduct {
   amount: number;
   cost_price: number;
   store_price: number;
+  sale_price?: number | null;
   base_unit?: string;
   selling_unit?: string;
   units_per_sale?: number;
@@ -90,10 +94,37 @@ interface RecentReceipt {
   inventory_receipt_items: RecentReceiptItem[];
 }
 
+// An ordered shipment is the whole form saved before the goods arrive. It lives in
+// purchase_orders.shipment and touches no stock; new products inside it are only
+// created in Inventory when the shipment is received.
+interface ShipmentDraft {
+  version: 1;
+  supplierInvoice: string;
+  notes: string;
+  allocationMode: AllocationMode;
+  expenses: Record<ExpenseKind, number>;
+  lines: ReceiptLine[];
+  newProducts: ReceivingProduct[];
+  priceOverrides: Record<string, number>;
+  productNames: string[];
+}
+
+export interface OrderedShipment {
+  id: string;
+  po_number: string;
+  supplier_name: string;
+  landed_total: number;
+  ordered_at: string | null;
+  shipment: ShipmentDraft;
+}
+
+const MIGRATION_HINT = "Run MIGRATION_ORDERED_SHIPMENTS.sql in the Supabase SQL Editor to turn on \"Save as ordered\".";
+
 interface SavedReceipt {
   batchCode: string;
   supplier: string;
   receivedDate: string;
+  warning?: string;
   lines: Array<{
     inventoryId: string;
     name: string;
@@ -120,6 +151,17 @@ const emptyExpenses = (): Record<ExpenseKind, number> => ({
   other: 0,
 });
 
+// What a customer pays for one selling unit right now. A sale price, when set, is what
+// the store charges, so it wins over the regular price and over a typed-in new price.
+function customerPriceFor(product: ReceivingProduct | undefined, overrides: Record<string, number>): number {
+  if (!product) return 0;
+  if (product.pendingNew) return Number(product.pendingNew.storePrice) || 0;
+  if (Number(product.sale_price) > 0) return Number(product.sale_price);
+  // A typed price replaces the regular price, including while the field is being cleared.
+  if (product.id in overrides) return Math.max(0, Number(overrides[product.id]) || 0);
+  return Number(product.store_price) || 0;
+}
+
 function makeBatchCode(date: string) {
   const suffix = Math.random().toString(36).slice(2, 7).toUpperCase().padEnd(5, "0");
   return `RCV-${date.replaceAll("-", "")}-${suffix}`;
@@ -133,11 +175,15 @@ export default function ReceivingManager({
   initialProducts,
   categories,
   recentReceipts,
+  orderedShipments,
+  orderedError,
   setupError,
 }: {
   initialProducts: ReceivingProduct[];
   categories: Category[];
   recentReceipts: RecentReceipt[];
+  orderedShipments: OrderedShipment[];
+  orderedError?: string;
   setupError?: string;
 }) {
   const router = useRouter();
@@ -165,6 +211,11 @@ export default function ReceivingManager({
   const [correctionError, setCorrectionError] = useState("");
   const [correcting, setCorrecting] = useState(false);
   const [reversing, setReversing] = useState(false);
+  const [ordered, setOrdered] = useState(orderedShipments);
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [orderNotice, setOrderNotice] = useState("");
+  const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
+  const [targetMargin, setTargetMargin] = useState(40);
 
   const activeExpenses: LandedCostExpense[] = EXPENSE_FIELDS.map((field) => ({
     kind: field.kind,
@@ -189,7 +240,7 @@ export default function ReceivingManager({
     let missingPriceCount = 0;
     for (const line of calculation.lines) {
       const product = products.find((candidate) => candidate.id === line.id);
-      const customerPrice = product?.pendingNew?.storePrice ?? Number(product?.store_price) ?? 0;
+      const customerPrice = customerPriceFor(product, priceOverrides);
       const sellingUnits = line.quantity / positivePackagingFactor(product?.units_per_sale);
       const landedTotal = line.landedUnitCost * line.quantity;
       if (customerPrice <= 0) {
@@ -201,7 +252,7 @@ export default function ReceivingManager({
     }
     const margin = potentialRevenue > 0 ? (potentialProfit / potentialRevenue) * 100 : 0;
     return { potentialRevenue, potentialProfit, margin, missingPriceCount };
-  }, [calculation.lines, products]);
+  }, [calculation.lines, priceOverrides, products]);
 
   const availableProducts = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -215,6 +266,24 @@ export default function ReceivingManager({
 
   function productFor(id: string) {
     return products.find((product) => product.id === id);
+  }
+
+  function updateTargetMargin(value: number) {
+    const next = Math.min(95, Math.max(0, value));
+    setTargetMargin(next);
+  }
+
+  // A new product's price lives with the product until it is created. An existing
+  // product's new price is held here and written to Inventory when the shipment is received.
+  function setSellingPrice(id: string, value: number) {
+    const product = productFor(id);
+    if (product?.pendingNew) {
+      setProducts((current) => current.map((candidate) => candidate.id === id && candidate.pendingNew
+        ? { ...candidate, store_price: value, pendingNew: { ...candidate.pendingNew, storePrice: value } }
+        : candidate));
+      return;
+    }
+    setPriceOverrides((current) => ({ ...current, [id]: value }));
   }
 
   function identityForNewProduct(name: string, categoryId: number | null) {
@@ -363,6 +432,11 @@ export default function ReceivingManager({
   function removeLine(id: string) {
     setLines((current) => current.filter((line) => line.id !== id));
     setProducts((current) => current.filter((product) => product.id !== id || !product.pendingNew));
+    setPriceOverrides((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
   }
 
   function resetForm() {
@@ -378,6 +452,146 @@ export default function ReceivingManager({
     setAllocationMode("automatic");
     setError("");
     setSavedReceipt(null);
+    setOrderId(null);
+    setPriceOverrides({});
+  }
+
+  function validateShipment(receiving: boolean): string | null {
+    if (!receiptCode.trim()) return "The batch token is required.";
+    if (!supplier.trim()) return "Enter the supplier so this shipment can be identified later.";
+    if (lines.length === 0) return "Add at least one product to this shipment.";
+    if (lines.some((line) => line.quantity <= 0)) return "Every quantity must be greater than zero.";
+    if (lines.some((line) => line.supplierUnitCost < 0)) return "Supplier prices cannot be negative.";
+    if (receiving && allocationMode === "manual" && Math.abs(calculation.manualDifference) >= 0.01) {
+      return `Manual allocations must match shared expenses. ${formatPrice(Math.abs(calculation.manualDifference))} is still ${calculation.manualDifference > 0 ? "unallocated" : "over-allocated"}.`;
+    }
+    if (receiving) {
+      const unpriced = lines.map((line) => productFor(line.id)).find((product) => product?.pendingNew && !(product.pendingNew.storePrice > 0));
+      if (unpriced) return `Enter a selling price for the new product ${unpriced.name} before receiving it.`;
+    }
+    return null;
+  }
+
+  async function saveAsOrdered() {
+    setError(""); setOrderNotice("");
+    const problem = validateShipment(false);
+    if (problem) { setError(problem); return; }
+
+    const draft: ShipmentDraft = {
+      version: 1,
+      supplierInvoice: supplierInvoice.trim(),
+      notes: notes.trim(),
+      allocationMode,
+      expenses,
+      lines,
+      newProducts: products.filter((product) => product.pendingNew && lines.some((line) => line.id === product.id)),
+      priceOverrides,
+      productNames: lines.map((line) => productFor(line.id)?.name ?? line.id),
+    };
+    const row = {
+      po_number: receiptCode.trim(),
+      supplier_name: supplier.trim(),
+      status: "ordered",
+      freight: Number(expenses.freight) || 0,
+      tariffs: Number(expenses.tariff) || 0,
+      handling: (Number(expenses.handling) || 0) + (Number(expenses.tax) || 0) + (Number(expenses.other) || 0),
+      subtotal: calculation.itemSubtotal,
+      landed_total: calculation.landedTotal,
+      notes: notes.trim(),
+      shipment: draft,
+    };
+
+    setSaving(true);
+    try {
+      const columns = "id,po_number,supplier_name,landed_total,ordered_at,shipment";
+      const { data, error: saveError } = orderId
+        ? await sb.from("purchase_orders").update(row).eq("id", orderId).eq("status", "ordered").select(columns)
+        : await sb.from("purchase_orders").insert({ ...row, ordered_at: new Date().toISOString() }).select(columns);
+      if (saveError) {
+        if (/shipment/i.test(saveError.message)) throw new Error(MIGRATION_HINT);
+        if (/duplicate|unique/i.test(saveError.message)) throw new Error(`Batch token ${row.po_number} is already used. Change the token and save again.`);
+        throw new Error(saveError.message);
+      }
+      const saved = data?.[0] as OrderedShipment | undefined;
+      if (!saved) throw new Error("The order was not saved. It may already have been received or deleted.");
+
+      const normalized = { ...saved, landed_total: Number(saved.landed_total) || 0 };
+      setOrdered((current) => [normalized, ...current.filter((item) => item.id !== normalized.id)]);
+      resetForm();
+      setOrderNotice(`${normalized.po_number} is saved as ordered. Nothing was added to stock. Open it below when the shipment arrives.`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not save this order.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openOrdered(order: OrderedShipment) {
+    const draft = order.shipment;
+    const existing = products.filter((product) => !product.pendingNew);
+    const taken: ReceivingProduct[] = [...existing];
+    const renamed = new Map<string, string>();
+
+    // A new product's ID was reserved when the order was written. If that ID has been
+    // used by another product since, give this one a fresh ID so it cannot be mistaken
+    // for (and its stock added to) the other product.
+    const restoredNew = (draft.newProducts ?? []).flatMap((product) => {
+      if (!product.pendingNew) return [];
+      let next = product;
+      const clash = taken.some((candidate) => candidate.id.toUpperCase() === product.id.toUpperCase()
+        || (product.sku && candidate.sku?.toUpperCase() === product.sku.toUpperCase()));
+      if (clash) {
+        const category = categories.find((candidate) => candidate.id === product.pendingNew?.categoryId);
+        if (!category) return [];
+        const identity = generateSmartProductIdentity(category, taken);
+        renamed.set(product.id, identity.id);
+        next = { ...product, id: identity.id, sku: identity.sku };
+      }
+      taken.push(next);
+      return [next];
+    });
+
+    const known = new Set(taken.map((product) => product.id));
+    const restoredLines = (draft.lines ?? [])
+      .map((line) => ({ ...line, id: renamed.get(line.id) ?? line.id }))
+      .filter((line) => known.has(line.id));
+    const dropped = (draft.lines ?? []).length - restoredLines.length;
+    const overrides = Object.fromEntries(
+      Object.entries(draft.priceOverrides ?? {}).filter(([id]) => known.has(id)),
+    );
+
+    setProducts([...existing, ...restoredNew.filter((product) => restoredLines.some((line) => line.id === product.id))]);
+    setLines(restoredLines);
+    setReceiptCode(order.po_number);
+    setSupplier(order.supplier_name);
+    setSupplierInvoice(draft.supplierInvoice ?? "");
+    setNotes(draft.notes ?? "");
+    setReceivedDate(today());
+    setExpenses({ ...emptyExpenses(), ...(draft.expenses ?? {}) });
+    setAllocationMode(draft.allocationMode === "manual" ? "manual" : "automatic");
+    setPriceOverrides(overrides);
+    setOrderId(order.id);
+    setOrderNotice("");
+    setError(dropped > 0 ? `${dropped} product${dropped === 1 ? "" : "s"} on this order no longer exist${dropped === 1 ? "s" : ""} in Inventory and ${dropped === 1 ? "was" : "were"} left out. Add ${dropped === 1 ? "it" : "them"} again if needed.` : "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function deleteOrdered(order: OrderedShipment) {
+    if (!confirm(`Delete ordered shipment ${order.po_number}? It has not been received, so stock is not affected. This cannot be undone.`)) return;
+    setSaving(true); setError(""); setOrderNotice("");
+    try {
+      const { data, error: deleteError } = await sb.from("purchase_orders").delete().eq("id", order.id).eq("status", "ordered").select("id");
+      if (deleteError) throw new Error(deleteError.message);
+      if (!data || data.length === 0) throw new Error("Nothing was deleted. The order may already have been received or removed.");
+      setOrdered((current) => current.filter((item) => item.id !== order.id));
+      if (orderId === order.id) resetForm();
+      setOrderNotice(`${order.po_number} was deleted.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not delete this order.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function addMissedExpense() {
@@ -416,15 +630,9 @@ export default function ReceivingManager({
       setError(`Receiving is unavailable because a database query failed: ${setupError}`);
       return;
     }
-    if (!receiptCode.trim()) { setError("The batch token is required."); return; }
-    if (!supplier.trim()) { setError("Enter the supplier so this shipment can be identified later."); return; }
-    if (lines.length === 0) { setError("Add at least one product to this receipt."); return; }
-    if (lines.some((line) => line.quantity <= 0)) { setError("Every received quantity must be greater than zero."); return; }
-    if (lines.some((line) => line.supplierUnitCost < 0)) { setError("Supplier prices cannot be negative."); return; }
-    if (allocationMode === "manual" && Math.abs(calculation.manualDifference) >= 0.01) {
-      setError(`Manual allocations must match shared expenses. ${formatPrice(Math.abs(calculation.manualDifference))} is still ${calculation.manualDifference > 0 ? "unallocated" : "over-allocated"}.`);
-      return;
-    }
+    setOrderNotice("");
+    const problem = validateShipment(true);
+    if (problem) { setError(problem); return; }
 
     setSaving(true);
     try {
@@ -468,6 +676,29 @@ export default function ReceivingManager({
 
       const returned = Array.isArray(data) ? data[0] : data;
       const confirmedCode = returned?.batch_code ?? receiptCode.trim();
+
+      // Stock is in. The follow-ups below cannot undo that, so a failure is reported
+      // as a warning on the confirmation screen instead of as a failed receipt.
+      const warnings: string[] = [];
+      const appliedPrices: Record<string, number> = {};
+      for (const line of calculation.lines) {
+        const product = productFor(line.id);
+        const nextPrice = Number(priceOverrides[line.id]);
+        if (!product || product.pendingNew || !(nextPrice > 0) || nextPrice === Number(product.store_price)) continue;
+        const { error: priceError } = await sb.from("inventory").update({ store_price: nextPrice }).eq("id", line.id);
+        if (priceError) warnings.push(`The new selling price for ${product.name} was not saved (${priceError.message}). Set it in Products.`);
+        else appliedPrices[line.id] = nextPrice;
+      }
+      if (orderId) {
+        const { error: closeError } = await sb.from("purchase_orders").update({
+          status: "received",
+          received_at: new Date().toISOString(),
+          subtotal: calculation.itemSubtotal,
+          landed_total: calculation.landedTotal,
+        }).eq("id", orderId);
+        if (closeError) warnings.push(`The order is still listed as ordered (${closeError.message}). Delete it from the Ordered list so it is not received twice.`);
+        else setOrdered((current) => current.filter((item) => item.id !== orderId));
+      }
       const confirmationLines = calculation.lines.map((line) => {
         const product = productFor(line.id);
         return {
@@ -486,6 +717,7 @@ export default function ReceivingManager({
         return {
           ...product,
           pendingNew: undefined,
+          store_price: appliedPrices[product.id] ?? product.store_price,
           amount: product.amount + received.quantity,
           cost_price: weightedAverageCost(
             product.amount,
@@ -500,7 +732,10 @@ export default function ReceivingManager({
         supplier: supplier.trim(),
         receivedDate,
         lines: confirmationLines,
+        warning: warnings.join(" ") || undefined,
       });
+      setOrderId(null);
+      setPriceOverrides({});
       fetch("/api/admin/revalidate", { method: "POST" }).catch(() => {});
       router.refresh();
     } catch (caught) {
@@ -520,6 +755,7 @@ export default function ReceivingManager({
             <p className="mt-2 text-sm text-slate-600">
               {savedReceipt.lines.reduce((sum, line) => sum + line.quantity, 0)} units were added to inventory with their new weighted-average costs.
             </p>
+            {savedReceipt.warning && <p className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left text-sm font-semibold text-amber-900">{savedReceipt.warning}</p>}
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <button onClick={() => window.print()} className="rounded-xl bg-brand-navy px-5 py-3 text-sm font-bold text-white hover:bg-slate-800">
                 Print batch tags
@@ -592,6 +828,48 @@ export default function ReceivingManager({
         </div>
       )}
 
+      {orderNotice && <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">{orderNotice}</p>}
+      {orderedError && (
+        <p className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Ordered shipments could not be loaded. {/shipment/i.test(orderedError) ? MIGRATION_HINT : orderedError} Receiving stock still works.
+        </p>
+      )}
+
+      {ordered.length > 0 && (
+        <section className="rounded-3xl border border-sky-200 bg-sky-50/60 p-5 shadow-sm sm:p-6">
+          <h2 className="text-lg font-black text-slate-950">Ordered, waiting to arrive</h2>
+          <p className="mt-1 text-sm text-slate-600">These have not touched stock. Open one to change it or to receive it when it arrives.</p>
+          <div className="mt-4 space-y-3">
+            {ordered.map((order) => {
+              const names = order.shipment?.productNames ?? [];
+              return (
+                <div key={order.id} className={`rounded-2xl border bg-white p-4 ${orderId === order.id ? "border-brand-blue ring-2 ring-brand-blue/20" : "border-slate-200"}`}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-mono text-sm font-black text-slate-900">{order.po_number}</p>
+                      <p className="text-sm text-slate-600">{order.supplier_name}{order.ordered_at ? ` · ordered ${new Date(order.ordered_at).toLocaleDateString()}` : ""}</p>
+                      <p className="mt-1 text-xs text-slate-500">{names.length} product{names.length === 1 ? "" : "s"}{names.length ? `: ${names.slice(0, 3).join(", ")}${names.length > 3 ? ` +${names.length - 3} more` : ""}` : ""}</p>
+                    </div>
+                    <p className="text-base font-black text-slate-900">{formatPrice(order.landed_total)}</p>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" disabled={saving} onClick={() => openOrdered(order)} className="min-h-11 rounded-xl bg-brand-navy px-4 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-50">{orderId === order.id ? "Open below" : "Open to edit or receive"}</button>
+                    <button type="button" disabled={saving} onClick={() => deleteOrdered(order)} className="min-h-11 rounded-xl border border-rose-200 px-4 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Delete</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {orderId && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-blue/40 bg-brand-blue/5 px-4 py-3">
+          <p className="text-sm font-bold text-slate-900">You are working on ordered shipment <span className="font-mono">{receiptCode}</span>. Update anything that changed, then receive it or save it again.</p>
+          <button type="button" onClick={resetForm} className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50">Close without changes</button>
+        </div>
+      )}
+
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
@@ -605,7 +883,7 @@ export default function ReceivingManager({
           <Field label="Batch token" value={receiptCode} onChange={setReceiptCode} mono required />
           <Field label="Date received" value={receivedDate} onChange={(value) => {
             setReceivedDate(value);
-            setReceiptCode((current) => current.startsWith("RCV-") ? makeBatchCode(value) : current);
+            setReceiptCode((current) => !orderId && current.startsWith("RCV-") ? makeBatchCode(value) : current);
           }} type="date" required />
           <Field label="Supplier" value={supplier} onChange={setSupplier} placeholder="Supplier or factory name" required />
           <Field label="Supplier invoice / PO" value={supplierInvoice} onChange={setSupplierInvoice} placeholder="Optional invoice number" />
@@ -620,8 +898,14 @@ export default function ReceivingManager({
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-5">
           <p className="text-xs font-black uppercase tracking-[0.2em] text-brand-blue">Step 2</p>
-          <h2 className="mt-1 text-xl font-black text-slate-950">Add received products</h2>
-          <p className="mt-1 text-sm text-slate-500">Enter the supplier price before freight, tariffs, and other shared costs.</p>
+          <h2 className="mt-1 text-xl font-black text-slate-950">Add products and set prices</h2>
+          <p className="mt-1 text-sm text-slate-500">Enter the supplier price before freight, tariffs, and other shared costs. Each product then shows its real cost and the profit at your selling price.</p>
+          <label className="mt-3 flex w-fit items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">
+            Target margin
+            <input type="number" min={0} max={95} step={1} value={targetMargin || ""} onChange={(event) => updateTargetMargin(Number(event.target.value) || 0)}
+              className="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-right text-sm outline-none focus:border-brand-blue" />
+            %
+          </label>
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -656,6 +940,16 @@ export default function ReceivingManager({
             const product = productFor(line.id);
             const currentAverage = Number(product?.cost_price) || 0;
             const nextAverage = weightedAverageCost(product?.amount ?? 0, currentAverage, line.quantity, line.landedUnitCost);
+            const sellingUnit = product?.pendingNew?.sellingUnit ?? product?.selling_unit ?? "Each";
+            const baseUnit = product?.pendingNew?.baseUnit ?? product?.base_unit ?? "Each";
+            const unitsPerSale = positivePackagingFactor(product?.pendingNew?.unitsPerSale ?? product?.units_per_sale);
+            // Price against this shipment's landed cost: it is what these units really cost.
+            const saleCost = costPerSellingUnit(line.landedUnitCost, unitsPerSale);
+            const onSale = !product?.pendingNew && Number(product?.sale_price) > 0;
+            const price = customerPriceFor(product, priceOverrides);
+            const margin = marginPercent(price, saleCost);
+            const suggested = priceForMargin(saleCost, targetMargin);
+            const priceChanged = !product?.pendingNew && !onSale && Number(priceOverrides[line.id]) > 0 && Number(priceOverrides[line.id]) !== Number(product?.store_price);
             return (
               <div key={line.id} className="rounded-2xl border border-slate-200 p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -684,12 +978,48 @@ export default function ReceivingManager({
                   )}
                 </div>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs">
-                  <span className="text-slate-500">Current avg. {formatPrice(currentAverage)} → New avg. <strong className="text-slate-800">{formatPrice(nextAverage)}</strong></span>
-                  <div className="flex flex-wrap gap-2">
-                    {product?.pendingNew && <span className="rounded-full bg-brand-navy/10 px-3 py-1 font-bold text-brand-navy">Customer price: {formatPrice(product.pendingNew.storePrice)}</span>}
-                    <span className="rounded-full bg-brand-blue/10 px-3 py-1 font-bold text-brand-blue">Landed: {formatPrice(line.landedUnitCost)} each</span>
-                    {!product?.pendingNew && <span className="rounded-full bg-slate-100 px-3 py-1 font-bold text-slate-600">Customer price: {Number(product?.store_price) > 0 ? formatPrice(Number(product?.store_price)) : "Set in Products"}</span>}
+                  <span className="text-slate-500">Current avg. {formatPrice(currentAverage)} → New avg. <strong className="text-slate-800">{formatPrice(nextAverage)}</strong> per {baseUnit}</span>
+                  <span className="rounded-full bg-brand-blue/10 px-3 py-1 font-bold text-brand-blue">Landed: {formatPrice(line.landedUnitCost)} per {baseUnit}</span>
+                </div>
+
+                <div className="mt-3 rounded-2xl bg-slate-50 p-3">
+                  <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">Pricing per {sellingUnit}{unitsPerSale > 1 ? ` (${unitsPerSale} ${baseUnit})` : ""}</p>
+                  <div className="mt-2 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Your cost</p>
+                      <p className="mt-1 font-mono text-base font-black text-slate-900">{formatPrice(saleCost)}</p>
+                    </div>
+                    {onSale ? (
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Selling price (on sale)</p>
+                        <p className="mt-1 font-mono text-base font-black text-slate-900">{formatPrice(price)}</p>
+                      </div>
+                    ) : (
+                      <NumberField label="Selling price" value={price} onChange={(value) => setSellingPrice(line.id, value)} prefix="$" />
+                    )}
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Profit</p>
+                      <p className={`mt-1 font-mono text-base font-black ${price <= 0 ? "text-slate-400" : price - saleCost < 0 ? "text-rose-700" : "text-emerald-700"}`}>{price > 0 ? formatPrice(price - saleCost) : "Set a price"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Margin</p>
+                      <p className={`mt-1 font-mono text-base font-black ${margin === null ? "text-slate-400" : margin < 0 ? "text-rose-700" : margin < targetMargin ? "text-amber-700" : "text-emerald-700"}`}>{margin === null ? "—" : `${margin.toFixed(1)}%`}</p>
+                    </div>
                   </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                    {suggested !== null ? (
+                      <>
+                        <span>For a {targetMargin}% margin, sell at <strong className="text-slate-900">{formatPrice(suggested)}</strong>.</span>
+                        {!onSale && suggested !== price && (
+                          <button type="button" onClick={() => setSellingPrice(line.id, suggested)} className="min-h-9 rounded-lg border border-brand-navy px-3 font-bold text-brand-navy hover:bg-brand-navy/5">Use {formatPrice(suggested)}</button>
+                        )}
+                      </>
+                    ) : (
+                      <span>Enter the supplier cost to get a suggested price.</span>
+                    )}
+                  </div>
+                  {onSale && <p className="mt-2 text-xs text-slate-500">This product has a sale price, which is what customers pay (regular price {formatPrice(Number(product?.store_price) || 0)}). Change it in Products.</p>}
+                  {priceChanged && <p className="mt-2 text-xs font-semibold text-amber-800">The selling price changes from {formatPrice(Number(product?.store_price) || 0)} to {formatPrice(Number(priceOverrides[line.id]))} when this shipment is received.</p>}
                 </div>
               </div>
             );
@@ -757,11 +1087,17 @@ export default function ReceivingManager({
         <p className="mt-3 text-xs leading-5 text-slate-300">Forecast uses today&apos;s customer selling price and this receipt&apos;s landed cost. The Sales Report uses the actual price collected after any discount.</p>
         {forecast.missingPriceCount > 0 && <p className="mt-2 rounded-xl border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-xs font-bold text-amber-100">Set a customer selling price for {forecast.missingPriceCount} receipt line{forecast.missingPriceCount === 1 ? "" : "s"} to include it in the forecast.</p>}
         {error && <div className="mt-5 rounded-xl border border-rose-300/40 bg-rose-500/15 px-4 py-3 text-sm font-semibold text-rose-50">{error}</div>}
-        <button type="button" onClick={receiveStock} disabled={saving || lines.length === 0 || Boolean(setupError)}
-          className="mt-5 w-full rounded-xl bg-white px-5 py-3.5 text-sm font-black text-brand-navy hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">
-          {saving ? "Receiving shipment..." : `Receive ${lines.reduce((sum, line) => sum + line.quantity, 0)} units into inventory`}
-        </button>
-        <p className="mt-2 text-center text-xs text-slate-300">This updates stock and average cost together. It cannot partially save.</p>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={saveAsOrdered} disabled={saving || lines.length === 0}
+            className="w-full rounded-xl border border-white/40 px-5 py-3.5 text-sm font-black text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+            {saving ? "Saving..." : orderId ? "Save changes, still ordered" : "Save as ordered (not arrived yet)"}
+          </button>
+          <button type="button" onClick={receiveStock} disabled={saving || lines.length === 0 || Boolean(setupError)}
+            className="w-full rounded-xl bg-white px-5 py-3.5 text-sm font-black text-brand-navy hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">
+            {saving ? "Working..." : `Receive ${calculation.lines.reduce((sum, line) => sum + line.quantity, 0)} units into inventory`}
+          </button>
+        </div>
+        <p className="mt-2 text-center text-xs text-slate-300">Saving as ordered changes nothing in stock. Receiving updates stock and average cost together and cannot partially save.</p>
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">

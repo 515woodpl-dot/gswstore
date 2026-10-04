@@ -34,11 +34,12 @@ export default async function PurchaseOrdersPage() {
     <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5 lg:px-6">
       <div className="mb-4 rounded-xl border border-[#e6e8ec] bg-white p-4">
         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b4532f]">Inventory</p>
-        <h1 className="text-2xl font-black tracking-tight text-[#0f172a]">Purchase Orders</h1>
-        <p className="mt-1 text-xs text-[#5b6678]">Track inbound shipments. Receiving a PO updates cost prices and stock automatically.</p>
+        <h1 className="text-2xl font-black tracking-tight text-[#0f172a]">Older Purchase Orders</h1>
+        <p className="mt-1 text-xs text-[#5b6678]">Purchase orders created before ordering moved to Order &amp; Receive Stock. New orders are created there.</p>
       </div>
       <PurchaseOrderManager
-        initialPOs={pos ?? []}
+        // Shipments ordered from Order & Receive Stock are handled there, not here.
+        initialPOs={(pos ?? []).filter((po) => !po.shipment)}
         initialSuppliers={suppliers ?? []}
         inventoryItems={inventory ?? []}
       />

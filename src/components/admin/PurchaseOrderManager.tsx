@@ -213,19 +213,18 @@ export default function PurchaseOrderManager({
     } finally { setSaving(false); }
   }
 
-  // A received PO with products linked to Inventory already added stock, and deleting
-  // the PO would not take that stock back. Everything else (not yet received, or a
-  // received PO that never touched stock, like a test with typed-in names) is safe.
-  function canDeletePO(po: PO) {
-    return po.status !== "received" || po.po_items.every((l) => !l.item_id);
+  // A received PO whose lines are linked to Inventory products already added stock.
+  // Deleting the PO does not take that stock (or cost) back, so say so before deleting.
+  function appliedStock(po: PO) {
+    return po.status === "received" && po.po_items.some((l) => l.item_id);
   }
 
   async function deletePO(po: PO) {
-    if (!canDeletePO(po)) {
-      setError("This PO already added stock to Inventory. Deleting it would not remove that stock, so it can't be deleted here. Reverse the receipt in Receive Stock instead.");
-      return;
-    }
-    if (!confirm(`Delete ${po.po_number} and its ${po.po_items.length} line${po.po_items.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    const lineCount = `${po.po_items.length} line${po.po_items.length === 1 ? "" : "s"}`;
+    const message = appliedStock(po)
+      ? `Delete ${po.po_number} and its ${lineCount}?\n\nThis PO was already received and added stock and cost to its Inventory products. Deleting it will NOT remove that stock. After deleting, correct those products in Inventory.\n\nThis cannot be undone.`
+      : `Delete ${po.po_number} and its ${lineCount}? This cannot be undone.`;
+    if (!confirm(message)) return;
     setSaving(true); setError(""); setReceiveMsg("");
     try {
       const { data, error: delError } = await sb.from("purchase_orders").delete().eq("id", po.id).select("id");
@@ -364,14 +363,12 @@ export default function PurchaseOrderManager({
           {receiveMsg && <p className="mt-3 text-sm font-semibold text-emerald-600">{receiveMsg}</p>}
           {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
 
-          {canDeletePO(po) && (
-            <div className="mt-6 border-t border-slate-200 pt-4">
-              <button onClick={() => deletePO(po)} disabled={saving}
-                className="min-h-11 rounded-xl border border-rose-200 px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50">
-                🗑 Delete this purchase order
-              </button>
-            </div>
-          )}
+          <div className="mt-6 border-t border-slate-200 pt-4">
+            <button onClick={() => deletePO(po)} disabled={saving}
+              className="min-h-11 rounded-xl border border-rose-200 px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50">
+              🗑 Delete this purchase order
+            </button>
+          </div>
         </div>
       </div>
     );

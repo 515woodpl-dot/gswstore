@@ -48,7 +48,7 @@ export default async function SalesPage({ searchParams }: Props) {
     .lte("created_at", end.toISOString())
     .neq("status", "cancelled")
     .order("created_at", { ascending: false }),
-    sb.from("inventory").select("id,name,amount").order("name"),
+    sb.from("inventory").select("id,name,amount,base_unit,selling_unit,units_per_sale").order("name"),
   ]);
 
   return (

@@ -216,7 +216,13 @@ export default function InventoryManager({ initialItems, categories }: { initial
     };
     let err = null as { message: string } | null;
     if (originalId) {
-      const { error: e } = await sb.from("inventory").update(payload).eq("id", originalId);
+      // Never write back stock or cost the admin did not touch. This form was loaded
+      // earlier, so its copy of `amount` can be stale (sales and receipts since then
+      // have changed the real value). Overwriting it would silently undo them.
+      const updatePayload: Partial<Row> = { ...payload };
+      if (original && Number(original.amount) === Number(editing.amount)) delete updatePayload.amount;
+      if (original && Number(original.cost_price || 0) === Number(editing.cost_price || 0)) delete updatePayload.cost_price;
+      const { error: e } = await sb.from("inventory").update(updatePayload).eq("id", originalId);
       err = e;
     } else {
       const { error: e } = await sb.from("inventory").insert(payload);
@@ -232,10 +238,13 @@ export default function InventoryManager({ initialItems, categories }: { initial
       });
       if (packagingError) { setError(`Product saved, but packaging history was not updated: ${packagingError.message}`); setSaving(false); return; }
     }
+    // Re-read the saved row so the list shows the real stock/cost, not the form's copy.
+    const { data: fresh } = await sb.from("inventory").select("*").eq("id", payload.id).single();
+    const saved = (fresh as Row | null) ?? payload;
     setItems((prev) => {
       const withoutOld = originalId ? prev.filter((p) => p.id !== originalId) : prev;
       const exists = withoutOld.some((p) => p.id === payload.id);
-      return exists ? withoutOld.map((p) => (p.id === payload.id ? payload : p)) : [...withoutOld, payload];
+      return exists ? withoutOld.map((p) => (p.id === payload.id ? saved : p)) : [...withoutOld, saved];
     });
     // Bust the storefront cache so featured hero changes show immediately.
     fetch("/api/admin/revalidate", { method: "POST" }).catch(() => {});

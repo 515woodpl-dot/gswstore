@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getZipLocation } from "@/lib/zip-location";
+import { getTaxZipOverride, percentToTaxRate } from "@/lib/tax-overrides";
 
 // POST — upload WA DOR ZIP+4 tax rate file
 // Accepts the raw .txt file content, parses it, and upserts into tax_rates.
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
     const zip = request.nextUrl.searchParams.get("zip")?.trim();
     const plus4 = request.nextUrl.searchParams.get("plus4")?.trim();
 
-    if (!zip || zip.length !== 5) {
+    if (!zip || !/^\d{5}$/.test(zip)) {
       return NextResponse.json({ error: "Provide a 5-digit zip." }, { status: 400 });
     }
 
@@ -116,6 +117,11 @@ export async function GET(request: NextRequest) {
     }
     if (location.stateCode !== "WA") {
       return NextResponse.json({ error: "This store currently supports Washington ZIP codes only." }, { status: 409 });
+    }
+
+    const override = await getTaxZipOverride(sb, zip);
+    if (override !== null) {
+      return NextResponse.json({ zip, ...location, combined_rate: override, source: "override" });
     }
 
     if (plus4 && plus4.length === 4) {
@@ -136,7 +142,7 @@ export async function GET(request: NextRequest) {
       .eq("zip", zip);
 
     if (!rates || rates.length === 0) {
-      return NextResponse.json({ error: "No rate found for this ZIP." }, { status: 404 });
+      return NextResponse.json({ zip, ...location, error: "No imported rate found for this ZIP." }, { status: 404 });
     }
 
     // Find the most common combined_rate for this ZIP
@@ -153,4 +159,38 @@ export async function GET(request: NextRequest) {
     console.error("[Tax] lookup error:", err instanceof Error ? err.message : "unknown");
     return NextResponse.json({ error: "Lookup failed." }, { status: 500 });
   }
+}
+
+// Manual overrides are separate from the uploaded file and affect only this ZIP.
+export async function PATCH(request: NextRequest) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  try {
+    const body = await request.json();
+    const zip = typeof body.zip === "string" ? body.zip.trim() : "";
+    const location = getZipLocation(zip);
+    const rate = percentToTaxRate(body.percent);
+    if (!location || location.stateCode !== "WA") return NextResponse.json({ error: "Enter a valid Washington ZIP." }, { status: 400 });
+    if (rate === null) return NextResponse.json({ error: "Enter a percentage from 0 to 25, with up to four decimal places." }, { status: 400 });
+    const sb = await createClient();
+    const { error } = await sb.from("store_settings").upsert({ key: `tax_zip_override_${zip}`, value: String(rate) }, { onConflict: "key" });
+    if (error) {
+      console.error("[Tax] override update failed:", error.message);
+      return NextResponse.json({ error: "Could not save the override. Check your administrator permissions and try again." }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true, zip, ...location, combined_rate: rate, source: "override" });
+  } catch {
+    return NextResponse.json({ error: "Could not save the override." }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const zip = request.nextUrl.searchParams.get("zip")?.trim() ?? "";
+  if (!/^\d{5}$/.test(zip)) return NextResponse.json({ error: "Enter a valid ZIP." }, { status: 400 });
+  const sb = await createClient();
+  const { error } = await sb.from("store_settings").delete().eq("key", `tax_zip_override_${zip}`);
+  if (error) return NextResponse.json({ error: "Could not remove the override. Check your administrator permissions and try again." }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }

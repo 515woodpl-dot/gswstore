@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SaleCreationError } from "@/lib/create-sale";
 import { getZipLocation } from "@/lib/zip-location";
+import { getTaxZipOverride } from "@/lib/tax-overrides";
 
 export type BuyerType = "personal" | "company";
 export type PaymentMethod = "cash" | "zelle" | "square";
@@ -70,16 +71,21 @@ export async function resolveSaleCompliance(
 
   let taxRate = 0;
   if (!taxExempt) {
-    const { data: rates, error } = await admin.from("tax_rates").select("combined_rate").eq("zip", taxZip);
-    if (error || !rates?.length) throw new SaleCreationError("No sales-tax rate was found for that ZIP.", 409);
-    const frequency = new Map<string, number>();
-    for (const row of rates) {
-      const key = String(row.combined_rate);
-      frequency.set(key, (frequency.get(key) ?? 0) + 1);
-    }
-    taxRate = Number([...frequency.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]);
-    if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 0.25) {
-      throw new SaleCreationError("The configured sales-tax rate is invalid.", 500);
+    const override = await getTaxZipOverride(admin, taxZip);
+    if (override !== null) {
+      taxRate = override;
+    } else {
+      const { data: rates, error } = await admin.from("tax_rates").select("combined_rate").eq("zip", taxZip);
+      if (error || !rates?.length) throw new SaleCreationError("No sales-tax rate was found for that ZIP.", 409);
+      const frequency = new Map<string, number>();
+      for (const row of rates) {
+        const key = String(row.combined_rate);
+        frequency.set(key, (frequency.get(key) ?? 0) + 1);
+      }
+      taxRate = Number([...frequency.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]);
+      if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 0.25) {
+        throw new SaleCreationError("The configured sales-tax rate is invalid.", 500);
+      }
     }
   }
 

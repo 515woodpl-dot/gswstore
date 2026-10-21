@@ -20,6 +20,9 @@ export default function TaxRatesManager({ storeZip, uploadedAt, rowCount }: Prop
   const [lookupZip, setLookupZip] = useState("");
   const [lookupResult, setLookupResult] = useState<Record<string, unknown> | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
+  const [ratePercent, setRatePercent] = useState("");
+  const [savingRate, setSavingRate] = useState(false);
+  const [rateMessage, setRateMessage] = useState("");
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -82,13 +85,55 @@ export default function TaxRatesManager({ storeZip, uploadedAt, rowCount }: Prop
   }
 
   async function lookup() {
-    if (!lookupZip.trim() || lookupZip.length !== 5) return;
+    if (!/^\d{5}$/.test(lookupZip.trim())) return;
     setLookingUp(true);
     setLookupResult(null);
-    const res = await fetch(`/api/admin/tax-rates?zip=${lookupZip.trim()}`);
-    const json = await res.json();
-    setLookupResult(json);
-    setLookingUp(false);
+    setRateMessage("");
+    try {
+      const res = await fetch(`/api/admin/tax-rates?zip=${lookupZip.trim()}`);
+      const json = await res.json();
+      setLookupResult(json);
+      setRatePercent(res.ok ? String(Number((Number(json.combined_rate) * 100).toFixed(4))) : "");
+    } catch {
+      setLookupResult({ error: "Could not look up the ZIP. Check your connection and try again." });
+    } finally {
+      setLookingUp(false);
+    }
+  }
+
+  async function saveRate() {
+    if (!lookupResult || !lookupResult.city || lookupResult.zip !== lookupZip.trim()) return;
+    setSavingRate(true);
+    setRateMessage("");
+    try {
+      const res = await fetch("/api/admin/tax-rates", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ zip: lookupZip.trim(), percent: ratePercent }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Could not save the rate.");
+      setLookupResult(json);
+      setRateMessage("Rate saved for this ZIP. It applies to new sales only.");
+    } catch (error) {
+      setRateMessage(error instanceof Error ? error.message : "Could not save the rate.");
+    } finally { setSavingRate(false); }
+  }
+
+  async function removeRate() {
+    if (!lookupResult || lookupResult.zip !== lookupZip.trim()) return;
+    if (!window.confirm(`Remove the manual rate for ${lookupZip}? The imported rate will be used again.`)) return;
+    setSavingRate(true);
+    setRateMessage("");
+    try {
+      const res = await fetch(`/api/admin/tax-rates?zip=${lookupZip.trim()}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Could not remove the override.");
+      await lookup();
+      setRateMessage("Override removed. The imported rate is now used for this ZIP.");
+    } catch (error) {
+      setRateMessage(error instanceof Error ? error.message : "Could not remove the override.");
+    } finally { setSavingRate(false); }
   }
 
   return (
@@ -168,38 +213,48 @@ export default function TaxRatesManager({ storeZip, uploadedAt, rowCount }: Prop
 
       {/* Lookup tool */}
       <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">
-        <h2 className="text-base font-bold text-slate-950">Look up a rate</h2>
-        <p className="mt-1 text-sm text-slate-500">Verify the rate for any ZIP code in the database.</p>
+        <h2 className="text-base font-bold text-slate-950">Look up or update a ZIP rate</h2>
+        <p className="mt-1 text-sm text-slate-500">Enter a ZIP to confirm its city and change only that ZIP. Other ZIPs and past sales stay unchanged.</p>
         <div className="mt-3 flex gap-2">
           <input
             value={lookupZip}
-            onChange={(e) => setLookupZip(e.target.value)}
+            onChange={(e) => { setLookupZip(e.target.value.replace(/\D/g, "").slice(0, 5)); setLookupResult(null); setRateMessage(""); }}
             maxLength={5}
             className="w-32 rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-mono outline-none focus:border-brand-navy"
             placeholder="98198"
             onKeyDown={(e) => e.key === "Enter" && lookup()}
           />
-          <button onClick={lookup} disabled={lookingUp || lookupZip.length !== 5}
+          <button onClick={lookup} disabled={lookingUp || !/^\d{5}$/.test(lookupZip)}
             className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">
             {lookingUp ? "Looking up…" : "Look up"}
           </button>
         </div>
         {lookupResult && (
           <div className={`mt-3 rounded-xl px-4 py-3 text-sm ${lookupResult.error ? "border border-rose-200 bg-rose-50 text-rose-700" : "border border-slate-200 bg-slate-50"}`}>
-            {lookupResult.error ? (
+            {lookupResult.error && !lookupResult.city ? (
               <p>❌ {String(lookupResult.error)}</p>
             ) : (
               <div className="space-y-1">
                 <p className="font-bold text-slate-900">{lookupResult.city as string}, {lookupResult.stateCode as string} · ZIP {lookupResult.zip as string}</p>
-                <p>Combined rate: <strong>{((lookupResult.combined_rate as number) * 100).toFixed(2)}%</strong></p>
-                <p className="text-slate-500">State: {((lookupResult.state_rate as number) * 100).toFixed(2)}% · Local: {((lookupResult.local_rate as number) * 100).toFixed(2)}%</p>
+                {lookupResult.error ? <p className="text-amber-700">{String(lookupResult.error)} You can add a manual rate below.</p> : <p>Combined rate: <strong>{((lookupResult.combined_rate as number) * 100).toFixed(2)}%</strong></p>}
+                {lookupResult.source === "override" ? <p className="text-xs font-semibold text-amber-700">Manual ZIP override active. It remains active after a rate-file upload.</p> : !lookupResult.error && <p className="text-slate-500">State: {((lookupResult.state_rate as number) * 100).toFixed(2)}% · Local: {((lookupResult.local_rate as number) * 100).toFixed(2)}%</p>}
                 {(lookupResult.rate_count as number) > 1 && (
                   <p className="text-xs text-amber-700">⚠ This ZIP has {lookupResult.rate_count as number} +4 suffix variants — showing most common rate.</p>
                 )}
+                <div className="mt-3 border-t border-slate-200 pt-3">
+                  <label className="block text-xs font-semibold text-slate-700" htmlFor="tax-override">New combined tax rate (%)</label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <input id="tax-override" type="number" min="0" max="25" step="0.0001" value={ratePercent} onChange={(e) => setRatePercent(e.target.value)} className="w-32 rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-mono text-sm" />
+                    <button type="button" onClick={saveRate} disabled={savingRate || ratePercent === ""} className="rounded-xl bg-brand-navy px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">{savingRate ? "Saving…" : "Save ZIP rate"}</button>
+                    {lookupResult.source === "override" && <button type="button" onClick={removeRate} disabled={savingRate} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold disabled:opacity-60">Use imported rate</button>}
+                  </div>
+                  <p className="mt-2 text-xs text-amber-800">This override applies to the entire five-digit ZIP, including all ZIP+4 variants. Verify the correct tax jurisdiction before saving.</p>
+                </div>
               </div>
             )}
           </div>
         )}
+        {rateMessage && <p role="status" className="mt-3 text-sm font-semibold text-slate-700">{rateMessage}</p>}
       </section>
 
       <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-500">

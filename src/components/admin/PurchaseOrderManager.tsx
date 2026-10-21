@@ -87,6 +87,10 @@ export default function PurchaseOrderManager({
   async function savePO() {
     if (lines.length === 0) { setError("Add at least one item."); return; }
     if (!supplierName.trim()) { setError("Select or create a supplier."); return; }
+    if (lines.some((l) => !l.item_id)) {
+      setError("Pick every product from the Product list so receiving the PO can add its stock. New products go in Inventory first.");
+      return;
+    }
     setSaving(true); setError("");
     try {
       const { data: po, error: e1 } = await sb.from("purchase_orders").insert({
@@ -134,38 +138,59 @@ export default function PurchaseOrderManager({
     if (!confirm(`Receive PO ${po.po_number}?\n\nThis will:\n• Update cost prices on all items\n• Add quantities to stock\n• Send a receiving notification email`)) return;
     setSaving(true); setError(""); setReceiveMsg("");
     try {
+      // Stock can only be added to products that exist in Inventory. A line that was
+      // typed by name has nothing to add stock to, so stop before anything changes
+      // instead of marking the PO received with no effect.
+      const unlinked = po.po_items.filter((l) => !l.item_id);
+      if (unlinked.length > 0) {
+        throw new Error(
+          `Can't receive: ${unlinked.map((l) => l.item_name || "unnamed line").join(", ")} ${unlinked.length === 1 ? "is" : "are"} not linked to an Inventory product. ` +
+          "Add the product in Inventory (or use Receive Stock to create it), then create the PO again and pick it from the Product list.",
+        );
+      }
+
       const poSubtotal = po.po_items.reduce((s, l) => s + l.quantity * l.unit_cost, 0);
       const poExtras = Number(po.freight) + Number(po.tariffs) + Number(po.handling);
 
-      // Allocate extras proportionally by line value
+      // One atomic database call: adds stock, blends landed cost into the weighted
+      // average, and logs a receipt. If anything is invalid the whole thing rolls back.
+      const { error: rpcError } = await sb.rpc("receive_inventory_batch", {
+        p_receipt_code: po.po_number,
+        p_supplier_name: po.supplier_name,
+        p_supplier_invoice: "",
+        p_received_date: new Date().toLocaleDateString("en-CA"),
+        p_notes: `Received from purchase order ${po.po_number}`,
+        p_allocation_mode: "automatic",
+        p_expenses: [
+          { type: "freight", label: "Freight", amount: Number(po.freight) || 0 },
+          { type: "tariff", label: "Tariffs", amount: Number(po.tariffs) || 0 },
+          { type: "handling", label: "Handling", amount: Number(po.handling) || 0 },
+        ].filter((e) => e.amount > 0),
+        p_items: po.po_items.map((l) => ({
+          inventory_id: l.item_id,
+          quantity: l.quantity,
+          supplier_unit_cost: l.unit_cost,
+        })),
+      });
+      if (rpcError) throw new Error(rpcError.message);
+
+      // Record each line's landed cost for the PO detail view (by value share).
       for (const line of po.po_items) {
         const lineValue = line.quantity * line.unit_cost;
         const share = poSubtotal > 0 ? lineValue / poSubtotal : 1 / po.po_items.length;
-        const allocatedExtra = poExtras * share;
-        const landedPerUnit = line.unit_cost + (line.quantity > 0 ? allocatedExtra / line.quantity : 0);
-
-        // Update landed_cost on po_item
-        await sb.from("po_items").update({ landed_cost: Math.round(landedPerUnit * 100) / 100 }).eq("id", line.id);
-
-        // Update inventory cost_price and add stock
-        if (line.item_id) {
-          const { data: inv } = await sb.from("inventory").select("amount,cost_price").eq("id", line.item_id).single();
-          if (inv) {
-            await sb.from("inventory").update({
-              cost_price: Math.round(landedPerUnit * 100) / 100,
-              amount: Number(inv.amount) + line.quantity,
-            }).eq("id", line.item_id);
-          }
-        }
+        const landedPerUnit = line.unit_cost + (line.quantity > 0 ? (poExtras * share) / line.quantity : 0);
+        const { error: lineError } = await sb.from("po_items").update({ landed_cost: Math.round(landedPerUnit * 100) / 100 }).eq("id", line.id);
+        if (lineError) throw new Error(`Stock was added, but the PO line could not be updated: ${lineError.message}`);
       }
 
       // Mark PO received
-      await sb.from("purchase_orders").update({
+      const { error: statusError } = await sb.from("purchase_orders").update({
         status: "received",
         received_at: new Date().toISOString(),
         subtotal: poSubtotal,
         landed_total: poSubtotal + poExtras,
       }).eq("id", po.id);
+      if (statusError) throw new Error(`Stock was added, but the PO could not be marked received: ${statusError.message}`);
 
       // Send receiving notification email
       try {
@@ -188,20 +213,45 @@ export default function PurchaseOrderManager({
     } finally { setSaving(false); }
   }
 
+  // A received PO whose lines are linked to Inventory products already added stock.
+  // Deleting the PO does not take that stock (or cost) back, so say so before deleting.
+  function appliedStock(po: PO) {
+    return po.status === "received" && po.po_items.some((l) => l.item_id);
+  }
+
+  async function deletePO(po: PO) {
+    const lineCount = `${po.po_items.length} line${po.po_items.length === 1 ? "" : "s"}`;
+    const message = appliedStock(po)
+      ? `Delete ${po.po_number} and its ${lineCount}?\n\nThis PO was already received and added stock and cost to its Inventory products. Deleting it will NOT remove that stock. After deleting, correct those products in Inventory.\n\nThis cannot be undone.`
+      : `Delete ${po.po_number} and its ${lineCount}? This cannot be undone.`;
+    if (!confirm(message)) return;
+    setSaving(true); setError(""); setReceiveMsg("");
+    try {
+      const { data, error: delError } = await sb.from("purchase_orders").delete().eq("id", po.id).select("id");
+      if (delError) throw new Error(delError.message);
+      if (!data || data.length === 0) throw new Error("Nothing was deleted. You may not have permission to delete purchase orders.");
+      setPOs((prev) => prev.filter((p) => p.id !== po.id));
+      setSelectedPO(null);
+      setView("list");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete");
+    } finally { setSaving(false); }
+  }
+
   // ── LIST VIEW ───────────────────────────────────────────────────────────────
   if (view === "list") {
     return (
       <div>
         <div className="mb-4 flex gap-3">
-          <button onClick={() => { resetForm(); setView("new"); }}
+          <a href="/admin/receiving"
             className="rounded-xl bg-brand-navy px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">
-            + New Purchase Order
-          </button>
+            + New order (Order &amp; Receive Stock)
+          </a>
         </div>
 
         {pos.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center text-slate-500">
-            No purchase orders yet. Create one to track inbound shipments and landed costs.
+            No older purchase orders. New orders are created in Order & Receive Stock.
           </div>
         ) : (
           <div className="space-y-3">
@@ -312,6 +362,13 @@ export default function PurchaseOrderManager({
 
           {receiveMsg && <p className="mt-3 text-sm font-semibold text-emerald-600">{receiveMsg}</p>}
           {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
+
+          <div className="mt-6 border-t border-slate-200 pt-4">
+            <button onClick={() => deletePO(po)} disabled={saving}
+              className="min-h-11 rounded-xl border border-rose-200 px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50">
+              🗑 Delete this purchase order
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -374,8 +431,7 @@ export default function PurchaseOrderManager({
                       ))}
                     </select>
                     {!line.item_id && (
-                      <input type="text" value={line.item_name} onChange={(e) => updateLine(idx, "item_name", e.target.value)}
-                        placeholder="Or type item name" className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+                      <p className="mt-1 text-xs text-amber-700">Choose a product. To buy something new, add it in Inventory first.</p>
                     )}
                   </div>
                   <div className="col-span-4 sm:col-span-2">

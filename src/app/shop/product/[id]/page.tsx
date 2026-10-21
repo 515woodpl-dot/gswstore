@@ -116,7 +116,14 @@ export default async function ProductPage({ params }: Props) {
         <div className="pt-1">
           <div className="flex items-center justify-between gap-5">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-blue">{item!.brand || "Stone Product Supply"}</p>
-            {item!.sku && <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400">SKU {item!.sku}</p>}
+            {item!.sku && (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400">SKU {item!.sku}</p>
+                {/^SNK/i.test(item!.sku) && productDimensions ? (
+                  <span className="rounded-md border border-orange-300 bg-orange-100 px-3 py-1.5 text-base font-black leading-none text-orange-900 sm:text-lg">{productDimensions}</span>
+                ) : null}
+              </div>
+            )}
           </div>
           {item!.category_name?.toLowerCase() === "sink" && productDimensions && <p className="font-display mt-4 text-xl font-black uppercase tracking-[-0.02em] text-brand-blue sm:text-2xl">Sink dimensions: {productDimensions}</p>}
           <h1 className="font-display mt-4 text-[clamp(3.25rem,6vw,5.5rem)] font-black uppercase leading-[0.86] tracking-[-0.06em] text-brand-navy">{item!.name}</h1>

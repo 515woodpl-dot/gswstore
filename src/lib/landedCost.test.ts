@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateLandedCosts, weightedAverageCost } from "./landedCost";
+import { calculateLandedCosts, costPerSellingUnit, marginPercent, priceForMargin, weightedAverageCost } from "./landedCost";
 
 const lines = [
   { id: "X", quantity: 10, supplierUnitCost: 54, unitWeight: 20, manualAllocation: 0 },
@@ -58,4 +58,26 @@ test("accepts manual line allocations and reports an unmatched total", () => {
 test("calculates the new weighted-average inventory cost", () => {
   assert.equal(weightedAverageCost(10, 50, 5, 80), 60);
   assert.equal(weightedAverageCost(0, 0, 4, 42.2578), 42.2578);
+});
+
+test("prices a selling unit from landed cost per base unit", () => {
+  // Bag of 50 clips at $0.14 landed per clip costs $7.00 per bag.
+  assert.equal(costPerSellingUnit(0.14, 50), 7);
+  assert.equal(costPerSellingUnit(2.3817, 1), 2.3817);
+  assert.equal(costPerSellingUnit(2, 0), 2);
+});
+
+test("margin is profit divided by selling price", () => {
+  assert.equal(marginPercent(12, 7)!.toFixed(1), "41.7");
+  assert.equal(marginPercent(10, 12), -20);
+  assert.equal(marginPercent(0, 7), null);
+});
+
+test("suggested price reaches the target margin, rounded up to the cent", () => {
+  assert.equal(priceForMargin(7, 40), 11.67);
+  assert.ok(marginPercent(11.67, 7)! >= 40);
+  assert.equal(priceForMargin(6, 40), 10);
+  assert.equal(priceForMargin(7, 0), 7);
+  assert.equal(priceForMargin(7, 100), null);
+  assert.equal(priceForMargin(0, 40), null);
 });

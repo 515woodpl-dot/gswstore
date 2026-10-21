@@ -68,9 +68,9 @@ export const ADMIN_NAV: NavGroup[] = [
         icon: "📦",
       },
       {
-        href: "/admin/purchase-orders",
-        label: "Purchase Orders",
-        description: "Track shipments, freight, tariffs — landed cost per item",
+        href: "/admin/receiving",
+        label: "Order & Receive Stock",
+        description: "Order from suppliers, receive shipments, landed cost and pricing per item",
         icon: "🚚",
       },
       {

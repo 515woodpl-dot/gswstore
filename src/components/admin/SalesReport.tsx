@@ -40,7 +40,7 @@ interface OrderRow {
   internal_use_reason: string;
   order_items: OrderItemRow[];
 }
-interface InventoryRow { id: string; name: string; amount: number; }
+interface InventoryRow { id: string; name: string; amount: number; base_unit?: string | null; selling_unit?: string | null; units_per_sale?: number | null; }
 
 type SaleKindFilter = "all" | "cash" | "online" | "payment_link" | "walk_in";
 
@@ -79,6 +79,25 @@ const RANGES = [
   { key: "all", label: "All time" },
 ];
 
+interface ItemStat {
+  id: string;
+  name: string;
+  qty: number;
+  stock: number;
+  baseUnit: string;
+  sellingUnit: string;
+  unitsPerSale: number;
+  listRevenue: number;
+  discounts: number;
+  revenue: number;
+  cost: number;
+  profit: number;
+  costMissing: boolean;
+  packagingMismatch: boolean;
+}
+
+const money = (value: number) => formatPrice(value);
+
 export default function SalesReport({
   orders: allOrders,
   inventory,
@@ -115,14 +134,21 @@ export default function SalesReport({
     SALE_KINDS.map((kind) => [kind.key, testFilteredOrders.filter((order) => matchesSaleKind(order, kind.key)).length]),
   ) as Record<SaleKindFilter, number>, [testFilteredOrders]);
 
-  // Totals
+  // Totals. Quantities on a sale are in SELLING units; stock and cost are per BASE unit,
+  // so cost = cost_per_base_unit × qty × base_units_per_sale (see costForSale).
   const stats = useMemo(() => {
-    let revenue = 0, cost = 0, discounts = 0, units = 0, walkIn = 0, online = 0, internalUnits = 0, saleOrders = 0, squareGross = 0, squareFees = 0, squareDeposit = 0;
+    let revenue = 0, cost = 0, discounts = 0, units = 0, internalUnits = 0, saleOrders = 0, squareGross = 0, squareFees = 0, squareDeposit = 0;
+    const channels = { walkIn: 0, online: 0, paymentLink: 0, manual: 0 };
     const byStaff: Record<string, { revenue: number; cost: number; discounts: number; count: number }> = {};
     let missingCostUnits = 0;
-    const byItem: Record<string, { name: string; qty: number; stock: number; listRevenue: number; discounts: number; revenue: number; cost: number; profit: number; costMissing: boolean }> = {};
+    const byItem: Record<string, ItemStat> = {};
     for (const item of inventory) {
-      byItem[item.id] = { name: item.name, qty: 0, stock: Number(item.amount) || 0, listRevenue: 0, discounts: 0, revenue: 0, cost: 0, profit: 0, costMissing: false };
+      byItem[item.id] = {
+        id: item.id, name: item.name, qty: 0, stock: Number(item.amount) || 0,
+        baseUnit: item.base_unit || "Each", sellingUnit: item.selling_unit || "Each",
+        unitsPerSale: Math.max(1, Number(item.units_per_sale) || 1),
+        listRevenue: 0, discounts: 0, revenue: 0, cost: 0, profit: 0, costMissing: false, packagingMismatch: false,
+      };
     }
 
     for (const o of orders) {
@@ -148,19 +174,33 @@ export default function SalesReport({
         cost += itemCost;
 
         const key = it.item_id || `sold-${it.id}`;
-        if (!byItem[key]) byItem[key] = { name: it.name, qty: 0, stock: 0, listRevenue: 0, discounts: 0, revenue: 0, cost: 0, profit: 0, costMissing: false };
-        byItem[key].qty += it.quantity;
-        byItem[key].listRevenue += itemListRevenue;
-        byItem[key].discounts += itemDiscount;
-        byItem[key].revenue += itemRev;
-        byItem[key].cost += itemCost;
-        byItem[key].profit += itemRev - itemCost;
+        if (!byItem[key]) {
+          byItem[key] = {
+            id: key, name: it.name, qty: 0, stock: 0, baseUnit: "Each", sellingUnit: "Each", unitsPerSale: 1,
+            listRevenue: 0, discounts: 0, revenue: 0, cost: 0, profit: 0, costMissing: false, packagingMismatch: false,
+          };
+        }
+        const entry = byItem[key];
+        entry.qty += it.quantity;
+        entry.listRevenue += itemListRevenue;
+        entry.discounts += itemDiscount;
+        entry.revenue += itemRev;
+        entry.cost += itemCost;
+        entry.profit += itemRev - itemCost;
         if (Number(it.cost_price || 0) <= 0 && it.quantity > 0) {
-          byItem[key].costMissing = true;
+          entry.costMissing = true;
           missingCostUnits += it.quantity;
         }
+        // The sale stored its own packaging snapshot. If the product's packaging was
+        // edited afterwards, this line's cost no longer matches the current setup.
+        if (it.item_id && Math.max(1, Number(it.base_units_per_sale) || 1) !== entry.unitsPerSale) {
+          entry.packagingMismatch = true;
+        }
       }
-      if (o.source === "walk_in") walkIn += orderMerchandiseRevenue; else online += orderMerchandiseRevenue;
+      if (o.source === "walk_in") channels.walkIn += orderMerchandiseRevenue;
+      else if (o.source === "admin_payment_link") channels.paymentLink += orderMerchandiseRevenue;
+      else if (o.source === "manual") channels.manual += orderMerchandiseRevenue;
+      else channels.online += orderMerchandiseRevenue;
 
       const staff = o.sold_by_name || (o.source === "walk_in" ? "Unknown staff" : "Online");
       if (!byStaff[staff]) byStaff[staff] = { revenue: 0, cost: 0, discounts: 0, count: 0 };
@@ -172,10 +212,10 @@ export default function SalesReport({
     const profit = revenue - cost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     return {
-      revenue, cost, profit, margin, discounts, units, walkIn, online, internalUnits, missingCostUnits, squareGross, squareFees, squareDeposit,
+      revenue, cost, profit, margin, discounts, units, channels, internalUnits, missingCostUnits, squareGross, squareFees, squareDeposit,
       orders: saleOrders,
       byStaff: Object.entries(byStaff).sort((a, b) => b[1].revenue - a[1].revenue),
-      byItem: Object.values(byItem).sort((a, b) => b.revenue - a.revenue),
+      byItem: Object.values(byItem).sort((a, b) => b.revenue - a.revenue || a.name.localeCompare(b.name)),
     };
   }, [inventory, orders]);
 
@@ -229,7 +269,7 @@ export default function SalesReport({
         rows.push([
           o.order_number,
           new Date(o.created_at).toLocaleString(),
-          o.source === "walk_in" ? "Walk-in" : o.source === "manual" ? "Manual" : "Online",
+          o.source === "walk_in" ? "Walk-in" : o.source === "manual" ? "Manual" : o.source === "admin_payment_link" ? "Payment link" : "Online",
           o.sold_by_name || "",
           o.buyer_type === "company" ? "Company" : "Personal",
           o.payment_method === "square" ? "Square Up" : o.payment_method === "zelle" ? "Zelle" : o.payment_method === "cash" ? "Cash" : "Legacy / unknown",
@@ -304,119 +344,297 @@ export default function SalesReport({
   const listRevenue = stats.byItem.reduce((sum, item) => sum + item.listRevenue, 0);
   const unsoldCount = stats.byItem.filter((item) => item.qty === 0).length;
   const visibleItems = showUnsold ? stats.byItem : stats.byItem.filter((item) => item.qty > 0);
+  const mismatchCount = stats.byItem.filter((item) => item.packagingMismatch).length;
   const expandedOrderId = expanded === "first" ? orders[0]?.id ?? null : expanded;
-  const displayedOrders = showAllOrders ? orders : orders.slice(0, 5);
+  const displayedOrders = showAllOrders ? orders : orders.slice(0, 8);
+  const costUnknown = stats.missingCostUnits > 0;
+
+  function stockLabel(item: ItemStat) {
+    return (
+      <>
+        <span className="font-semibold text-[#0f172a]">{item.stock.toLocaleString()}</span>{" "}
+        <span className="text-[#5b6678]">{item.baseUnit}</span>
+        {item.unitsPerSale > 1 && (
+          <span className="block text-xs text-[#5b6678]">≈ {Math.floor(item.stock / item.unitsPerSale).toLocaleString()} {item.sellingUnit}</span>
+        )}
+      </>
+    );
+  }
 
   function itemPanel(mobile = false) {
     if (mobile) {
       return (
         <div className="divide-y divide-[#e6e8ec]">
-          {visibleItems.map((item) => (
-            <div key={item.name} className={`grid grid-cols-[1fr_auto] gap-3 px-3 py-3 ${item.qty === 0 ? "opacity-40" : ""}`}>
-              <div className="min-w-0"><p className="truncate text-xs font-bold text-[#0f172a]">{item.name}</p><p className="mt-0.5 text-[10px] text-[#5b6678]">{item.qty} sold · {item.stock} in stock</p></div>
-              <div className="text-right tabular-nums"><p className="text-xs font-bold text-[#0f172a]">{item.qty ? formatPrice(item.revenue) : "—"}</p><p className={`mt-0.5 text-[10px] font-bold ${item.costMissing ? "text-[#9a4a14]" : item.profit < 0 ? "text-[#b4233a]" : "text-[#23694a]"}`}>{item.qty ? item.costMissing ? "Cost missing" : formatPrice(item.profit) : "—"}</p></div>
-            </div>
-          ))}
-          <div className="sticky bottom-0 grid grid-cols-3 gap-2 bg-[#0f172a] px-3 py-3 text-white shadow-[0_-4px_16px_rgba(15,23,42,.12)]">
-            <MiniTotal label="Units" value={String(stats.units)} /><MiniTotal label="Revenue" value={formatPrice(stats.revenue)} /><MiniTotal label="Profit" value={stats.missingCostUnits ? "Unknown" : formatPrice(stats.profit)} />
+          {visibleItems.map((item) => {
+            const negative = !item.costMissing && item.profit < 0;
+            return (
+              <div key={item.id} className={`grid grid-cols-[1fr_auto] gap-3 px-4 py-4 ${item.qty === 0 ? "opacity-50" : ""}`}>
+                <div className="min-w-0">
+                  <p className="text-[15px] font-bold leading-snug text-[#0f172a]">{item.name}</p>
+                  <p className="mt-1 text-sm text-[#5b6678]">{item.qty} sold · {item.stock.toLocaleString()} {item.baseUnit} in stock{item.unitsPerSale > 1 ? ` (${Math.floor(item.stock / item.unitsPerSale).toLocaleString()} ${item.sellingUnit})` : ""}</p>
+                  {item.packagingMismatch && <p className="mt-1 text-xs font-semibold text-[#9a4a14]">▲ Packaging changed since this was sold — check cost</p>}
+                </div>
+                <div className="text-right tabular-nums">
+                  <p className="text-base font-bold text-[#0f172a]">{item.qty ? money(item.revenue) : "—"}</p>
+                  <p className={`mt-1 text-sm font-bold ${item.costMissing ? "text-[#9a4a14]" : negative ? "text-[#b4233a]" : "text-[#23694a]"}`}>{item.qty ? item.costMissing ? "Cost missing" : money(item.profit) : "—"}</p>
+                </div>
+              </div>
+            );
+          })}
+          <div className="sticky bottom-0 grid grid-cols-3 gap-3 bg-[#0f172a] px-4 py-4 text-white shadow-[0_-4px_16px_rgba(15,23,42,.12)]">
+            <MiniTotal label="Units" value={String(stats.units)} />
+            <MiniTotal label="Revenue" value={money(stats.revenue)} />
+            <MiniTotal label="Profit" value={costUnknown ? "Unknown" : money(stats.profit)} />
           </div>
         </div>
       );
     }
     return (
-      <section className="overflow-hidden rounded-xl border border-[#e6e8ec] bg-white">
-        <div className="flex items-center justify-between border-b border-[#e6e8ec] px-4 py-3">
-          <div><h2 className="text-sm font-bold text-[#0f172a]">Inventory and profit by item</h2><p className="text-[11px] text-[#5b6678]">Sales, cost and margin for this period</p></div>
-          {unsoldCount > 0 && <button type="button" onClick={() => setShowUnsold((value) => !value)} className="min-h-9 rounded-lg border border-[#e6e8ec] px-3 text-[11px] font-bold text-[#5b6678] hover:bg-[#fbfaf8]">{showUnsold ? `Hide ${unsoldCount} unsold` : `Show ${unsoldCount} unsold`}</button>}
+      <section className="overflow-hidden rounded-2xl border border-[#e6e8ec] bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e6e8ec] px-5 py-4">
+          <div>
+            <h2 className="text-lg font-black text-[#0f172a]">Sales and profit by item</h2>
+            <p className="text-sm text-[#5b6678]">Qty is in selling units. Stock is in base units. Cost = cost per base unit × qty × base units per sale.</p>
+          </div>
+          {unsoldCount > 0 && <button type="button" onClick={() => setShowUnsold((value) => !value)} className="min-h-11 rounded-xl border border-[#e6e8ec] px-4 text-sm font-bold text-[#5b6678] hover:bg-[#fbfaf8]">{showUnsold ? `Hide ${unsoldCount} unsold` : `Show ${unsoldCount} unsold`}</button>}
         </div>
+        {mismatchCount > 0 && <p className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-900">▲ {mismatchCount} product{mismatchCount === 1 ? " was" : "s were"} sold under different packaging than it has now. Those lines keep the packaging they were sold with, so their cost and profit can look wrong. Confirm the packaging and re-check the sale.</p>}
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] table-fixed text-[11px] tabular-nums">
-            <thead className="bg-[#fbfaf8] text-[10px] font-bold uppercase tracking-wide text-[#5b6678]"><tr><th className="w-[28%] px-3 py-2 text-left">Item</th><th className="px-2 py-2 text-right">Qty</th><th className="px-2 py-2 text-right">Stock</th><th className="px-2 py-2 text-right max-lg:hidden">List</th><th className="px-2 py-2 text-right">Discount</th><th className="px-2 py-2 text-right">Net</th><th className="px-2 py-2 text-right">Cost</th><th className="px-2 py-2 text-right">Profit</th><th className="px-3 py-2 text-right">Margin</th></tr></thead>
-            <tbody>{visibleItems.map((item) => {
-              const margin = item.revenue > 0 ? item.profit / item.revenue * 100 : 0;
-              const negative = !item.costMissing && item.profit < 0;
-              return <tr key={item.name} className={`h-[25px] border-t border-[#eef0f2] ${item.qty === 0 ? "text-slate-300" : "text-[#5b6678]"}`}>
-                <td className="truncate px-3 font-semibold text-[#0f172a]">{negative && <span className="mr-1 text-[#9a4a14]">▲</span>}{item.name}</td><td className="px-2 text-right">{item.qty || "—"}</td><td className="px-2 text-right">{item.stock}</td><td className="px-2 text-right max-lg:hidden">{item.qty ? formatPrice(item.listRevenue) : "—"}</td><td className="px-2 text-right text-[#9a4a14]">{item.discounts ? `−${formatPrice(item.discounts)}` : "—"}</td><td className="px-2 text-right font-semibold text-[#0f172a]">{item.qty ? formatPrice(item.revenue) : "—"}</td><td className={`px-2 text-right ${item.costMissing && item.qty ? "font-bold text-[#9a4a14]" : ""}`}>{item.qty ? item.costMissing ? "Missing" : formatPrice(item.cost) : "—"}</td><td className={`px-2 text-right font-bold ${negative ? "text-[#b4233a]" : item.qty ? "text-[#23694a]" : ""}`}>{item.qty ? item.costMissing ? "—" : formatPrice(item.profit) : "—"}</td><td className={`px-3 text-right font-bold ${negative ? "text-[#b4233a]" : item.qty ? "text-[#23694a]" : ""}`}>{item.qty ? item.costMissing ? "—" : `${margin.toFixed(1)}%` : "—"}</td>
-              </tr>;
-            })}</tbody>
-            <tfoot><tr className="h-8 border-t-2 border-[#cbd1d8] bg-[#fbfaf8] font-bold text-[#0f172a]"><td className="px-3">Totals</td><td className="px-2 text-right">{stats.units}</td><td className="px-2 text-right">{stats.byItem.reduce((sum, item) => sum + item.stock, 0)}</td><td className="px-2 text-right max-lg:hidden">{formatPrice(listRevenue)}</td><td className="px-2 text-right text-[#9a4a14]">{stats.discounts ? `−${formatPrice(stats.discounts)}` : "—"}</td><td className="px-2 text-right">{formatPrice(stats.revenue)}</td><td className="px-2 text-right">{stats.missingCostUnits ? "Incomplete" : formatPrice(stats.cost)}</td><td className="px-2 text-right text-[#23694a]">{stats.missingCostUnits ? "—" : formatPrice(stats.profit)}</td><td className="px-3 text-right text-[#23694a]">{stats.missingCostUnits ? "—" : `${stats.margin.toFixed(1)}%`}</td></tr></tfoot>
+          <table className="w-full min-w-[980px] text-sm tabular-nums">
+            <thead className="bg-[#fbfaf8] text-xs font-bold uppercase tracking-wide text-[#5b6678]">
+              <tr>
+                <th className="px-5 py-3 text-left">Item</th>
+                <th className="px-3 py-3 text-right">Qty sold</th>
+                <th className="px-3 py-3 text-right">In stock</th>
+                <th className="px-3 py-3 text-right">List</th>
+                <th className="px-3 py-3 text-right">Discount</th>
+                <th className="px-3 py-3 text-right">Net</th>
+                <th className="px-3 py-3 text-right">Cost</th>
+                <th className="px-3 py-3 text-right">Profit</th>
+                <th className="px-5 py-3 text-right">Margin</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleItems.map((item) => {
+                const margin = item.revenue > 0 ? item.profit / item.revenue * 100 : 0;
+                const negative = !item.costMissing && item.profit < 0;
+                return (
+                  <tr key={item.id} className={`border-t border-[#eef0f2] align-middle ${item.qty === 0 ? "text-slate-400" : "text-[#5b6678]"}`}>
+                    <td className="max-w-[360px] px-5 py-3 font-semibold text-[#0f172a]">
+                      {item.name}
+                      {item.packagingMismatch && <span title="Packaging was edited after this item sold" className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-800">Packaging changed</span>}
+                    </td>
+                    <td className="px-3 py-3 text-right">{item.qty || "—"}</td>
+                    <td className="px-3 py-3 text-right">{stockLabel(item)}</td>
+                    <td className="px-3 py-3 text-right">{item.qty ? money(item.listRevenue) : "—"}</td>
+                    <td className="px-3 py-3 text-right text-[#9a4a14]">{item.discounts ? `−${money(item.discounts)}` : "—"}</td>
+                    <td className="px-3 py-3 text-right font-semibold text-[#0f172a]">{item.qty ? money(item.revenue) : "—"}</td>
+                    <td className={`px-3 py-3 text-right ${item.costMissing && item.qty ? "font-bold text-[#9a4a14]" : ""}`}>{item.qty ? item.costMissing ? "Missing" : money(item.cost) : "—"}</td>
+                    <td className={`px-3 py-3 text-right font-bold ${negative ? "text-[#b4233a]" : item.qty ? "text-[#23694a]" : ""}`}>{item.qty ? item.costMissing ? "—" : money(item.profit) : "—"}</td>
+                    <td className={`px-5 py-3 text-right font-bold ${negative ? "text-[#b4233a]" : item.qty ? "text-[#23694a]" : ""}`}>{item.qty ? item.costMissing ? "—" : `${margin.toFixed(1)}%` : "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-[#cbd1d8] bg-[#fbfaf8] text-base font-black text-[#0f172a]">
+                <td className="px-5 py-4">Totals</td>
+                <td className="px-3 py-4 text-right">{stats.units}</td>
+                <td className="px-3 py-4 text-right text-sm font-semibold text-[#5b6678]">—</td>
+                <td className="px-3 py-4 text-right">{money(listRevenue)}</td>
+                <td className="px-3 py-4 text-right text-[#9a4a14]">{stats.discounts ? `−${money(stats.discounts)}` : "—"}</td>
+                <td className="px-3 py-4 text-right">{money(stats.revenue)}</td>
+                <td className="px-3 py-4 text-right">{costUnknown ? "Incomplete" : money(stats.cost)}</td>
+                <td className={`px-3 py-4 text-right ${stats.profit < 0 ? "text-[#b4233a]" : "text-[#23694a]"}`}>{costUnknown ? "—" : money(stats.profit)}</td>
+                <td className={`px-5 py-4 text-right ${stats.profit < 0 ? "text-[#b4233a]" : "text-[#23694a]"}`}>{costUnknown ? "—" : `${stats.margin.toFixed(1)}%`}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#e6e8ec] bg-[#fbfaf8] px-4 py-2 text-[10px] text-[#5b6678]"><span>Net revenue excludes sales tax. Square deposit uses 2.60% + $0.15 per transaction.</span>{stats.missingCostUnits > 0 && <button type="button" onClick={repairHistoricalCosts} disabled={repairingCosts} className="font-bold text-[#9a4a14] disabled:opacity-50">{repairingCosts ? "Repairing…" : `Repair ${stats.missingCostUnits} missing costs`}</button>}</div>
-        {costRepairMessage && <p className="border-t border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-semibold text-amber-900">{costRepairMessage}</p>}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e6e8ec] bg-[#fbfaf8] px-5 py-3 text-sm text-[#5b6678]">
+          <span>Net revenue excludes sales tax. Square deposit uses 2.60% + $0.15 per transaction.</span>
+          {stats.missingCostUnits > 0 && <button type="button" onClick={repairHistoricalCosts} disabled={repairingCosts} className="min-h-10 font-bold text-[#9a4a14] disabled:opacity-50">{repairingCosts ? "Repairing…" : `Repair ${stats.missingCostUnits} missing costs`}</button>}
+        </div>
+        {costRepairMessage && <p className="border-t border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-900">{costRepairMessage}</p>}
       </section>
     );
   }
 
   function staffPanel() {
-    return <section className="rounded-xl border border-[#e6e8ec] bg-white p-4"><h2 className="text-sm font-bold text-[#0f172a]">By staff member</h2><div className="mt-3 space-y-3">{stats.byStaff.length === 0 ? <p className="text-xs text-[#5b6678]">No staff sales in this period.</p> : stats.byStaff.map(([name, member]) => {
-      const share = stats.revenue > 0 ? member.revenue / stats.revenue * 100 : 0;
-      return <div key={name}><div className="flex items-end justify-between gap-3 text-xs"><div><p className="font-bold text-[#0f172a]">{name}</p><p className="text-[10px] text-[#5b6678]">{member.count} orders{member.discounts ? ` · −${formatPrice(member.discounts)} discounts` : ""}</p></div><p className="font-bold tabular-nums text-[#0f172a]">{formatPrice(member.revenue)}</p></div><div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[#eceff2]"><div className="h-full rounded-full bg-[#b4532f]" style={{ width: `${Math.max(2, share)}%` }} /></div></div>;
-    })}</div></section>;
+    return (
+      <section className="rounded-2xl border border-[#e6e8ec] bg-white p-5">
+        <h2 className="text-lg font-black text-[#0f172a]">By staff member</h2>
+        <div className="mt-4 space-y-4">
+          {stats.byStaff.length === 0 ? <p className="text-sm text-[#5b6678]">No staff sales in this period.</p> : stats.byStaff.map(([name, member]) => {
+            const share = stats.revenue > 0 ? member.revenue / stats.revenue * 100 : 0;
+            return (
+              <div key={name}>
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-base font-bold text-[#0f172a]">{name}</p>
+                    <p className="text-sm text-[#5b6678]">{member.count} order{member.count === 1 ? "" : "s"}{member.discounts ? ` · −${money(member.discounts)} discounts` : ""}</p>
+                  </div>
+                  <p className="text-lg font-black tabular-nums text-[#0f172a]">{money(member.revenue)}</p>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#eceff2]"><div className="h-full rounded-full bg-[#b4532f]" style={{ width: `${Math.max(2, share)}%` }} /></div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    );
   }
 
-  function ordersPanel(mobile = false) {
-    return <section className={`overflow-hidden rounded-xl border border-[#e6e8ec] bg-white ${mobile ? "" : "xl:flex xl:min-h-0 xl:flex-1 xl:flex-col"}`}><div className="flex items-center justify-between border-b border-[#e6e8ec] px-4 py-3"><h2 className="text-sm font-bold text-[#0f172a]">Orders</h2><span className="text-[10px] font-bold uppercase tracking-wide text-[#5b6678]">Newest first</span></div><div className={`${mobile ? "" : "xl:overflow-y-auto"}`}>
-      {displayedOrders.length === 0 ? <p className="px-4 py-8 text-center text-xs text-[#5b6678]">No sales in this period.</p> : displayedOrders.map((order) => {
-        const isOpen = expandedOrderId === order.id;
-        const square = squareAmounts(order);
-        return <article key={order.id} className="border-b border-[#eef0f2] last:border-0"><button type="button" onClick={() => setExpanded(isOpen ? null : order.id)} className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-2 text-left hover:bg-[#fbfaf8]"><div className="min-w-0"><p className="truncate font-mono text-[11px] font-bold text-[#0f172a]">{order.order_number}</p><p className="mt-0.5 text-[10px] text-[#5b6678]">{new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {order.source === "admin_payment_link" ? "Payment link" : order.source === "walk_in" ? "Walk-in" : order.source === "manual" ? "Manual" : "Online"} · {order.sold_by_name || "—"}</p></div><div className="shrink-0 text-right"><p className="text-xs font-black tabular-nums text-[#0f172a]">{formatPrice(order.total)}</p><p className="text-[9px] font-bold uppercase text-[#5b6678]">{order.payment_method === "square" ? "Square" : order.payment_method || "Legacy"}</p></div></button>{isOpen && <div className="border-t border-[#eef0f2] bg-[#fbfaf8] px-3 py-3"><div className="mb-2 flex flex-wrap gap-1 text-[9px] font-bold uppercase"><span className="rounded bg-white px-2 py-1 text-[#5b6678] ring-1 ring-[#e6e8ec]">{order.buyer_type === "company" ? "Company" : "Personal"}</span><span className="rounded bg-white px-2 py-1 text-[#5b6678] ring-1 ring-[#e6e8ec]">{order.tax_city || "No city"} {order.tax_zip || ""} · {formatPrice(order.tax_total || 0)} tax</span>{order.is_test && <span className="rounded bg-violet-100 px-2 py-1 text-violet-700">Test</span>}</div><div className="space-y-1.5">{order.order_items.map((item) => <CompactOrderItem key={item.id} item={item} onSaved={() => router.refresh()} />)}</div>{square.gross > 0 && <p className="mt-2 rounded-lg bg-emerald-50 px-2 py-1.5 text-[10px] text-emerald-900">Square: {formatPrice(square.gross)} − {formatPrice(square.fee)} = <strong>{formatPrice(square.deposit)} deposit</strong></p>}{(order.source === "walk_in" || order.source === "manual") && <div className="mt-3 flex min-h-11 flex-wrap items-center justify-end gap-3 border-t border-[#e6e8ec] pt-2">{order.transaction_type !== "internal_use" && <InternalUseButton orderId={order.id} onSaved={() => router.refresh()} />}<DeleteSaleButton orderId={order.id} orderNumber={order.order_number} onDeleted={() => router.refresh()} /></div>}</div>}</article>;
-      })}
-      {orders.length > 5 && <button type="button" onClick={() => setShowAllOrders((value) => !value)} className="min-h-11 w-full border-t border-[#e6e8ec] px-4 text-xs font-bold text-[#b4532f] hover:bg-[#fbfaf8]">{showAllOrders ? "Show newest 5" : `${orders.length - 5} more orders · View all`}</button>}
-    </div></section>;
+  function ordersPanel() {
+    return (
+      <section className="overflow-hidden rounded-2xl border border-[#e6e8ec] bg-white">
+        <div className="flex items-center justify-between border-b border-[#e6e8ec] px-5 py-4">
+          <h2 className="text-lg font-black text-[#0f172a]">Orders</h2>
+          <span className="text-xs font-bold uppercase tracking-wide text-[#5b6678]">Newest first</span>
+        </div>
+        <div>
+          {displayedOrders.length === 0 ? <p className="px-5 py-10 text-center text-sm text-[#5b6678]">No sales in this period.</p> : displayedOrders.map((order) => {
+            const isOpen = expandedOrderId === order.id;
+            const square = squareAmounts(order);
+            return (
+              <article key={order.id} className="border-b border-[#eef0f2] last:border-0">
+                <button type="button" onClick={() => setExpanded(isOpen ? null : order.id)} className="flex min-h-16 w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-[#fbfaf8]">
+                  <div className="min-w-0">
+                    <p className="truncate font-mono text-sm font-bold text-[#0f172a]">{order.order_number}</p>
+                    <p className="mt-0.5 text-sm text-[#5b6678]">{new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {order.source === "admin_payment_link" ? "Payment link" : order.source === "walk_in" ? "Walk-in" : order.source === "manual" ? "Manual" : "Online"} · {order.sold_by_name || "—"}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-base font-black tabular-nums text-[#0f172a]">{money(order.total)}</p>
+                    <p className="text-xs font-bold uppercase text-[#5b6678]">{order.payment_method === "square" ? "Square" : order.payment_method || "Legacy"}</p>
+                  </div>
+                </button>
+                {isOpen && (
+                  <div className="border-t border-[#eef0f2] bg-[#fbfaf8] px-4 py-4">
+                    <div className="mb-3 flex flex-wrap gap-2 text-xs font-bold uppercase">
+                      <span className="rounded-md bg-white px-2.5 py-1.5 text-[#5b6678] ring-1 ring-[#e6e8ec]">{order.buyer_type === "company" ? "Company" : "Personal"}</span>
+                      <span className="rounded-md bg-white px-2.5 py-1.5 text-[#5b6678] ring-1 ring-[#e6e8ec]">{order.tax_city || "No city"} {order.tax_zip || ""} · {money(order.tax_total || 0)} tax</span>
+                      {order.is_test && <span className="rounded-md bg-violet-100 px-2.5 py-1.5 text-violet-700">Test</span>}
+                    </div>
+                    <div className="space-y-2">{order.order_items.map((item) => <CompactOrderItem key={item.id} item={item} onSaved={() => router.refresh()} />)}</div>
+                    {square.gross > 0 && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">Square: {money(square.gross)} − {money(square.fee)} = <strong>{money(square.deposit)} deposit</strong></p>}
+                    {(order.source === "walk_in" || order.source === "manual") && (
+                      <div className="mt-4 flex min-h-11 flex-wrap items-center justify-end gap-4 border-t border-[#e6e8ec] pt-3">
+                        {order.transaction_type !== "internal_use" && <InternalUseButton orderId={order.id} onSaved={() => router.refresh()} />}
+                        <DeleteSaleButton orderId={order.id} orderNumber={order.order_number} onDeleted={() => router.refresh()} />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+          {orders.length > 8 && <button type="button" onClick={() => setShowAllOrders((value) => !value)} className="min-h-12 w-full border-t border-[#e6e8ec] px-4 text-sm font-bold text-[#b4532f] hover:bg-[#fbfaf8]">{showAllOrders ? "Show newest 8" : `${orders.length - 8} more orders · View all`}</button>}
+        </div>
+      </section>
+    );
   }
 
   return (
-    <div className="admin-dashboard mx-auto max-w-[1400px] px-3 py-4 sm:px-5 lg:px-6">
+    <div className="admin-dashboard mx-auto max-w-[1680px] px-4 py-5 sm:px-6 lg:px-8">
+      {/* 1. Title and exports */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-black tracking-tight text-[#0f172a] sm:text-2xl">Sales Report <span className="font-medium text-[#5b6678]">· {from}–{to} · {stats.orders} orders</span></h1>
+          <h1 className="text-2xl font-black tracking-tight text-[#0f172a] sm:text-3xl">Sales Report</h1>
+          <p className="mt-1 text-sm text-[#5b6678]">{from} → {to} · {stats.orders} order{stats.orders === 1 ? "" : "s"}</p>
         </div>
         <div className="flex items-center gap-2">
-          <select aria-label="Kind of sale" value={saleKind} onChange={(event) => { setSaleKind(event.target.value as SaleKindFilter); setExpanded("first"); }} className="h-11 rounded-lg border border-[#e6e8ec] bg-white px-3 text-xs font-bold text-[#0f172a] xl:hidden">{SALE_KINDS.map((kind) => <option key={kind.key} value={kind.key}>{kind.label} ({saleKindCounts[kind.key]})</option>)}</select>
-          <div className="hidden rounded-lg border border-[#e6e8ec] bg-white p-1 xl:flex">{SALE_KINDS.map((kind) => <button key={kind.key} type="button" onClick={() => { setSaleKind(kind.key); setExpanded("first"); }} className={`rounded-md px-2.5 py-1.5 text-[11px] font-bold ${saleKind === kind.key ? "bg-[#b4532f] text-white" : "text-[#5b6678] hover:bg-[#fbfaf8]"}`}>{kind.label} <span className="font-medium opacity-65">{saleKindCounts[kind.key]}</span></button>)}</div>
-          <button onClick={exportCsv} className="h-11 rounded-lg border border-[#e6e8ec] bg-white px-3 text-xs font-bold text-[#0f172a] hover:bg-[#fbfaf8]">CSV</button>
-          <button onClick={exportQuickBooks} aria-label="Export for QuickBooks" className="h-11 rounded-lg bg-[#0f172a] px-3 text-xs font-bold text-white hover:bg-slate-800"><span className="sm:hidden">QB</span><span className="hidden sm:inline">QuickBooks</span></button>
+          <button onClick={exportCsv} className="h-12 rounded-xl border border-[#e6e8ec] bg-white px-5 text-sm font-bold text-[#0f172a] hover:bg-[#fbfaf8]">Export CSV</button>
+          <button onClick={exportQuickBooks} aria-label="Export for QuickBooks" className="h-12 rounded-xl bg-[#0f172a] px-5 text-sm font-bold text-white hover:bg-slate-800">QuickBooks</button>
         </div>
       </div>
 
       {loadError && <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Could not load the complete report: {loadError}</div>}
       {!loadError && orders.length === 0 && <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">No sales were found from {from} through {to}. Choose Last 90 days or All time to include older sales.</div>}
 
-      <div className="mt-3 flex flex-wrap items-center gap-1 rounded-xl border border-[#e6e8ec] bg-white p-2">
-        {RANGES.map((r) => (
-          <button key={r.key} onClick={() => applyRange(r.key)}
-            className={`hidden h-9 rounded-lg px-2.5 text-xs font-bold transition sm:block ${range === r.key ? "bg-[#0f172a] text-white" : "text-[#5b6678] hover:bg-[#fbfaf8]"}`}>
-            {r.label.replace("Last ", "").replace("This ", "")}
-          </button>
-        ))}
-        <select aria-label="Date range" value={range} onChange={(event) => applyRange(event.target.value)} className="h-11 flex-1 rounded-lg border border-[#e6e8ec] px-3 text-xs font-bold sm:hidden">{RANGES.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select>
-        <div className="hidden items-center gap-1 text-xs lg:flex">
-          <input type="date" defaultValue={from} id="from-date" className="h-9 rounded-lg border border-[#e6e8ec] px-2" />
-          <span className="text-slate-400">→</span>
-          <input type="date" defaultValue={to} id="to-date" className="h-9 rounded-lg border border-[#e6e8ec] px-2" />
-          <button
-            onClick={() => {
-              const f = (document.getElementById("from-date") as HTMLInputElement).value;
-              const t = (document.getElementById("to-date") as HTMLInputElement).value;
-              if (f && t) applyCustom(f, t);
-            }}
-            className="h-9 rounded-lg bg-[#eef0f2] px-3 font-bold text-[#0f172a] hover:bg-[#e2e6ea]">
-            Apply
-          </button>
+      {/* 2. Filters: period, custom dates, kind of sale */}
+      <div className="mt-4 space-y-3 rounded-2xl border border-[#e6e8ec] bg-white p-3 sm:p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="hidden flex-wrap items-center gap-1 sm:flex">
+            {RANGES.map((r) => (
+              <button key={r.key} onClick={() => applyRange(r.key)}
+                className={`h-11 rounded-xl px-4 text-sm font-bold transition ${range === r.key ? "bg-[#0f172a] text-white" : "text-[#5b6678] hover:bg-[#fbfaf8]"}`}>
+                {r.label}
+              </button>
+            ))}
+          </div>
+          <select aria-label="Date range" value={range} onChange={(event) => applyRange(event.target.value)} className="h-12 flex-1 rounded-xl border border-[#e6e8ec] px-3 text-sm font-bold sm:hidden">{RANGES.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select>
+          <div className="hidden items-center gap-2 text-sm lg:flex">
+            <input type="date" defaultValue={from} id="from-date" className="h-11 rounded-xl border border-[#e6e8ec] px-3" />
+            <span className="text-slate-400">→</span>
+            <input type="date" defaultValue={to} id="to-date" className="h-11 rounded-xl border border-[#e6e8ec] px-3" />
+            <button
+              onClick={() => {
+                const f = (document.getElementById("from-date") as HTMLInputElement).value;
+                const t = (document.getElementById("to-date") as HTMLInputElement).value;
+                if (f && t) applyCustom(f, t);
+              }}
+              className="h-11 rounded-xl bg-[#eef0f2] px-4 font-bold text-[#0f172a] hover:bg-[#e2e6ea]">
+              Apply
+            </button>
+          </div>
+          <label className="ml-auto flex min-h-11 cursor-pointer items-center gap-2 px-2 text-sm font-bold text-[#5b6678]">
+            <input type="checkbox" className="h-4 w-4" checked={showTests} onChange={(event) => setShowTests(event.target.checked)} />
+            Include test orders
+          </label>
         </div>
-        <label className="ml-auto flex min-h-9 cursor-pointer items-center gap-2 px-2 text-xs font-bold text-[#5b6678]">
-          <input type="checkbox" checked={showTests} onChange={(event) => setShowTests(event.target.checked)} />
-          Include test orders
-        </label>
+        <div className="flex flex-wrap items-center gap-2 border-t border-[#eef0f2] pt-3">
+          <span className="text-xs font-bold uppercase tracking-wide text-[#5b6678]">Kind of sale</span>
+          <select aria-label="Kind of sale" value={saleKind} onChange={(event) => { setSaleKind(event.target.value as SaleKindFilter); setExpanded("first"); }} className="h-12 flex-1 rounded-xl border border-[#e6e8ec] bg-white px-3 text-sm font-bold text-[#0f172a] xl:hidden">{SALE_KINDS.map((kind) => <option key={kind.key} value={kind.key}>{kind.label} ({saleKindCounts[kind.key]})</option>)}</select>
+          <div className="hidden gap-1 xl:flex">{SALE_KINDS.map((kind) => <button key={kind.key} type="button" onClick={() => { setSaleKind(kind.key); setExpanded("first"); }} className={`h-11 rounded-xl px-4 text-sm font-bold ${saleKind === kind.key ? "bg-[#b4532f] text-white" : "text-[#5b6678] hover:bg-[#fbfaf8]"}`}>{kind.label} <span className="font-medium opacity-70">{saleKindCounts[kind.key]}</span></button>)}</div>
+        </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><StatCard label="Net revenue" value={formatPrice(stats.revenue)} note={`List ${formatPrice(listRevenue)} less ${formatPrice(stats.discounts)} discounts`} accent="text-[#23694a]" /><StatCard label="Cost" value={stats.missingCostUnits ? "Incomplete" : formatPrice(stats.cost)} note={`${stats.units} units sold`} accent="text-[#0f172a]" /><StatCard label="Profit" value={stats.missingCostUnits ? "Unknown" : formatPrice(stats.profit)} note={stats.missingCostUnits ? `${stats.missingCostUnits} units need cost` : "Revenue less landed cost"} accent={stats.profit < 0 ? "text-[#b4233a]" : "text-[#23694a]"} /><StatCard label="Margin" value={stats.missingCostUnits ? "Unknown" : `${stats.margin.toFixed(1)}%`} note="Across sold inventory" accent={stats.margin < 20 ? "text-[#9a4a14]" : "text-[#23694a]"} /></div>
-      <div className="mt-2 flex gap-2 overflow-x-auto rounded-xl border border-[#e6e8ec] bg-white px-3 py-2 sm:grid sm:grid-cols-8 sm:divide-x sm:divide-[#e6e8ec]"><SecondaryMetric label="Walk-in" value={formatPrice(stats.walkIn)} /><SecondaryMetric label="Online" value={formatPrice(stats.online)} /><SecondaryMetric label="Square gross" value={formatPrice(stats.squareGross)} /><SecondaryMetric label="Fees" value={`−${formatPrice(stats.squareFees)}`} caution /><SecondaryMetric label="Deposit" value={formatPrice(stats.squareDeposit)} positive /><SecondaryMetric label="Discounts" value={`−${formatPrice(stats.discounts)}`} caution /><SecondaryMetric label="Units" value={String(stats.units)} /><SecondaryMetric label="Internal" value={String(stats.internalUnits)} /></div>
+      {/* 3. Headline numbers */}
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <StatCard label="Net revenue" value={money(stats.revenue)} note={`List ${money(listRevenue)} less ${money(stats.discounts)} discounts`} accent="text-[#23694a]" />
+        <StatCard label="Cost" value={costUnknown ? "Incomplete" : money(stats.cost)} note="Landed cost of goods sold" accent="text-[#0f172a]" />
+        <StatCard label="Profit" value={costUnknown ? "Unknown" : money(stats.profit)} note={costUnknown ? `${stats.missingCostUnits} units need a cost` : "Revenue less landed cost"} accent={!costUnknown && stats.profit < 0 ? "text-[#b4233a]" : "text-[#23694a]"} />
+        <StatCard label="Margin" value={costUnknown ? "Unknown" : `${stats.margin.toFixed(1)}%`} note="Profit ÷ net revenue" accent={!costUnknown && stats.margin < 20 ? "text-[#9a4a14]" : "text-[#23694a]"} />
+        <div className="col-span-2 lg:col-span-1"><StatCard label="Units sold" value={stats.units.toLocaleString()} note={stats.internalUnits ? `${stats.internalUnits} more used internally` : "Selling units"} accent="text-[#0f172a]" /></div>
+      </div>
 
-      <div className="mt-3 hidden gap-4 md:grid xl:grid-cols-[minmax(0,960px)_minmax(320px,400px)]"><div>{itemPanel()}</div><aside className="grid gap-4 md:grid-cols-2 xl:flex xl:max-h-[590px] xl:flex-col xl:grid-cols-none">{staffPanel()}{ordersPanel()}</aside></div>
+      {/* 4. Where the money came from, and Square payouts */}
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <MetricGroup title="Sales channels" items={[
+          { label: "Walk-in", value: money(stats.channels.walkIn) },
+          { label: "Online", value: money(stats.channels.online) },
+          { label: "Payment link", value: money(stats.channels.paymentLink) },
+          { label: "Manual", value: money(stats.channels.manual) },
+        ]} />
+        <MetricGroup title="Square payments" items={[
+          { label: "Gross", value: money(stats.squareGross) },
+          { label: "Fees", value: `−${money(stats.squareFees)}`, tone: "caution" },
+          { label: "Deposit", value: money(stats.squareDeposit), tone: "positive" },
+          { label: "Discounts", value: `−${money(stats.discounts)}`, tone: "caution" },
+        ]} />
+      </div>
 
-      <div className="mt-3 md:hidden"><div className="grid grid-cols-3 rounded-xl border border-[#e6e8ec] bg-white p-1">{(["items", "orders", "staff"] as const).map((tab) => <button key={tab} type="button" onClick={() => setMobileTab(tab)} className={`min-h-11 rounded-lg text-xs font-bold capitalize ${mobileTab === tab ? "bg-[#0f172a] text-white" : "text-[#5b6678]"}`}>{tab}</button>)}</div><div className="mt-2 overflow-hidden rounded-xl border border-[#e6e8ec] bg-white">{mobileTab === "items" && itemPanel(true)}{mobileTab === "orders" && ordersPanel(true)}{mobileTab === "staff" && <div className="border-0">{staffPanel()}</div>}</div></div>
+      {/* 5. Items (the main table) and 6. Orders + staff */}
+      <div className="mt-4 hidden space-y-4 md:block">
+        {itemPanel()}
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:items-start">
+          {ordersPanel()}
+          {staffPanel()}
+        </div>
+      </div>
+
+      <div className="mt-4 md:hidden">
+        <div className="grid grid-cols-3 rounded-2xl border border-[#e6e8ec] bg-white p-1">{(["items", "orders", "staff"] as const).map((tab) => <button key={tab} type="button" onClick={() => setMobileTab(tab)} className={`min-h-12 rounded-xl text-sm font-bold capitalize ${mobileTab === tab ? "bg-[#0f172a] text-white" : "text-[#5b6678]"}`}>{tab}</button>)}</div>
+        <div className="mt-3">
+          {mobileTab === "items" && <div className="overflow-hidden rounded-2xl border border-[#e6e8ec] bg-white">
+            {mismatchCount > 0 && <p className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">▲ {mismatchCount} product{mismatchCount === 1 ? "" : "s"} sold under different packaging than now — cost may look off.</p>}
+            {unsoldCount > 0 && <button type="button" onClick={() => setShowUnsold((value) => !value)} className="min-h-12 w-full border-b border-[#e6e8ec] px-4 text-sm font-bold text-[#5b6678]">{showUnsold ? `Hide ${unsoldCount} unsold` : `Show ${unsoldCount} unsold`}</button>}
+            {itemPanel(true)}
+          </div>}
+          {mobileTab === "orders" && ordersPanel()}
+          {mobileTab === "staff" && staffPanel()}
+        </div>
+      </div>
     </div>
   );
 }
@@ -428,33 +646,40 @@ function InternalUseButton({ orderId, onSaved }: { orderId: string; onSaved: () 
     const response = await fetch("/api/admin/internal-use", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId, reason }) });
     if (!response.ok) alert((await response.json()).error || "Could not classify this order."); else onSaved();
   }
-  return <button onClick={markInternal} className="mr-4 text-xs font-semibold text-slate-700 hover:text-slate-950">Mark internal use</button>;
+  return <button onClick={markInternal} className="min-h-11 text-sm font-semibold text-slate-700 hover:text-slate-950">Mark internal use</button>;
 }
 
 function StatCard({ label, value, note, accent = "text-[#0f172a]" }: { label: string; value: string; note: string; accent?: string }) {
   return (
-    <div className="min-h-[92px] rounded-xl border border-[#e6e8ec] bg-white p-3 sm:p-4">
-      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#5b6678]">{label}</p>
-      <p className={`mt-1 text-xl font-black tracking-tight tabular-nums sm:text-[26px] ${accent}`}>{value}</p>
-      <p className="mt-1 truncate text-[10px] text-[#5b6678]">{note}</p>
+    <div className="min-h-[124px] rounded-2xl border border-[#e6e8ec] bg-white p-4 sm:p-5">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#5b6678]">{label}</p>
+      <p className={`mt-2 text-2xl font-black tracking-tight tabular-nums sm:text-3xl ${accent}`}>{value}</p>
+      <p className="mt-2 text-xs leading-snug text-[#5b6678] sm:text-sm">{note}</p>
     </div>
   );
 }
 
-function SecondaryMetric({ label, value, positive = false, caution = false }: { label: string; value: string; positive?: boolean; caution?: boolean }) {
+function MetricGroup({ title, items }: { title: string; items: { label: string; value: string; tone?: "positive" | "caution" }[] }) {
   return (
-    <div className="min-w-[92px] px-2 sm:min-w-0">
-      <p className="text-[9px] font-bold uppercase tracking-wide text-[#5b6678]">{label}</p>
-      <p className={`mt-0.5 text-xs font-black tabular-nums ${positive ? "text-[#23694a]" : caution ? "text-[#9a4a14]" : "text-[#0f172a]"}`}>{value}</p>
-    </div>
+    <section className="rounded-2xl border border-[#e6e8ec] bg-white p-4 sm:p-5">
+      <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-[#5b6678]">{title}</h2>
+      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
+        {items.map((item) => (
+          <div key={item.label}>
+            <p className="text-sm text-[#5b6678]">{item.label}</p>
+            <p className={`mt-0.5 text-xl font-black tabular-nums ${item.tone === "positive" ? "text-[#23694a]" : item.tone === "caution" ? "text-[#9a4a14]" : "text-[#0f172a]"}`}>{item.value}</p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
 function MiniTotal({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[8px] font-bold uppercase tracking-wide text-white/55">{label}</p>
-      <p className="mt-0.5 text-[11px] font-black tabular-nums">{value}</p>
+      <p className="text-[11px] font-bold uppercase tracking-wide text-white/60">{label}</p>
+      <p className="mt-0.5 text-base font-black tabular-nums">{value}</p>
     </div>
   );
 }
@@ -494,14 +719,14 @@ function CompactOrderItem({ item, onSaved }: { item: OrderItemRow; onSaved: () =
 
   if (editing) {
     return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-2"><p className="truncate text-[11px] font-bold text-[#0f172a]">{item.name} × {item.quantity}</p><div className="mt-2 flex gap-2"><input type="number" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} className="h-9 w-24 rounded border border-amber-300 px-2 text-xs" autoFocus />{wouldDiscount && <input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Discount reason" className="h-9 min-w-0 flex-1 rounded border border-amber-300 px-2 text-xs" />}</div>{error && <p className="mt-1 text-[10px] font-bold text-[#b4233a]">{error}</p>}<div className="mt-2 flex gap-2"><button onClick={save} disabled={saving} className="min-h-9 rounded-lg bg-[#0f172a] px-3 text-[10px] font-bold text-white disabled:opacity-50">{saving ? "Saving…" : "Save"}</button><button onClick={() => { setEditing(false); setPrice(item.unit_price.toFixed(2)); setError(""); }} className="min-h-9 rounded-lg border border-[#e6e8ec] px-3 text-[10px] font-bold text-[#5b6678]">Cancel</button></div></div>
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-bold text-[#0f172a]">{item.name} × {item.quantity}</p><div className="mt-2 flex gap-2"><input type="number" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} className="h-11 w-28 rounded-lg border border-amber-300 px-3 text-sm" autoFocus />{wouldDiscount && <input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Discount reason" className="h-11 min-w-0 flex-1 rounded-lg border border-amber-300 px-3 text-sm" />}</div>{error && <p className="mt-1 text-xs font-bold text-[#b4233a]">{error}</p>}<div className="mt-2 flex gap-2"><button onClick={save} disabled={saving} className="min-h-11 rounded-lg bg-[#0f172a] px-4 text-sm font-bold text-white disabled:opacity-50">{saving ? "Saving…" : "Save"}</button><button onClick={() => { setEditing(false); setPrice(item.unit_price.toFixed(2)); setError(""); }} className="min-h-11 rounded-lg border border-[#e6e8ec] px-4 text-sm font-bold text-[#5b6678]">Cancel</button></div></div>
     );
   }
 
   const lineCost = costForSale(item.cost_price, item.quantity, item.base_units_per_sale);
   const lineProfit = item.unit_price * item.quantity - lineCost;
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-lg bg-white px-2 py-1.5 text-[10px] ring-1 ring-[#e6e8ec]"><div className="min-w-0"><p className="truncate font-semibold text-[#0f172a]">{item.name} × {item.quantity}</p><p className="text-[#5b6678]">Cost {costMissing ? "missing" : formatPrice(lineCost)} · <span className={costMissing ? "text-[#9a4a14]" : lineProfit < 0 ? "text-[#b4233a]" : "text-[#23694a]"}>Profit {costMissing ? "—" : formatPrice(lineProfit)}</span></p></div><p className="font-bold tabular-nums text-[#0f172a]">{formatPrice(item.unit_price * item.quantity)}</p><button type="button" onClick={() => setEditing(true)} className="min-h-9 px-1 font-bold text-[#b4532f]">Edit</button></div>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-lg bg-white px-3 py-2.5 text-sm ring-1 ring-[#e6e8ec]"><div className="min-w-0"><p className="font-semibold text-[#0f172a]">{item.name} × {item.quantity}</p><p className="text-[#5b6678]">{Number(item.base_units_per_sale) > 1 ? `${item.quantity} × ${item.base_units_per_sale} base units · ` : ""}Cost {costMissing ? "missing" : formatPrice(lineCost)} · <span className={costMissing ? "text-[#9a4a14]" : lineProfit < 0 ? "text-[#b4233a]" : "text-[#23694a]"}>Profit {costMissing ? "—" : formatPrice(lineProfit)}</span></p></div><p className="font-bold tabular-nums text-[#0f172a]">{formatPrice(item.unit_price * item.quantity)}</p><button type="button" onClick={() => setEditing(true)} className="min-h-11 px-2 font-bold text-[#b4532f]">Edit</button></div>
   );
 }
 
@@ -533,7 +758,7 @@ function DeleteSaleButton({ orderId, orderNumber, onDeleted }: { orderId: string
   if (!confirming) {
     return (
       <button onClick={() => setConfirming(true)}
-        className="text-xs font-semibold text-rose-600 hover:text-rose-800">
+        className="min-h-11 text-sm font-semibold text-rose-600 hover:text-rose-800">
         🗑 Remove this sale
       </button>
     );
@@ -541,13 +766,13 @@ function DeleteSaleButton({ orderId, orderNumber, onDeleted }: { orderId: string
 
   return (
     <div className="flex items-center justify-end gap-2">
-      <span className="text-xs text-rose-700">Delete {orderNumber}? Inventory will be restored.</span>
+      <span className="text-sm text-rose-700">Delete {orderNumber}? Inventory will be restored.</span>
       <button onClick={handleDelete} disabled={deleting}
-        className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50">
+        className="rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50">
         {deleting ? "Deleting…" : "Yes, delete"}
       </button>
       <button onClick={() => setConfirming(false)}
-        className="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+        className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
         Cancel
       </button>
     </div>

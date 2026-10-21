@@ -145,3 +145,29 @@ export function weightedAverageCost(
     (oldQuantity * safe(currentUnitCost) + newQuantity * safe(receivedUnitCost)) / totalQuantity,
   );
 }
+
+// ── Pricing help ─────────────────────────────────────────────────────────────
+// Landed cost is stored per BASE unit. Customers buy SELLING units, so the cost
+// of one sale is landed cost × base units per sale.
+
+export function costPerSellingUnit(landedUnitCost: number, unitsPerSale?: number | null): number {
+  const factor = Number(unitsPerSale);
+  const units = Number.isFinite(factor) && factor > 0 ? Math.floor(factor) : 1;
+  return money(safe(landedUnitCost) * units);
+}
+
+/** Margin = profit ÷ selling price, as a percentage. Null when there is no price. */
+export function marginPercent(sellingPrice: number, cost: number): number | null {
+  const price = safe(sellingPrice);
+  if (price <= 0) return null;
+  return ((price - safe(cost)) / price) * 100;
+}
+
+/** Lowest price (rounded up to the cent) that reaches the target margin. */
+export function priceForMargin(cost: number, targetMarginPercent: number): number | null {
+  const target = Number(targetMarginPercent);
+  if (!Number.isFinite(target) || target < 0 || target >= 100) return null;
+  const unitCost = safe(cost);
+  if (unitCost <= 0) return null;
+  return Math.ceil((unitCost / (1 - target / 100)) * 100 - 1e-7) / 100;
+}

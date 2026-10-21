@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
 import type { InventoryItem } from "@/types";
 import SaleComplianceFields, { emptySaleCompliance, type SaleComplianceValue } from "@/components/admin/SaleComplianceFields";
+import { applyDefaultZip } from "@/lib/sale-zip";
 
 interface PosLine {
   item: InventoryItem;
@@ -31,7 +32,8 @@ export default function WalkInPos() {
     taxRate: number; taxAmount: number;
   } | null>(null);
   const [taxRate, setTaxRate] = useState(0);
-  const [compliance, setCompliance] = useState<SaleComplianceValue>({ ...emptySaleCompliance, taxCity: "Auburn" });
+  const [compliance, setCompliance] = useState<SaleComplianceValue>(emptySaleCompliance);
+  const zipEdited = useRef(false);
 
   // Fetch store ZIP and its tax rate on mount
   useEffect(() => {
@@ -44,12 +46,13 @@ export default function WalkInPos() {
           .select("value")
           .eq("key", "store_zip")
           .single();
-        if (settings?.value) {
-          setCompliance((current) => ({ ...current, taxZip: settings.value }));
+        if (settings?.value && !zipEdited.current) {
           const rateRes = await fetch(`/api/admin/tax-rates?zip=${settings.value}`);
           if (rateRes.ok) {
             const rateData = await rateRes.json();
-            if (rateData.combined_rate) setTaxRate(Number(rateData.combined_rate));
+            if (zipEdited.current) return;
+            setCompliance((current) => applyDefaultZip(current, settings.value, String(rateData.city || ""), zipEdited.current));
+            setTaxRate(Number(rateData.combined_rate) || 0);
           }
         }
       } catch { /* no tax rate available, default 0 */ }
@@ -378,7 +381,7 @@ export default function WalkInPos() {
             </label>
           </div>
 
-          <SaleComplianceFields value={compliance} onChange={setCompliance} onTaxRate={setTaxRate} />
+          <SaleComplianceFields value={compliance} onChange={setCompliance} onTaxRate={setTaxRate} onZipEdit={() => { zipEdited.current = true; }} />
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <div className="flex items-center justify-between text-sm text-slate-600">

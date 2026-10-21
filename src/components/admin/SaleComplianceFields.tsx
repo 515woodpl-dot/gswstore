@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { applyZipLookup } from "@/lib/sale-zip";
 
 export type BuyerType = "personal" | "company";
 export type PaymentMethod = "cash" | "zelle" | "square";
@@ -22,11 +23,12 @@ export const emptySaleCompliance: SaleComplianceValue = {
 };
 
 export default function SaleComplianceFields({
-  value, onChange, onTaxRate, fixedPaymentMethod,
+  value, onChange, onTaxRate, onZipEdit, fixedPaymentMethod,
 }: {
   value: SaleComplianceValue;
-  onChange: (next: SaleComplianceValue) => void;
+  onChange: Dispatch<SetStateAction<SaleComplianceValue>>;
   onTaxRate?: (rate: number) => void;
+  onZipEdit?: () => void;
   fixedPaymentMethod?: PaymentMethod;
 }) {
   const [uploading, setUploading] = useState(false);
@@ -35,13 +37,15 @@ export default function SaleComplianceFields({
   const zipLookupSequence = useRef(0);
 
   function patch(next: Partial<SaleComplianceValue>) {
-    onChange({ ...value, ...next });
+    onChange((current) => ({ ...current, ...next }));
   }
 
   async function lookupZip(zip: string) {
     const requestId = ++zipLookupSequence.current;
-    onChange({ ...value, taxZip: zip, taxCity: "" });
-    if (!/^\d{5}$/.test(zip)) { onTaxRate?.(0); setTaxStatus(""); return; }
+    onZipEdit?.();
+    onChange((current) => ({ ...current, taxZip: zip, taxCity: "" }));
+    onTaxRate?.(0);
+    if (!/^\d{5}$/.test(zip)) { setTaxStatus(""); return; }
     setTaxStatus("Looking up…");
     try {
       const response = await fetch(`/api/admin/tax-rates?zip=${zip}`);
@@ -49,7 +53,7 @@ export default function SaleComplianceFields({
       if (!response.ok) throw new Error(data.error || "No rate found");
       if (requestId !== zipLookupSequence.current) return;
       const rate = Number(data.combined_rate) || 0;
-      onChange({ ...value, taxZip: zip, taxCity: String(data.city || "") });
+      onChange((current) => applyZipLookup(current, zip, String(data.city || "")));
       onTaxRate?.(rate);
       setTaxStatus(`${data.city}, ${data.stateCode} · ${(rate * 100).toFixed(2)}%`);
     } catch (error) {

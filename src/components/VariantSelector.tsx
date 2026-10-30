@@ -46,7 +46,12 @@ export default function VariantSelector({ product }: { product: InventoryItem })
               <button
                 key={v.id}
                 type="button"
-                onClick={() => { if (v.id !== selectedId) { setSelectedId(v.id); setBoxSelected(false); } }}
+                onClick={() => {
+                  if (v.id !== selectedId) {
+                    setSelectedId(v.id);
+                    if (!v.box_enabled || v.box_price == null || v.amount < 24) setBoxSelected(false);
+                  }
+                }}
                 className={[
                   "flex w-full items-start justify-between gap-4 border p-3 text-left transition",
                   isSel ? "border-brand-navy bg-brand-navy text-white" : "border-slate-300 bg-white hover:border-brand-blue",
@@ -102,7 +107,7 @@ export default function VariantSelector({ product }: { product: InventoryItem })
             )}
           </div>
         </div>
-        <AddToCartButton key={selected.id} item={selectedForCart} onPackageChange={setBoxSelected} />
+        <AddToCartButton key={selected.id} item={selectedForCart} selectedBox={boxSelected} onPackageChange={setBoxSelected} />
       </div>
     </div>
   );

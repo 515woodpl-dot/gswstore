@@ -12,6 +12,7 @@ export default function VariantSelector({ product }: { product: InventoryItem })
   // Default to first in-stock variant, else first
   const firstAvailable = variants.find((v) => v.amount > 0) ?? variants[0];
   const [selectedId, setSelectedId] = useState<string>(firstAvailable?.id ?? "");
+  const [boxSelected, setBoxSelected] = useState(false);
 
   if (!hasVariants) {
     // No variants — behave like a normal product
@@ -45,7 +46,7 @@ export default function VariantSelector({ product }: { product: InventoryItem })
               <button
                 key={v.id}
                 type="button"
-                onClick={() => setSelectedId(v.id)}
+                onClick={() => { if (v.id !== selectedId) { setSelectedId(v.id); setBoxSelected(false); } }}
                 className={[
                   "flex w-full items-start justify-between gap-4 border p-3 text-left transition",
                   isSel ? "border-brand-navy bg-brand-navy text-white" : "border-slate-300 bg-white hover:border-brand-blue",
@@ -88,8 +89,10 @@ export default function VariantSelector({ product }: { product: InventoryItem })
       <div className="border border-slate-300 bg-white p-4">
         <div className="mb-3 flex items-end justify-between">
           <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">{selected.variant_label}</p>
-            {selected.sale_price ? (
+            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">{selected.variant_label}{boxSelected ? " · Box of 24" : ""}</p>
+            {boxSelected && selected.box_enabled && selected.box_price != null ? (
+              <p className="font-display mt-1 text-3xl font-black text-brand-navy">{formatPrice(selected.box_price)}</p>
+            ) : selected.sale_price ? (
               <div className="mt-1 flex items-baseline gap-2">
                 <p className="font-display text-3xl font-black text-brand-gold">{formatPrice(selected.sale_price)}</p>
                 <p className="text-base font-semibold text-slate-400 line-through">{formatPrice(selected.store_price)}</p>
@@ -99,7 +102,7 @@ export default function VariantSelector({ product }: { product: InventoryItem })
             )}
           </div>
         </div>
-        <AddToCartButton key={selected.id} item={selectedForCart} />
+        <AddToCartButton key={selected.id} item={selectedForCart} onPackageChange={setBoxSelected} />
       </div>
     </div>
   );

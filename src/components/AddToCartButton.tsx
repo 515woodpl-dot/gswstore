@@ -8,7 +8,7 @@ import { QuantitySelector } from "@/components/ui";
 import type { InventoryItem } from "@/types";
 import { formatPrice } from "@/lib/utils";
 
-export default function AddToCartButton({ item }: { item: InventoryItem }) {
+export default function AddToCartButton({ item, onPackageChange }: { item: InventoryItem; onPackageChange?: (box: boolean) => void }) {
   const { addItem } = useCart();
   const { user } = useAuth();
   const router = useRouter();
@@ -45,8 +45,8 @@ export default function AddToCartButton({ item }: { item: InventoryItem }) {
   return (
     <div className="space-y-3">
       {item.box_enabled && item.box_price != null && <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Package size">
-        <button type="button" aria-pressed={!box} onClick={() => { setBox(false); setQty(1); }} className={`border p-3 text-left text-sm font-bold ${!box ? "border-brand-navy bg-brand-navy text-white" : "border-slate-300"}`}>Single · {formatPrice(item.sale_price ?? item.store_price)}</button>
-        <button type="button" aria-pressed={box} disabled={boxUnavailable} onClick={() => { setBox(true); setQty(1); }} className={`border p-3 text-left text-sm font-bold ${boxUnavailable ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400" : box ? "border-brand-navy bg-brand-navy text-white" : "border-slate-300"}`}>
+        <button type="button" aria-pressed={!box} onClick={() => { setBox(false); setQty(1); onPackageChange?.(false); }} className={`border p-3 text-left text-sm font-bold ${!box ? "border-brand-navy bg-brand-navy text-white" : "border-slate-300"}`}>Single · {formatPrice(item.sale_price ?? item.store_price)}</button>
+        <button type="button" aria-pressed={box} disabled={boxUnavailable} onClick={() => { setBox(true); setQty(1); onPackageChange?.(true); }} className={`border p-3 text-left text-sm font-bold ${boxUnavailable ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400" : box ? "border-brand-navy bg-brand-navy text-white" : "border-slate-300"}`}>
           Box of 24 · {formatPrice(item.box_price)}
           {boxUnavailable && <span className="mt-1 block text-xs font-normal">Unavailable · {item.amount} tubes in stock</span>}
         </button>

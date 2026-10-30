@@ -7,6 +7,7 @@ const SQUARE_SDK_URL = "https://web.squarecdn.com/v1/square.js";
 interface SquareCardFormProps {
   amountCents: number;
   onPaid: (paymentId: string) => void;
+  beforePay?: () => Promise<void>;
   disabled?: boolean;
   prefillZip?: string; // pre-fill billing ZIP from checkout ZIP field
 }
@@ -44,7 +45,7 @@ declare global {
 
 const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 
-export default function SquareCardForm({ amountCents, onPaid, disabled, prefillZip }: SquareCardFormProps) {
+export default function SquareCardForm({ amountCents, onPaid, beforePay, disabled, prefillZip }: SquareCardFormProps) {
   const cardRef = useRef<SquareCard | null>(null);
   const [ready, setReady] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -111,6 +112,7 @@ export default function SquareCardForm({ amountCents, onPaid, disabled, prefillZ
 
     setProcessing(true); setError("");
     try {
+      await beforePay?.();
       const result = await cardRef.current.tokenize({
         amount: (amountCents / 100).toFixed(2),
         currencyCode: "USD",
@@ -148,8 +150,8 @@ export default function SquareCardForm({ amountCents, onPaid, disabled, prefillZ
       const json = await res.json();
       if (!res.ok) { setError(json.error || "Payment failed."); setProcessing(false); return; }
       onPaid(json.paymentId);
-    } catch {
-      setError("Payment failed. Please try again.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Payment failed. Please try again.");
       setProcessing(false);
     }
   }

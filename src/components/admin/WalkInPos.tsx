@@ -8,7 +8,9 @@ import SaleComplianceFields, { emptySaleCompliance, type SaleComplianceValue } f
 import { applyDefaultZip } from "@/lib/sale-zip";
 
 interface PosLine {
+  key: string;
   item: InventoryItem;
+  packSize: number;
   qty: number;
   listPrice: number;   // original catalog price (per unit)
   soldPrice: number;   // actual price charged (per unit, editable)
@@ -63,7 +65,7 @@ export default function WalkInPos() {
     (async () => {
       const { data } = await sb
         .from("inventory")
-        .select("id,name,sku,brand,category_name,amount,store_price,sale_price,cost_price,image_url,base_unit,selling_unit,units_per_sale")
+        .select("id,name,sku,brand,category_name,amount,store_price,sale_price,cost_price,image_url,base_unit,selling_unit,units_per_sale,box_enabled,box_price")
         .gt("amount", 0)
         .order("name");
       if (data) setItems(data as unknown as InventoryItem[]);
@@ -90,30 +92,36 @@ export default function WalkInPos() {
   const taxAmount = compliance.buyerType === "company" && compliance.resellerDecision === "approved" ? 0 : Math.round(total * taxRate * 100) / 100;
   const grandTotal = total + taxAmount;
 
-  function addLine(item: InventoryItem) {
-    const base = item.sale_price ?? item.store_price;
+  function addLine(item: InventoryItem, packSize = item.units_per_sale ?? 1) {
+    const base = packSize === 24 && item.units_per_sale === 1 ? item.box_price! : item.sale_price ?? item.store_price;
+    const key = `${item.id}:${packSize}`;
     setLines((prev) => {
-      const existing = prev.find((l) => l.item.id === item.id);
+      const used = prev.filter((l) => l.item.id === item.id).reduce((sum, l) => sum + l.qty * l.packSize, 0);
+      if (used + packSize > item.amount) return prev;
+      const existing = prev.find((l) => l.key === key);
       if (existing) {
-        if (existing.qty >= item.amount) return prev;
-        return prev.map((l) => (l.item.id === item.id ? { ...l, qty: l.qty + 1 } : l));
+        return prev.map((l) => (l.key === key ? { ...l, qty: l.qty + 1 } : l));
       }
-      return [...prev, { item, qty: 1, listPrice: base, soldPrice: base }];
+      return [...prev, { key, item, packSize, qty: 1, listPrice: base, soldPrice: base }];
     });
     setQuery("");
   }
 
-  function setQty(id: string, qty: number) {
+  function setQty(key: string, qty: number) {
     setLines((prev) =>
       prev
-        .map((l) => (l.item.id === id ? { ...l, qty: Math.max(0, Math.min(qty, l.item.amount)) } : l))
+        .map((l) => {
+          if (l.key !== key) return l;
+          const otherUnits = prev.filter((other) => other.item.id === l.item.id && other.key !== key).reduce((sum, other) => sum + other.qty * other.packSize, 0);
+          return { ...l, qty: Math.max(0, Math.min(qty, Math.floor((l.item.amount - otherUnits) / l.packSize))) };
+        })
         .filter((l) => l.qty > 0)
     );
   }
 
-  function setPrice(id: string, price: number) {
+  function setPrice(key: string, price: number) {
     setLines((prev) =>
-      prev.map((l) => (l.item.id === id ? { ...l, soldPrice: Math.max(0, price) } : l))
+      prev.map((l) => (l.key === key ? { ...l, soldPrice: Math.max(0, price) } : l))
     );
   }
 
@@ -141,6 +149,7 @@ export default function WalkInPos() {
           ...compliance,
           lines: lines.map((line) => ({
             itemId: line.item.id,
+            packSize: line.packSize,
             qty: line.qty,
             soldPrice: line.soldPrice,
           })),
@@ -201,7 +210,7 @@ export default function WalkInPos() {
           <div className="mt-2 space-y-1">
             {doneData.lines.map((l, i) => (
               <div key={i}>
-                <p className="font-semibold">{l.item.name}</p>
+                <p className="font-semibold">{l.item.name}{l.packSize === 24 && l.item.units_per_sale === 1 ? " — Box of 24" : ""}</p>
                 <div className="flex justify-between text-xs">
                   <span>{l.qty} × ${l.soldPrice.toFixed(2)}</span>
                   <span>${(l.soldPrice * l.qty).toFixed(2)}</span>
@@ -251,7 +260,7 @@ export default function WalkInPos() {
               {doneData.lines.map((l, i) => (
                 <div key={i} className="flex items-center justify-between py-2">
                   <div>
-                    <p className="font-semibold text-slate-900">{l.item.name}</p>
+                    <p className="font-semibold text-slate-900">{l.item.name}{l.packSize === 24 && l.item.units_per_sale === 1 ? " — Box of 24" : ""}</p>
                     <p className="text-xs text-slate-500">{l.qty} × {l.soldPrice !== l.listPrice ? <><span className="line-through text-slate-400">${l.listPrice.toFixed(2)}</span> ${l.soldPrice.toFixed(2)}</> : `$${l.soldPrice.toFixed(2)}`}</p>
                   </div>
                   <span className="font-bold">${(l.soldPrice * l.qty).toFixed(2)}</span>
@@ -307,14 +316,16 @@ export default function WalkInPos() {
             {results.length > 0 && (
               <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
                 {results.map((r) => (
-                  <button key={r.id} onClick={() => addLine(r)}
-                    className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-slate-50">
+                  <div key={r.id} className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 last:border-0">
                     <span>
                       <span className="block text-sm font-semibold text-slate-900">{r.name}</span>
                       <span className="block text-xs text-slate-500">{r.sku} · {r.amount} in stock</span>
                     </span>
-                    <span className="text-sm font-bold text-slate-900">{formatPrice(r.sale_price ?? r.store_price)}</span>
-                  </button>
+                    <div className="flex shrink-0 gap-2">
+                      <button type="button" onClick={() => addLine(r)} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold hover:bg-slate-50">{r.units_per_sale === 1 ? "Single" : r.selling_unit || "Unit"} · {formatPrice(r.sale_price ?? r.store_price)}</button>
+                      {r.box_enabled && r.box_price != null && <button type="button" disabled={r.amount < 24} onClick={() => addLine(r, 24)} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Box of 24 · {formatPrice(r.box_price)}</button>}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -329,28 +340,28 @@ export default function WalkInPos() {
               {lines.map((l) => {
                 const lineDiscount = (l.listPrice - l.soldPrice) * l.qty;
                 return (
-                  <div key={l.item.id} className="border-b border-slate-100 px-4 py-3 last:border-0">
+                  <div key={l.key} className="border-b border-slate-100 px-4 py-3 last:border-0">
                     <div className="flex items-center gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-slate-900">{l.item.name}</p>
-                        <p className="text-xs text-slate-500">List {formatPrice(l.listPrice)} · {l.item.amount} in stock</p>
+                        <p className="truncate text-sm font-semibold text-slate-900">{l.item.name}{l.packSize === 24 && l.item.units_per_sale === 1 ? " — Box of 24" : ""}</p>
+                        <p className="text-xs text-slate-500">List {formatPrice(l.listPrice)} · {Math.floor(l.item.amount / l.packSize)} available</p>
                       </div>
                       {/* Qty */}
                       <div className="flex items-center gap-1">
-                        <button onClick={() => setQty(l.item.id, l.qty - 1)} className="h-8 w-8 rounded-lg border border-slate-200 font-bold hover:bg-slate-50">−</button>
-                        <input type="number" value={l.qty} onChange={(e) => setQty(l.item.id, Number(e.target.value))}
+                        <button onClick={() => setQty(l.key, l.qty - 1)} className="h-8 w-8 rounded-lg border border-slate-200 font-bold hover:bg-slate-50">−</button>
+                        <input type="number" value={l.qty} onChange={(e) => setQty(l.key, Number(e.target.value))}
                           className="h-8 w-12 rounded-lg border border-slate-200 text-center text-sm" />
-                        <button onClick={() => setQty(l.item.id, l.qty + 1)} className="h-8 w-8 rounded-lg border border-slate-200 font-bold hover:bg-slate-50">+</button>
+                        <button onClick={() => setQty(l.key, l.qty + 1)} className="h-8 w-8 rounded-lg border border-slate-200 font-bold hover:bg-slate-50">+</button>
                       </div>
                       {/* Editable unit price */}
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-slate-400">$</span>
                         <input type="number" step="0.01" value={l.soldPrice}
-                          onChange={(e) => setPrice(l.item.id, Number(e.target.value))}
+                          onChange={(e) => setPrice(l.key, Number(e.target.value))}
                           className={`h-8 w-20 rounded-lg border text-right text-sm ${lineDiscount > 0 ? "border-amber-300 bg-amber-50" : "border-slate-200"}`} />
                       </div>
                       <p className="w-20 text-right text-sm font-bold text-slate-900">{formatPrice(l.soldPrice * l.qty)}</p>
-                      <button onClick={() => setQty(l.item.id, 0)} className="text-rose-500 hover:text-rose-700">✕</button>
+                      <button onClick={() => setQty(l.key, 0)} className="text-rose-500 hover:text-rose-700">✕</button>
                     </div>
                     {lineDiscount > 0 && (
                       <p className="mt-1 text-right text-xs font-semibold text-amber-700">

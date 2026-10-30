@@ -9,6 +9,7 @@ interface SaleLineInput {
   itemId: string;
   qty: number;
   soldPrice: number;
+  packSize?: number;
 }
 
 function adminClient() {
@@ -29,15 +30,18 @@ function parseLines(value: unknown): SaleLineInput[] {
     const itemId = typeof line.itemId === "string" ? line.itemId.trim() : "";
     const qty = Number(line.qty);
     const soldPrice = Number(line.soldPrice);
+    const packSize = line.packSize == null ? undefined : Number(line.packSize);
     if (!itemId || !Number.isInteger(qty) || qty <= 0 || qty > 10_000) {
       throw new SaleCreationError("One or more sale quantities are invalid.", 400);
     }
     if (!Number.isFinite(soldPrice) || soldPrice < 0 || soldPrice > 1_000_000) {
       throw new SaleCreationError("One or more sale prices are invalid.", 400);
     }
-    if (seen.has(itemId)) throw new SaleCreationError("A product appears more than once in the sale.", 400);
-    seen.add(itemId);
-    return { itemId, qty, soldPrice };
+    if (packSize != null && (!Number.isInteger(packSize) || packSize <= 0)) throw new SaleCreationError("Package size is invalid.", 400);
+    const key = `${itemId}:${packSize ?? "default"}`;
+    if (seen.has(key)) throw new SaleCreationError("A package appears more than once in the sale.", 400);
+    seen.add(key);
+    return { itemId, qty, soldPrice, packSize };
   });
 }
 
@@ -82,6 +86,7 @@ export async function POST(request: NextRequest) {
       discountReason,
       lines: lines.map((line) => ({
         itemId: line.itemId,
+        packSize: line.packSize,
         quantity: line.qty,
         soldPrice: line.soldPrice,
         decrementInventory: true,

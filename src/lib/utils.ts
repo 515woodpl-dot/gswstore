@@ -2,12 +2,24 @@ import { createClient } from "@/lib/supabase/client";
 import { clearCart } from "@/lib/cart";
 import type { Cart, Order, StockStatus } from "@/types";
 import { BRAND } from "@/lib/brand";
+import { cartPackageProblem } from "@/lib/packaging";
 
 function genOrderNumber() {
   const d = new Date().toISOString().slice(0,10).replace(/-/g,"");
   // 6 chars from a padded random base-36 string — guaranteed length, ~2B combos/day
   const r = Math.random().toString(36).slice(2).padEnd(6, "0").slice(0, 6).toUpperCase();
   return `GSW-${d}-${r}`;
+}
+
+export async function validateCartForCheckout(cart: Cart): Promise<void> {
+  const sb = createClient();
+  const itemIds = [...new Set(cart.items.map((item) => item.item_id))];
+  const { data: inventory, error: inventoryError } = await sb.from("inventory")
+    .select("id,amount,units_per_sale,store_price,sale_price,box_enabled,box_price")
+    .in("id", itemIds);
+  if (inventoryError || !inventory) throw new Error("Could not verify current inventory.");
+  const problem = cartPackageProblem(cart.items, inventory);
+  if (problem) throw new Error(problem);
 }
 
 export async function createOrder(
@@ -19,6 +31,7 @@ export async function createOrder(
   promo?: { code: string; percentOff: number }
 ): Promise<Order> {
   const sb = createClient();
+  await validateCartForCheckout(cart);
   const percentOff = Math.min(100, Math.max(0, Number(promo?.percentOff) || 0));
   const lines = cart.items.map((ci) => {
     const base = ci.sale_price ?? ci.store_price;

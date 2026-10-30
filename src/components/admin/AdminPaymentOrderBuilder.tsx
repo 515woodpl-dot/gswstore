@@ -8,7 +8,9 @@ import type { InventoryItem } from "@/types";
 import SaleComplianceFields, { emptySaleCompliance, type SaleComplianceValue } from "@/components/admin/SaleComplianceFields";
 
 interface Line {
+  key: string;
   item: InventoryItem;
+  packSize: number;
   qty: number;
   listPrice: number;
   lineDiscount: number; // dollars, applied to the whole line (not per-unit)
@@ -53,7 +55,7 @@ export default function AdminPaymentOrderBuilder() {
     (async () => {
       const { data } = await sb
         .from("inventory")
-        .select("id,name,sku,brand,category_name,amount,store_price,sale_price,cost_price,image_url,base_unit,selling_unit,units_per_sale")
+        .select("id,name,sku,brand,category_name,amount,store_price,sale_price,cost_price,image_url,base_unit,selling_unit,units_per_sale,box_enabled,box_price")
         .gt("amount", 0)
         .order("name");
       if (data) setItems(data as unknown as InventoryItem[]);
@@ -69,27 +71,33 @@ export default function AdminPaymentOrderBuilder() {
     ).slice(0, 8);
   }, [query, items]);
 
-  function addLine(item: InventoryItem) {
+  function addLine(item: InventoryItem, packSize = item.units_per_sale ?? 1) {
+    const key = `${item.id}:${packSize}`;
     setLines((prev) => {
-      const existing = prev.find((l) => l.item.id === item.id);
+      const used = prev.filter((l) => l.item.id === item.id).reduce((sum, l) => sum + l.qty * l.packSize, 0);
+      if (used + packSize > item.amount) return prev;
+      const existing = prev.find((l) => l.key === key);
       if (existing) {
-        if (existing.qty >= item.amount) return prev;
-        return prev.map((l) => (l.item.id === item.id ? { ...l, qty: l.qty + 1 } : l));
+        return prev.map((l) => (l.key === key ? { ...l, qty: l.qty + 1 } : l));
       }
-      const base = item.sale_price ?? item.store_price;
-      return [...prev, { item, qty: 1, listPrice: base, lineDiscount: 0 }];
+      const base = packSize === 24 && item.units_per_sale === 1 ? item.box_price! : item.sale_price ?? item.store_price;
+      return [...prev, { key, item, packSize, qty: 1, listPrice: base, lineDiscount: 0 }];
     });
     setQuery("");
   }
 
-  function setQty(id: string, qty: number) {
-    setLines((prev) => prev.map((l) => (l.item.id === id ? { ...l, qty: Math.max(0, Math.min(qty, l.item.amount)) } : l)).filter((l) => l.qty > 0));
+  function setQty(key: string, qty: number) {
+    setLines((prev) => prev.map((l) => {
+      if (l.key !== key) return l;
+      const otherUnits = prev.filter((other) => other.item.id === l.item.id && other.key !== key).reduce((sum, other) => sum + other.qty * other.packSize, 0);
+      return { ...l, qty: Math.max(0, Math.min(qty, Math.floor((l.item.amount - otherUnits) / l.packSize))) };
+    }).filter((l) => l.qty > 0));
   }
-  function setLineDiscount(id: string, val: number) {
-    setLines((prev) => prev.map((l) => (l.item.id === id ? { ...l, lineDiscount: Math.max(0, val) } : l)));
+  function setLineDiscount(key: string, val: number) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, lineDiscount: Math.max(0, val) } : l)));
   }
-  function removeLine(id: string) {
-    setLines((prev) => prev.filter((l) => l.item.id !== id));
+  function removeLine(key: string) {
+    setLines((prev) => prev.filter((l) => l.key !== key));
   }
 
   // ── Live preview totals (server recomputes authoritatively on submit) ────
@@ -153,7 +161,7 @@ export default function AdminPaymentOrderBuilder() {
           ...compliance,
           discount: discountType ? { type: discountType, value: discountValue } : undefined,
           discountReason: discountReason.trim(),
-          lines: lines.map((l) => ({ itemId: l.item.id, quantity: l.qty, lineDiscount: l.lineDiscount })),
+          lines: lines.map((l) => ({ itemId: l.item.id, quantity: l.qty, packSize: l.packSize, lineDiscount: l.lineDiscount })),
         }),
       });
       const responseText = await res.text();
@@ -247,11 +255,13 @@ export default function AdminPaymentOrderBuilder() {
             {results.length > 0 && (
               <div className="mt-2 divide-y divide-slate-100 rounded-xl border border-slate-200">
                 {results.map((item) => (
-                  <button key={item.id} onClick={() => addLine(item)} type="button"
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50">
+                  <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                     <span className="min-w-0 truncate font-medium text-slate-900">{item.name}</span>
-                    <span className="shrink-0 text-slate-500">{formatPrice(item.sale_price ?? item.store_price)} · {item.amount} in stock</span>
-                  </button>
+                    <div className="flex shrink-0 gap-2">
+                      <button type="button" onClick={() => addLine(item)} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold hover:bg-slate-50">{item.units_per_sale === 1 ? "Single" : item.selling_unit || "Unit"} · {formatPrice(item.sale_price ?? item.store_price)}</button>
+                      {item.box_enabled && item.box_price != null && <button type="button" disabled={item.amount < 24} onClick={() => addLine(item, 24)} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Box of 24 · {formatPrice(item.box_price)}</button>}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -265,16 +275,16 @@ export default function AdminPaymentOrderBuilder() {
             ) : (
               <div className="space-y-3">
                 {lines.map((l) => (
-                  <div key={l.item.id} className="rounded-xl border border-slate-200 p-3">
+                  <div key={l.key} className="rounded-xl border border-slate-200 p-3">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="min-w-0 truncate text-sm font-semibold text-slate-900">{l.item.name}</p>
-                      <button onClick={() => removeLine(l.item.id)} className="text-xs font-semibold text-rose-600">Remove</button>
+                      <p className="min-w-0 truncate text-sm font-semibold text-slate-900">{l.item.name}{l.packSize === 24 && l.item.units_per_sale === 1 ? " — Box of 24" : ""}</p>
+                      <button onClick={() => removeLine(l.key)} className="text-xs font-semibold text-rose-600">Remove</button>
                     </div>
                     <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                       <label className="block">
                         <span className="mb-0.5 block text-slate-500">Qty</span>
-                        <input type="number" min={1} max={l.item.amount} value={l.qty}
-                          onChange={(e) => setQty(l.item.id, Number(e.target.value))}
+                        <input type="number" min={1} max={Math.floor(l.item.amount / l.packSize)} value={l.qty}
+                          onChange={(e) => setQty(l.key, Number(e.target.value))}
                           className="w-full rounded-lg border border-slate-300 px-2 py-1.5" />
                       </label>
                       <label className="block">
@@ -284,7 +294,7 @@ export default function AdminPaymentOrderBuilder() {
                       <label className="block">
                         <span className="mb-0.5 block text-slate-500">Line Discount ($)</span>
                         <input type="number" min={0} step="0.01" value={l.lineDiscount}
-                          onChange={(e) => setLineDiscount(l.item.id, Number(e.target.value))}
+                          onChange={(e) => setLineDiscount(l.key, Number(e.target.value))}
                           className="w-full rounded-lg border border-slate-300 px-2 py-1.5" />
                       </label>
                     </div>

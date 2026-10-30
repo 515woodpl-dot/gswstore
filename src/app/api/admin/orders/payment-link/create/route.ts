@@ -10,6 +10,7 @@ import { complianceOrderValues, resolveSaleCompliance } from "@/lib/sale-complia
 interface RawLineInput {
   itemId: string;
   quantity: number;
+  packSize?: number;
   lineDiscount?: number;
 }
 
@@ -71,10 +72,11 @@ export async function POST(request: NextRequest) {
     }
     const seen = new Set<string>();
     for (const l of body.lines) {
-      if (!l?.itemId || seen.has(l.itemId)) {
-        return NextResponse.json({ error: "A product appears more than once, or is missing an id." }, { status: 400 });
+      const packSize = l?.packSize == null ? "default" : Number(l.packSize);
+      if (!l?.itemId || (packSize !== "default" && (!Number.isInteger(packSize) || packSize <= 0)) || seen.has(`${l.itemId}:${packSize}`)) {
+        return NextResponse.json({ error: "A package appears more than once, or has an invalid size." }, { status: 400 });
       }
-      seen.add(l.itemId);
+      seen.add(`${l.itemId}:${packSize}`);
     }
 
     const rawLines = body.lines as RawLineInput[];
@@ -113,6 +115,7 @@ export async function POST(request: NextRequest) {
       lines: rawLines.map((line) => ({
         itemId: String(line.itemId),
         quantity: Number(line.quantity),
+        packSize: line.packSize == null ? undefined : Number(line.packSize),
         lineDiscount: Number(line.lineDiscount) || 0,
         decrementInventory: true,
       })),

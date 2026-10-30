@@ -42,7 +42,7 @@ export default function ManualSale() {
     (async () => {
       const { data } = await sb
         .from("inventory")
-        .select("id,name,sku,brand,category_name,amount,store_price,sale_price,image_url,base_unit,selling_unit,units_per_sale")
+        .select("id,name,sku,brand,category_name,amount,store_price,sale_price,image_url,base_unit,selling_unit,units_per_sale,box_enabled,box_price")
         .order("name");
       if (data) setItems(data as unknown as InventoryItem[]);
     })();
@@ -63,11 +63,12 @@ export default function ManualSale() {
   const taxAmount = compliance.buyerType === "company" && compliance.resellerDecision === "approved" ? 0 : Math.round(total * taxRate * 100) / 100;
   const grandTotal = total + taxAmount;
 
-  function addCatalogLine(item: InventoryItem) {
-    const base = item.sale_price ?? item.store_price;
+  function addCatalogLine(item: InventoryItem, packSize = item.units_per_sale ?? 1) {
+    const isBox = packSize === 24 && item.units_per_sale === 1;
+    const base = isBox ? item.box_price! : item.sale_price ?? item.store_price;
     setLines((prev) => [
       ...prev,
-      { key: crypto.randomUUID(), itemId: item.id, name: item.name, sku: item.sku ?? "", listPrice: base, soldPrice: base, qty: 1, decrementStock: false, unitsPerSale: item.units_per_sale ?? 1 },
+      { key: crypto.randomUUID(), itemId: item.id, name: `${item.name}${isBox ? " — Box of 24" : ""}`, sku: item.sku ?? "", listPrice: base, soldPrice: base, qty: 1, decrementStock: false, unitsPerSale: packSize },
     ]);
     setQuery("");
   }
@@ -181,13 +182,16 @@ export default function ManualSale() {
         {results.length > 0 && (
           <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
             {results.map((r) => (
-              <button key={r.id} onClick={() => addCatalogLine(r)} className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-slate-50">
+              <div key={r.id} className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0">
                 <span>
                   <span className="block text-sm font-semibold text-slate-900">{r.name}</span>
                   <span className="block text-xs text-slate-500">{r.sku}</span>
                 </span>
-                <span className="text-sm font-bold text-slate-900">{formatPrice(r.sale_price ?? r.store_price)}</span>
-              </button>
+                <div className="flex shrink-0 gap-2">
+                  <button type="button" onClick={() => addCatalogLine(r)} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold hover:bg-slate-50">{r.units_per_sale === 1 ? "Single" : r.selling_unit || "Unit"} · {formatPrice(r.sale_price ?? r.store_price)}</button>
+                  {r.box_enabled && r.box_price != null && <button type="button" onClick={() => addCatalogLine(r, 24)} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold hover:bg-slate-50">Box of 24 · {formatPrice(r.box_price)}</button>}
+                </div>
+              </div>
             ))}
           </div>
         )}

@@ -13,6 +13,7 @@ interface ManualLineInput {
   soldPrice?: number;
   qty?: number;
   decrementStock?: boolean;
+  unitsPerSale?: number;
 }
 
 function adminClient() {
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
         listPrice: Number(line.listPrice) || Number(line.soldPrice),
         soldPrice: Number(line.soldPrice),
         quantity: Number(line.qty),
+        packSize: line.unitsPerSale == null ? undefined : Number(line.unitsPerSale),
         decrementInventory: line.decrementStock === true,
         useProvidedMetadata: true,
       })),

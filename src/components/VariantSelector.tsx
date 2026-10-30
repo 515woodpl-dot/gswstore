@@ -41,7 +41,8 @@ export default function VariantSelector({ product }: { product: InventoryItem })
           {variants.map((v) => {
             const isSel = v.id === selectedId;
             const out = v.amount <= 0;
-            const price = v.sale_price ?? v.store_price;
+            const boxAvailable = Boolean(v.box_enabled && v.box_price != null && v.amount >= 24);
+            const price = boxSelected && boxAvailable ? v.box_price : v.sale_price ?? v.store_price;
             return (
               <button
                 key={v.id}
@@ -76,12 +77,12 @@ export default function VariantSelector({ product }: { product: InventoryItem })
                 <div className="shrink-0 text-right">
                   <p className={`font-display font-black ${isSel ? "text-white" : "text-brand-navy"}`}>
                     {formatPrice(price)}
-                    {v.sale_price != null && v.sale_price < v.store_price && (
+                    {!boxSelected && v.sale_price != null && v.sale_price < v.store_price && (
                       <span className="ml-1.5 text-xs font-semibold text-slate-400 line-through">{formatPrice(v.store_price)}</span>
                     )}
                   </p>
                   <p className={`mt-0.5 text-xs italic ${out ? "text-slate-400" : v.amount < 10 ? "text-amber-600" : "text-emerald-600"}`}>
-                    {out ? "On order. Ships when back in stock" : v.amount < 10 ? "Low stock" : "In stock"}
+                    {boxSelected && boxAvailable ? `${Math.floor(v.amount / 24)} boxes available` : boxSelected && !out ? `Box unavailable · ${v.amount} singles available` : out ? "On order. Ships when back in stock" : v.amount < 10 ? "Low stock" : "In stock"}
                   </p>
                 </div>
               </button>

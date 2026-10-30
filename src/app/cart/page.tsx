@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,6 +9,7 @@ import { formatPrice } from "@/lib/utils";
 export default function CartPage() {
   const { cart, total, loading, updateQty, removeItem } = useCart();
   const { user } = useAuth();
+  const [quantityError, setQuantityError] = useState("");
 
   if (loading) return <div className="mx-auto max-w-3xl px-4 py-12 text-center sm:px-6 lg:px-8 sm:py-16"><p className="text-slate-500">Loading cart…</p></div>;
 
@@ -45,6 +47,7 @@ export default function CartPage() {
         </div>
         <Link href="/" className="text-sm font-semibold text-slate-600 hover:text-slate-950">Continue shopping</Link>
       </div>
+      {quantityError && <p role="alert" className="mb-5 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{quantityError}</p>}
 
       <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-4">
@@ -63,7 +66,7 @@ export default function CartPage() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-                    <QuantitySelector value={item.quantity} onChange={(v) => updateQty(item.id, v)} />
+                    <QuantitySelector value={item.quantity} onChange={(v) => { setQuantityError(""); void updateQty(item.id, v).catch((cause) => setQuantityError(cause instanceof Error ? cause.message : "Could not update quantity.")); }} />
                     <button type="button" onClick={() => removeItem(item.id)} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-rose-200 px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 hover:text-rose-700 sm:min-h-0 sm:border-0 sm:px-0 sm:py-0">Remove</button>
                   </div>
                 </div>

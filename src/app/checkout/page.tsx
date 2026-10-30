@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
-import { createOrder, formatPrice } from "@/lib/utils";
+import { createOrder, formatPrice, validateCartForCheckout } from "@/lib/utils";
 import { OrderStatusBadge } from "@/components/ui";
 import SquareCardForm from "@/components/SquareCardForm";
 
@@ -113,6 +113,7 @@ export default function CheckoutPage() {
     if (!selectedCard || !cart) return;
     setCardPayError(""); setPlacing(true);
     try {
+      await validateCartForCheckout(cart);
       const res = await fetch("/api/square/charge-saved", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -121,8 +122,8 @@ export default function CheckoutPage() {
       const json = await res.json();
       if (!res.ok) { setCardPayError(json.error || "Payment failed."); setPlacing(false); return; }
       await placeOrder(json.paymentId);
-    } catch {
-      setCardPayError("Payment failed. Please try again.");
+    } catch (cause) {
+      setCardPayError(cause instanceof Error ? cause.message : "Payment failed. Please try again.");
       setPlacing(false);
     }
   }
@@ -156,7 +157,7 @@ export default function CheckoutPage() {
                     <p className="truncate text-sm font-bold text-slate-950">{item.name}</p>
                   <p className="text-sm text-slate-500">Qty: {item.quantity} {item.selling_unit ?? "Each"}</p>
                   </div>
-                  <p className="text-sm font-semibold text-slate-950">{formatPrice(item.store_price * item.quantity)}</p>
+                  <p className="text-sm font-semibold text-slate-950">{formatPrice((item.sale_price ?? item.store_price) * item.quantity)}</p>
                 </div>
               ))}
             </div>
@@ -317,6 +318,7 @@ export default function CheckoutPage() {
                 <SquareCardForm
                   amountCents={Math.round(chargeTotal * 100)}
                   disabled={placing || !zipReady}
+                  beforePay={() => validateCartForCheckout(cart!)}
                   prefillZip={customerZip}
                   onPaid={(paymentId) => placeOrder(paymentId)}
                 />

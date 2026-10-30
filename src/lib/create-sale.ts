@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveSalePackage } from "@/lib/packaging";
 import {
   computeOrder,
   toDollars,
@@ -20,11 +21,14 @@ interface InventoryRow {
   sale_price: number | null;
   cost_price: number | null;
   units_per_sale: number | null;
+  box_enabled: boolean | null;
+  box_price: number | null;
 }
 
 interface SaleLineBase {
   itemId: string | null;
   quantity: number;
+  packSize?: number;
   decrementInventory: boolean;
   manualItemId?: string;
   name?: string;
@@ -58,7 +62,7 @@ export interface CreatedSale {
   taxAmount: number;
   total: number;
   squarePlan: { lines: SquareLinePlan[]; taxCents: number; totalCents: number };
-  inventoryLines: { itemId: string; quantity: number }[];
+  inventoryLines: { itemId: string; quantity: number; packSize: number; catalogUnitSize: number }[];
 }
 
 export type SaleTotals = Pick<CreatedSale, "subtotal" | "discountTotal" | "taxAmount" | "total">;
@@ -102,12 +106,12 @@ function allocateTax(computed: ComputedOrder, netByItem: Map<string, number>, ta
 
 async function restock(
   admin: SupabaseClient,
-  inventoryLines: { itemId: string; quantity: number }[],
+  inventoryLines: { itemId: string; quantity: number; packSize: number; catalogUnitSize: number }[],
 ) {
   for (const line of [...inventoryLines].reverse()) {
     const { error } = await admin.rpc("restock_packaged_inventory", {
       p_item_id: line.itemId,
-      p_selling_qty: line.quantity,
+      p_selling_qty: line.quantity * (line.packSize / line.catalogUnitSize),
     });
     if (error) console.error(`[Sale] inventory rollback failed for ${line.itemId}:`, error.message);
   }
@@ -132,7 +136,7 @@ export async function createSale(input: CreateSaleInput): Promise<CreatedSale> {
   const { data: inventoryData, error: inventoryError } = catalogIds.length
     ? await admin
         .from("inventory")
-        .select("id,name,sku,image_url,amount,store_price,sale_price,cost_price,units_per_sale")
+        .select("id,name,sku,image_url,amount,store_price,sale_price,cost_price,units_per_sale,box_enabled,box_price")
         .in("id", catalogIds)
     : { data: [], error: null };
   if (inventoryError) throw new SaleCreationError("Could not verify inventory.");
@@ -150,9 +154,17 @@ export async function createSale(input: CreateSaleInput): Promise<CreatedSale> {
       throw new SaleCreationError("One or more sale quantities are invalid.", 400);
     }
     const item = line.itemId ? inventoryById.get(line.itemId)! : null;
+    const catalogUnitSize = Math.max(1, Number(item?.units_per_sale) || 1);
+    const packageOption = item ? resolveSalePackage(item, line.packSize) : null;
+    if (item && !packageOption) {
+      throw new SaleCreationError("That package is no longer available.", 400);
+    }
+    const packSize = packageOption?.packSize ?? (line.packSize == null ? catalogUnitSize : Number(line.packSize));
+    if (!Number.isInteger(packSize) || packSize <= 0) throw new SaleCreationError("Package size is invalid.", 400);
     const itemId = item?.id || line.manualItemId?.trim() || `manual-${crypto.randomUUID().slice(0, 8)}`;
     const useProvidedMetadata = "useProvidedMetadata" in line && line.useProvidedMetadata;
-    const name = (useProvidedMetadata ? line.name?.trim() : item?.name) || line.name?.trim() || "";
+    const baseName = (useProvidedMetadata ? line.name?.trim() : item?.name) || line.name?.trim() || "";
+    const name = packageOption?.isBox && !useProvidedMetadata ? `${baseName} — Box of 24` : baseName;
     if (!name) throw new SaleCreationError(`Item ${index + 1} needs a name.`, 400);
     return {
       input: line,
@@ -163,7 +175,9 @@ export async function createSale(input: CreateSaleInput): Promise<CreatedSale> {
       sku: (useProvidedMetadata ? line.sku?.trim() : item?.sku) || line.sku?.trim() || null,
       imageUrl: useProvidedMetadata ? null : item?.image_url ?? null,
       costPrice: Number(item?.cost_price) || 0,
-      unitsPerSale: Math.max(1, Number(item?.units_per_sale) || 1),
+      unitsPerSale: packSize,
+      catalogUnitSize,
+      catalogPrice: packageOption?.price ?? NaN,
       quantity,
     };
   });
@@ -177,7 +191,7 @@ export async function createSale(input: CreateSaleInput): Promise<CreatedSale> {
       normalized.map((line) => ({
         itemId: line.pricingId,
         quantity: line.quantity,
-        listPrice: Number(line.item!.sale_price ?? line.item!.store_price),
+        listPrice: line.catalogPrice,
         lineDiscount: Number((line.input as DiscountedCatalogLine).lineDiscount) || 0,
       })),
       input.orderDiscount,
@@ -189,7 +203,7 @@ export async function createSale(input: CreateSaleInput): Promise<CreatedSale> {
     listPrices = normalized.map((line) => {
       const explicit = line.input as ExplicitSaleLine;
       return explicit.listPrice == null
-        ? Number(line.item!.sale_price ?? line.item!.store_price)
+        ? line.catalogPrice
         : Number(explicit.listPrice);
     });
     if (listPrices.some((price) => !Number.isFinite(price) || price < 0 || price > 1_000_000)) {
@@ -223,7 +237,7 @@ export async function createSale(input: CreateSaleInput): Promise<CreatedSale> {
     netByItem.set(line.itemId, (netByItem.get(line.itemId) ?? 0) + line.lineTotalCents);
   }
   const taxShares = allocateTax(computed, netByItem, squarePlan.taxCents);
-  const inventoryLines: { itemId: string; quantity: number }[] = [];
+  const inventoryLines: { itemId: string; quantity: number; packSize: number; catalogUnitSize: number }[] = [];
   let createdOrderId: string | null = null;
 
   try {
@@ -235,9 +249,10 @@ export async function createSale(input: CreateSaleInput): Promise<CreatedSale> {
       const { error } = await admin.rpc("decrement_packaged_inventory", {
         p_item_id: line.itemId,
         p_selling_qty: line.quantity,
+        p_pack_size: line.unitsPerSale,
       });
       if (error) throw new SaleCreationError(`${line.name} changed while the sale was being completed. Please try again.`, 409);
-      inventoryLines.push({ itemId: line.itemId, quantity: line.quantity });
+      inventoryLines.push({ itemId: line.itemId, quantity: line.quantity, packSize: line.unitsPerSale, catalogUnitSize: line.catalogUnitSize });
     }
 
     const subtotal = toDollars(computed.subtotalCents);

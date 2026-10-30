@@ -48,11 +48,13 @@ export async function createOrder(
   await sb.from("order_items").insert(items);
 
   // Decrement inventory stock for each purchased item (atomic via RPC).
-  await Promise.all(
+  const stockResults = await Promise.all(
     cart.items.map(ci =>
-      sb.rpc("decrement_packaged_inventory", { p_item_id: ci.item_id, p_selling_qty: ci.quantity })
+      sb.rpc("decrement_packaged_inventory", { p_item_id: ci.item_id, p_selling_qty: ci.quantity, p_pack_size: ci.units_per_sale ?? 1 })
     )
   );
+  const stockFailure = stockResults.find((result) => result.error);
+  if (stockFailure?.error) throw new Error(`Could not reserve inventory: ${stockFailure.error.message}`);
 
   await clearCart(cart.id);
   return { ...order, items: items as unknown as Order["items"] };

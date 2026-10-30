@@ -24,11 +24,13 @@ export async function fetchCart(userId: string): Promise<Cart | null> {
 export async function addToCart(userId: string, item: InventoryItem, qty = 1): Promise<void> {
   const sb = createClient();
   const cartId = await getOrCreateCart(userId);
-  const { data: ex } = await sb.from("cart_items").select("id,quantity").eq("cart_id", cartId).eq("item_id", item.id).single();
+  const { data: ex } = await sb.from("cart_items").select("id,quantity").eq("cart_id", cartId).eq("item_id", item.id).eq("units_per_sale", item.units_per_sale ?? 1).maybeSingle();
   if (ex) {
-    await sb.from("cart_items").update({ quantity: ex.quantity + qty }).eq("id", ex.id);
+    const { error } = await sb.from("cart_items").update({ quantity: ex.quantity + qty }).eq("id", ex.id);
+    if (error) throw new Error(error.message);
   } else {
-    await sb.from("cart_items").insert({ cart_id: cartId, item_id: item.id, name: item.name, sku: item.sku, image_url: item.image_url, store_price: item.store_price, sale_price: item.sale_price ?? null, quantity: qty, base_unit: item.base_unit ?? "Each", selling_unit: item.selling_unit ?? "Each", units_per_sale: item.units_per_sale ?? 1 });
+    const { error } = await sb.from("cart_items").insert({ cart_id: cartId, item_id: item.id, name: item.name, sku: item.sku, image_url: item.image_url, store_price: item.store_price, sale_price: item.sale_price ?? null, quantity: qty, base_unit: item.base_unit ?? "Each", selling_unit: item.selling_unit ?? "Each", units_per_sale: item.units_per_sale ?? 1 });
+    if (error) throw new Error(error.message);
   }
   await sb.from("carts").update({ updated_at: new Date().toISOString() }).eq("id", cartId);
 }

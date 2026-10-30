@@ -70,9 +70,9 @@ export default function CartPage() {
                 <div className="flex items-end justify-between sm:flex-col sm:items-end sm:justify-between">
                   <div className="text-right">
                     <p className="text-sm text-slate-500">Line total</p>
-                    <p className="text-2xl font-bold text-slate-950">{formatPrice(item.store_price * item.quantity)}</p>
+                    <p className="text-2xl font-bold text-slate-950">{formatPrice((item.sale_price ?? item.store_price) * item.quantity)}</p>
                   </div>
-                  <p className="text-xs font-medium text-slate-500">{formatPrice(item.store_price)} each</p>
+                  <p className="text-xs font-medium text-slate-500">{formatPrice(item.sale_price ?? item.store_price)} per {item.selling_unit?.toLowerCase() || "item"}</p>
                 </div>
               </div>
             </article>

@@ -35,6 +35,8 @@ interface InventoryRow {
   base_unit: string | null;
   selling_unit: string | null;
   units_per_sale: number | null;
+  box_enabled: boolean | null;
+  box_price: number | null;
   packaging_reviewed: boolean | null;
   dimensions: string | null;
   weight: string | null;
@@ -70,6 +72,8 @@ function rowToItem(r: InventoryRow): InventoryItem {
     base_unit: r.base_unit || "Each",
     selling_unit: r.selling_unit || "Each",
     units_per_sale: Number(r.units_per_sale) || 1,
+    box_enabled: r.box_enabled ?? false,
+    box_price: r.box_price == null ? null : Number(r.box_price),
     packaging_reviewed: r.packaging_reviewed ?? false,
     dimensions: r.dimensions || "",
     weight: r.weight || "",
@@ -77,7 +81,7 @@ function rowToItem(r: InventoryRow): InventoryItem {
   };
 }
 
-const COLS = "id,name,category_name,brand,model_number,voltage,sku,description,amount,store_price,sale_price,image_url,images,featured,new_arrival,store_visible,attributes,tax_enabled,tax_rate_percent,parent_id,variant_label,variant_dimension,part_number,base_unit,selling_unit,units_per_sale,packaging_reviewed,dimensions,weight,material,created_at";
+const COLS = "id,name,category_name,brand,model_number,voltage,sku,description,amount,store_price,sale_price,image_url,images,featured,new_arrival,store_visible,attributes,tax_enabled,tax_rate_percent,parent_id,variant_label,variant_dimension,part_number,base_unit,selling_unit,units_per_sale,box_enabled,box_price,packaging_reviewed,dimensions,weight,material,created_at";
 
 // ── Public store reads (visible items only) ──────────────────────────────────
 

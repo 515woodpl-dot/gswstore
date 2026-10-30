@@ -15,7 +15,7 @@ interface Row {
   featured: boolean; new_arrival: boolean; store_visible: boolean;
   attributes: Record<string, string> | null;
   tax_enabled: boolean; tax_rate_percent: number;
-  parent_id: string | null; variant_label: string; variant_dimension: string; part_number: string; base_unit?: string; selling_unit?: string; units_per_sale?: number; packaging_reviewed?: boolean;
+  parent_id: string | null; variant_label: string; variant_dimension: string; part_number: string; base_unit?: string; selling_unit?: string; units_per_sale?: number; box_enabled?: boolean; box_price?: number | null; packaging_reviewed?: boolean;
   dimensions: string; weight: string; material: string;
 }
 
@@ -31,7 +31,7 @@ const BLANK: Row = {
   id: "", name: "", original_name: "", category_id: null, category_name: "", brand: "", model_number: "",
   voltage: "", sku: "", description: "", amount: 0, store_price: 0, sale_price: null, cost_price: 0, image_url: "", images: [], featured: false, new_arrival: false, store_visible: true,
   attributes: {}, tax_enabled: false, tax_rate_percent: 0,
-  parent_id: null, variant_label: "", variant_dimension: "Color", part_number: "", base_unit: "Each", selling_unit: "Each", units_per_sale: 1, packaging_reviewed: false,
+  parent_id: null, variant_label: "", variant_dimension: "Color", part_number: "", base_unit: "Each", selling_unit: "Each", units_per_sale: 1, box_enabled: false, box_price: null, packaging_reviewed: false,
   dimensions: "", weight: "", material: "",
 };
 
@@ -181,6 +181,8 @@ export default function InventoryManager({ initialItems, categories }: { initial
     if (!editing) return;
     if (!editing.id.trim() || !editing.name.trim()) { setError("ID and name are required."); return; }
     if (!editing.base_unit?.trim() || !editing.selling_unit?.trim() || editing.base_unit === "__custom__" || editing.selling_unit === "__custom__") { setError("Choose a unit or enter a custom unit name."); return; }
+    if (editing.box_enabled && Number(editing.units_per_sale ?? 1) !== 1) { setError("Box offers require stock to be counted as individual units."); return; }
+    if (editing.box_enabled && (!Number.isFinite(Number(editing.box_price)) || Number(editing.box_price) <= 0)) { setError("Enter a box price greater than zero."); return; }
     setSaving(true); setError("");
     // Auto-generate SKU if left blank
     const editingWithSku = editing.sku?.trim() ? editing : { ...editing, sku: generateSku(editing) };
@@ -209,6 +211,8 @@ export default function InventoryManager({ initialItems, categories }: { initial
       base_unit: editing.base_unit || "Each",
       selling_unit: editing.selling_unit || "Each",
       units_per_sale: Math.max(1, Math.floor(Number(editing.units_per_sale) || 1)),
+      box_enabled: Boolean(editing.box_enabled),
+      box_price: editing.box_enabled ? Number(editing.box_price) : null,
       packaging_reviewed: Boolean(editing.packaging_reviewed || packagingChanged),
       dimensions: editing.dimensions ?? "",
       weight: editing.weight ?? "",
@@ -470,6 +474,8 @@ export default function InventoryManager({ initialItems, categories }: { initial
               <SupplyUnitField label="Base stock unit" value={editing.base_unit ?? "Each"} onChange={(value) => setEditing({ ...editing, base_unit: value })} />
               <SupplyUnitField label="Customer selling unit" value={editing.selling_unit ?? "Each"} onChange={(value) => setEditing({ ...editing, selling_unit: value })} />
               <Field label={`Base ${editing.base_unit ?? "units"} per ${editing.selling_unit ?? "sale"}`} type="number" value={String(editing.units_per_sale ?? 1)} onChange={(v) => setEditing({ ...editing, units_per_sale: Math.max(1, Number(v) || 1) })} />
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={Boolean(editing.box_enabled)} onChange={(e) => setEditing({ ...editing, box_enabled: e.target.checked })} />Offer a box of 24 from this item&apos;s stock</label>
+              {editing.box_enabled && <Field label="Box of 24 price ($)" type="number" value={String(editing.box_price ?? "")} onChange={(v) => setEditing({ ...editing, box_price: v === "" ? null : Number(v) })} />}
               <p className="-mt-2 text-xs leading-5 text-slate-400 sm:col-span-2">Example: a Bag with 100 Clips uses base unit Clip, selling unit Bag, and 100 base units per sale. Do not change existing stock quantity until its packaging is reviewed.</p>
               <p className="-mt-2 text-xs leading-5 text-slate-400 sm:col-span-2">
                 For normal deliveries, use Receive Stock so quantity and true landed cost update together. These fields remain editable for corrections.

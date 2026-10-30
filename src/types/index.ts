@@ -28,6 +28,8 @@ export interface InventoryItem {
   base_unit?: string;
   selling_unit?: string;
   units_per_sale?: number;
+  box_enabled?: boolean;
+  box_price?: number | null;
   packaging_reviewed?: boolean;
   dimensions: string;
   weight: string;

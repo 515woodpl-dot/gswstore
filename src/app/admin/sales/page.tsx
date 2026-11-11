@@ -51,10 +51,22 @@ export default async function SalesPage({ searchParams }: Props) {
     sb.from("inventory").select("id,name,amount,base_unit,selling_unit,units_per_sale").order("name"),
   ]);
 
+  // The return may have happened outside this report's date window.
+  const orderIds = (ordersResult.data ?? []).map((order) => order.id);
+  const returnsResult = orderIds.length
+    ? await sb.from("sale_item_returns").select("order_id,refund_due").in("order_id", orderIds)
+    : { data: [] as { order_id: string; refund_due: number }[] };
+
+  const returnAmounts: Record<string, number> = {};
+  for (const row of returnsResult.data ?? []) {
+    returnAmounts[row.order_id] = (returnAmounts[row.order_id] || 0) + Number(row.refund_due);
+  }
+
   return (
     <SalesReport
       orders={ordersResult.data ?? []}
       inventory={inventoryResult.data ?? []}
+      returnAmounts={returnAmounts}
       range={range}
       from={from ?? start.toISOString().slice(0, 10)}
       to={to ?? end.toISOString().slice(0, 10)}

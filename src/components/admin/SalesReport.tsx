@@ -60,11 +60,11 @@ function matchesSaleKind(order: OrderRow, kind: SaleKindFilter) {
   return true;
 }
 
-function squareAmounts(order: OrderRow) {
+function squareAmounts(order: OrderRow, unrefundedReturns = 0) {
   if (order.payment_method !== "square" || order.transaction_type === "internal_use") {
     return { gross: 0, fee: 0, deposit: 0 };
   }
-  const grossCents = Math.max(0, Math.round(Number(order.total || 0) * 100));
+  const grossCents = Math.max(0, Math.round((Number(order.total || 0) + unrefundedReturns) * 100));
   const feeCents = grossCents > 0 ? Math.round(grossCents * 0.026) + 15 : 0;
   return { gross: grossCents / 100, fee: feeCents / 100, deposit: Math.max(0, grossCents - feeCents) / 100 };
 }
@@ -101,6 +101,7 @@ const money = (value: number) => formatPrice(value);
 export default function SalesReport({
   orders: allOrders,
   inventory,
+  returnAmounts = {},
   range,
   from,
   to,
@@ -108,6 +109,7 @@ export default function SalesReport({
 }: {
   orders: OrderRow[];
   inventory: InventoryRow[];
+  returnAmounts?: Record<string, number>;
   range: string;
   from: string;
   to: string;
@@ -157,7 +159,7 @@ export default function SalesReport({
         continue;
       }
       saleOrders += 1;
-      const square = squareAmounts(o);
+      const square = squareAmounts(o, returnAmounts[o.id] || 0);
       squareGross += square.gross;
       squareFees += square.fee;
       squareDeposit += square.deposit;
@@ -217,7 +219,7 @@ export default function SalesReport({
       byStaff: Object.entries(byStaff).sort((a, b) => b[1].revenue - a[1].revenue),
       byItem: Object.values(byItem).sort((a, b) => b.revenue - a.revenue || a.name.localeCompare(b.name)),
     };
-  }, [inventory, orders]);
+  }, [inventory, orders, returnAmounts]);
 
   function applyRange(key: string) {
     router.push(`/admin/sales?range=${key}`);
@@ -261,7 +263,7 @@ export default function SalesReport({
     ];
     for (const o of orders) {
       if (o.transaction_type === "internal_use") continue;
-      const square = squareAmounts(o);
+      const square = squareAmounts(o, returnAmounts[o.id] || 0);
       for (const [itemIndex, it] of o.order_items.entries()) {
         const lineTotal = it.unit_price * it.quantity;
         const lineCost = costForSale(it.cost_price, it.quantity, it.base_units_per_sale);
@@ -495,7 +497,7 @@ export default function SalesReport({
         <div>
           {displayedOrders.length === 0 ? <p className="px-5 py-10 text-center text-sm text-[#5b6678]">No sales in this period.</p> : displayedOrders.map((order) => {
             const isOpen = expandedOrderId === order.id;
-            const square = squareAmounts(order);
+            const square = squareAmounts(order, returnAmounts[order.id] || 0);
             return (
               <article key={order.id} className="border-b border-[#eef0f2] last:border-0">
                 <button type="button" onClick={() => setExpanded(isOpen ? null : order.id)} className="flex min-h-16 w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-[#fbfaf8]">
@@ -515,7 +517,8 @@ export default function SalesReport({
                       <span className="rounded-md bg-white px-2.5 py-1.5 text-[#5b6678] ring-1 ring-[#e6e8ec]">{order.tax_city || "No city"} {order.tax_zip || ""} · {money(order.tax_total || 0)} tax</span>
                       {order.is_test && <span className="rounded-md bg-violet-100 px-2.5 py-1.5 text-violet-700">Test</span>}
                     </div>
-                    <div className="space-y-2">{order.order_items.map((item) => <CompactOrderItem key={item.id} item={item} onSaved={() => router.refresh()} />)}</div>
+                    <div className="space-y-2">{order.order_items.map((item) => <CompactOrderItem key={item.id} item={item} order={order} onSaved={() => router.refresh()} />)}</div>
+                    {(returnAmounts[order.id] || 0) > 0 && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">Returned items total {money(returnAmounts[order.id])}. The register payment was not changed; reconcile any customer refund separately.</p>}
                     {square.gross > 0 && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">Square: {money(square.gross)} − {money(square.fee)} = <strong>{money(square.deposit)} deposit</strong></p>}
                     {(order.source === "walk_in" || order.source === "manual") && (
                       <div className="mt-4 flex min-h-11 flex-wrap items-center justify-end gap-4 border-t border-[#e6e8ec] pt-3">
@@ -684,12 +687,15 @@ function MiniTotal({ label, value }: { label: string; value: string }) {
   );
 }
 
-function CompactOrderItem({ item, onSaved }: { item: OrderItemRow; onSaved: () => void }) {
+function CompactOrderItem({ item, order, onSaved }: { item: OrderItemRow; order: OrderRow; onSaved: () => void }) {
   const [editing, setEditing] = useState(false);
   const [price, setPrice] = useState(item.unit_price.toFixed(2));
   const [reason, setReason] = useState(item.discount_reason ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [returning, setReturning] = useState(false);
+  const [returnReason, setReturnReason] = useState("");
+  const [returnQty, setReturnQty] = useState(1);
 
   const list = item.list_price ?? item.unit_price;
   const newPrice = Number(price);
@@ -717,16 +723,55 @@ function CompactOrderItem({ item, onSaved }: { item: OrderItemRow; onSaved: () =
     }
   }
 
+  async function returnItem() {
+    setError("");
+    if (!returnReason.trim() || returnQty < 1 || returnQty > item.quantity) {
+      setError("Choose a valid quantity and enter a reason.");
+      return;
+    }
+    if (!window.confirm(`Return ${returnQty} pack${returnQty === 1 ? "" : "s"} of ${item.name} to inventory? This corrects the sale but does not refund the customer payment.`)) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/return-sale-item", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: order.id, itemId: item.id, quantity: returnQty, reason: returnReason }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Could not return item.");
+      setReturning(false);
+      onSaved();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not return item.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (editing) {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-bold text-[#0f172a]">{item.name} × {item.quantity}</p><div className="mt-2 flex gap-2"><input type="number" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} className="h-11 w-28 rounded-lg border border-amber-300 px-3 text-sm" autoFocus />{wouldDiscount && <input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Discount reason" className="h-11 min-w-0 flex-1 rounded-lg border border-amber-300 px-3 text-sm" />}</div>{error && <p className="mt-1 text-xs font-bold text-[#b4233a]">{error}</p>}<div className="mt-2 flex gap-2"><button onClick={save} disabled={saving} className="min-h-11 rounded-lg bg-[#0f172a] px-4 text-sm font-bold text-white disabled:opacity-50">{saving ? "Saving…" : "Save"}</button><button onClick={() => { setEditing(false); setPrice(item.unit_price.toFixed(2)); setError(""); }} className="min-h-11 rounded-lg border border-[#e6e8ec] px-4 text-sm font-bold text-[#5b6678]">Cancel</button></div></div>
     );
   }
 
+  if (returning) {
+    return <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+      <p className="font-bold text-[#0f172a]">Return {item.name} to inventory</p>
+      <p className="mt-1 text-amber-900">Each pack returns {Math.max(1, Number(item.base_units_per_sale) || 1)} base units. This corrects the sale; refund the customer separately.</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <input type="number" min="1" max={item.quantity} step="1" aria-label="Packs to return" value={returnQty} onChange={(event) => setReturnQty(Number(event.target.value))} className="h-11 w-20 rounded-lg border border-amber-300 px-2" />
+        <input type="text" aria-label="Return reason" placeholder="Reason for return" value={returnReason} onChange={(event) => setReturnReason(event.target.value)} className="h-11 min-w-48 flex-1 rounded-lg border border-amber-300 px-3" />
+        <button type="button" onClick={returnItem} disabled={saving} className="min-h-11 rounded-lg bg-[#0f172a] px-4 font-bold text-white disabled:opacity-50">{saving ? "Returning…" : "Return to stock"}</button>
+        <button type="button" onClick={() => { setReturning(false); setError(""); }} disabled={saving} className="min-h-11 px-3 font-bold">Cancel</button>
+      </div>
+      {error && <p className="mt-2 text-xs font-bold text-[#b4233a]">{error}</p>}
+    </div>;
+  }
+
   const lineCost = costForSale(item.cost_price, item.quantity, item.base_units_per_sale);
   const lineProfit = item.unit_price * item.quantity - lineCost;
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-lg bg-white px-3 py-2.5 text-sm ring-1 ring-[#e6e8ec]"><div className="min-w-0"><p className="font-semibold text-[#0f172a]">{item.name} × {item.quantity}</p><p className="text-[#5b6678]">{Number(item.base_units_per_sale) > 1 ? `${item.quantity} × ${item.base_units_per_sale} base units · ` : ""}Cost {costMissing ? "missing" : formatPrice(lineCost)} · <span className={costMissing ? "text-[#9a4a14]" : lineProfit < 0 ? "text-[#b4233a]" : "text-[#23694a]"}>Profit {costMissing ? "—" : formatPrice(lineProfit)}</span></p></div><p className="font-bold tabular-nums text-[#0f172a]">{formatPrice(item.unit_price * item.quantity)}</p><button type="button" onClick={() => setEditing(true)} className="min-h-11 px-2 font-bold text-[#b4532f]">Edit</button></div>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-lg bg-white px-3 py-2.5 text-sm ring-1 ring-[#e6e8ec]"><div className="min-w-0"><p className="font-semibold text-[#0f172a]">{item.name} × {item.quantity}</p><p className="text-[#5b6678]">{Number(item.base_units_per_sale) > 1 ? `${item.quantity} × ${item.base_units_per_sale} base units · ` : ""}Cost {costMissing ? "missing" : formatPrice(lineCost)} · <span className={costMissing ? "text-[#9a4a14]" : lineProfit < 0 ? "text-[#b4233a]" : "text-[#23694a]"}>Profit {costMissing ? "—" : formatPrice(lineProfit)}</span></p></div><p className="font-bold tabular-nums text-[#0f172a]">{formatPrice(item.unit_price * item.quantity)}</p><div className="flex items-center"><button type="button" onClick={() => setEditing(true)} className="min-h-11 px-2 font-bold text-[#b4532f]">Edit</button>{(order.source === "walk_in" || order.source === "manual") && order.status === "completed" && item.item_id && !item.item_id.startsWith("manual-") && <button type="button" onClick={() => setReturning(true)} className="min-h-11 px-2 font-bold text-[#b4233a]">Return</button>}</div></div>
   );
 }
 

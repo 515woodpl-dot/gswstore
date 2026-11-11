@@ -26,6 +26,9 @@ export async function POST(request: NextRequest) {
     p_actor_id: auth.userId,
     p_was_charged: wasCharged,
   });
+  if (error?.code === "PGRST202") {
+    return NextResponse.json({ error: "The database return function is not installed yet. Run the 20261111000001 uncharged sale corrections SQL migration in Supabase, then retry." }, { status: 503 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 409 });
   return NextResponse.json({ ok: true, ...data });
 }

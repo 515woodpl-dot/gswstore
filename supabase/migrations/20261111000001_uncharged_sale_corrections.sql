@@ -91,3 +91,5 @@ $$;
 REVOKE ALL ON FUNCTION public.return_completed_sale_item(uuid, uuid, integer, text, uuid) FROM service_role;
 REVOKE ALL ON FUNCTION public.return_completed_sale_item(uuid, uuid, integer, text, uuid, boolean) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.return_completed_sale_item(uuid, uuid, integer, text, uuid, boolean) TO service_role;
+
+NOTIFY pgrst, 'reload schema';

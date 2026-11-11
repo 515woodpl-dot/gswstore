@@ -121,6 +121,7 @@ export default function SalesReport({
   const [showAllOrders, setShowAllOrders] = useState(false);
   const [mobileTab, setMobileTab] = useState<"items" | "orders" | "staff">("items");
   const [repairingCosts, setRepairingCosts] = useState(false);
+  const [confirmingRepairCosts, setConfirmingRepairCosts] = useState(false);
   const [costRepairMessage, setCostRepairMessage] = useState("");
   const [showTests, setShowTests] = useState(false);
   const [saleKind, setSaleKind] = useState<SaleKindFilter>("all");
@@ -229,11 +230,7 @@ export default function SalesReport({
   }
 
   async function repairHistoricalCosts() {
-    const confirmed = window.confirm(
-      "Historical costs were not saved when these sales were created. This will use each product's CURRENT average landed cost as an estimate. It will not replace costs already captured. Continue?",
-    );
-    if (!confirmed) return;
-
+    setConfirmingRepairCosts(false);
     setRepairingCosts(true);
     setCostRepairMessage("");
     try {
@@ -455,7 +452,7 @@ export default function SalesReport({
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e6e8ec] bg-[#fbfaf8] px-5 py-3 text-sm text-[#5b6678]">
           <span>Net revenue excludes sales tax. Square deposit uses 2.60% + $0.15 per transaction.</span>
-          {stats.missingCostUnits > 0 && <button type="button" onClick={repairHistoricalCosts} disabled={repairingCosts} className="min-h-10 font-bold text-[#9a4a14] disabled:opacity-50">{repairingCosts ? "Repairing…" : `Repair ${stats.missingCostUnits} missing costs`}</button>}
+          {stats.missingCostUnits > 0 && <button type="button" onClick={() => setConfirmingRepairCosts(true)} disabled={repairingCosts} className="min-h-10 font-bold text-[#9a4a14] disabled:opacity-50">{repairingCosts ? "Repairing…" : `Repair ${stats.missingCostUnits} missing costs`}</button>}
         </div>
         {costRepairMessage && <p className="border-t border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-900">{costRepairMessage}</p>}
       </section>
@@ -539,6 +536,11 @@ export default function SalesReport({
 
   return (
     <div className="admin-dashboard mx-auto max-w-[1680px] px-4 py-5 sm:px-6 lg:px-8">
+      {confirmingRepairCosts && <div role="alertdialog" aria-labelledby="repair-costs-title" aria-describedby="repair-costs-description" className="fixed inset-x-4 bottom-4 z-[100] mx-auto flex max-w-3xl flex-wrap items-center gap-3 rounded-2xl border border-white/20 bg-[#0f172a] p-4 text-white shadow-2xl sm:bottom-6">
+        <div className="min-w-0 flex-1"><p id="repair-costs-title" className="font-bold">Repair historical costs?</p><p id="repair-costs-description" className="mt-1 text-sm text-white/85">This estimates missing costs from each product&apos;s current average landed cost. Existing recorded costs are kept.</p></div>
+        <button type="button" onClick={() => setConfirmingRepairCosts(false)} className="min-h-11 rounded-lg border border-white/40 px-4 font-bold text-white">Cancel</button>
+        <button type="button" onClick={repairHistoricalCosts} className="min-h-11 rounded-lg bg-[#e45b2a] px-4 font-bold text-white">Repair costs</button>
+      </div>}
       {/* 1. Title and exports */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -643,13 +645,32 @@ export default function SalesReport({
 }
 
 function InternalUseButton({ orderId, onSaved }: { orderId: string; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   async function markInternal() {
-    const reason = window.prompt("Reason for internal use or donation:");
-    if (reason === null) return;
-    const response = await fetch("/api/admin/internal-use", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId, reason }) });
-    if (!response.ok) alert((await response.json()).error || "Could not classify this order."); else onSaved();
+    if (!reason.trim()) { setError("Enter a reason for internal use or donation."); return; }
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/internal-use", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId, reason: reason.trim() }) });
+      if (!response.ok) { setError((await response.json()).error || "Could not classify this order."); return; }
+      setEditing(false);
+      onSaved();
+    } catch {
+      setError("Could not classify this order.");
+    } finally {
+      setSaving(false);
+    }
   }
-  return <button onClick={markInternal} className="min-h-11 text-sm font-semibold text-slate-700 hover:text-slate-950">Mark internal use</button>;
+  if (!editing) return <button onClick={() => setEditing(true)} className="min-h-11 text-sm font-semibold text-slate-700 hover:text-slate-950">Mark internal use</button>;
+  return <div className="flex flex-wrap items-center gap-2">
+    <input aria-label="Reason for internal use or donation" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason for internal use or donation" className="h-11 min-w-52 rounded-lg border border-slate-300 px-3 text-sm" />
+    <button type="button" onClick={markInternal} disabled={saving} className="min-h-11 rounded-lg bg-[#0f172a] px-3 text-sm font-bold text-white disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
+    <button type="button" onClick={() => { setEditing(false); setError(""); }} disabled={saving} className="min-h-11 px-2 text-sm font-bold">Cancel</button>
+    {error && <span role="alert" className="text-sm font-semibold text-rose-700">{error}</span>}
+  </div>;
 }
 
 function StatCard({ label, value, note, accent = "text-[#0f172a]" }: { label: string; value: string; note: string; accent?: string }) {
@@ -697,6 +718,7 @@ function CompactOrderItem({ item, order, onSaved }: { item: OrderItemRow; order:
   const [returnReason, setReturnReason] = useState("");
   const [returnQty, setReturnQty] = useState(1);
   const [wasCharged, setWasCharged] = useState(false);
+  const [confirmingReturn, setConfirmingReturn] = useState(false);
 
   const list = item.list_price ?? item.unit_price;
   const newPrice = Number(price);
@@ -724,13 +746,17 @@ function CompactOrderItem({ item, order, onSaved }: { item: OrderItemRow; order:
     }
   }
 
-  async function returnItem() {
+  function requestReturn() {
     setError("");
-    if (!returnReason.trim() || returnQty < 1 || returnQty > item.quantity) {
+    if (returnReason.trim().length < 3 || !Number.isInteger(returnQty) || returnQty < 1 || returnQty > item.quantity) {
       setError("Choose a valid quantity and enter a reason.");
       return;
     }
-    if (!window.confirm(`Remove ${returnQty} pack${returnQty === 1 ? "" : "s"} of ${item.name} from this sale and return ${returnQty * Math.max(1, Number(item.base_units_per_sale) || 1)} units to inventory? ${wasCharged ? "The customer refund must be handled separately." : "This line was never charged, so no refund is due."}`)) return;
+    setConfirmingReturn(true);
+  }
+
+  async function returnItem() {
+    setConfirmingReturn(false);
     setSaving(true);
     try {
       const res = await fetch("/api/admin/return-sale-item", {
@@ -766,10 +792,18 @@ function CompactOrderItem({ item, order, onSaved }: { item: OrderItemRow; order:
       <div className="mt-2 flex flex-wrap gap-2">
         <input type="number" min="1" max={item.quantity} step="1" aria-label="Packs to return" value={returnQty} onChange={(event) => setReturnQty(Number(event.target.value))} className="h-11 w-20 rounded-lg border border-amber-300 px-2" />
         <input type="text" aria-label="Return reason" placeholder="Reason for return" value={returnReason} onChange={(event) => setReturnReason(event.target.value)} className="h-11 min-w-48 flex-1 rounded-lg border border-amber-300 px-3" />
-        <button type="button" onClick={returnItem} disabled={saving} className="min-h-11 rounded-lg bg-[#0f172a] px-4 font-bold text-white disabled:opacity-50">{saving ? "Returning…" : "Return to stock"}</button>
+        <button type="button" onClick={requestReturn} disabled={saving} className="min-h-11 rounded-lg bg-[#0f172a] px-4 font-bold text-white disabled:opacity-50">{saving ? "Returning…" : "Return to stock"}</button>
         <button type="button" onClick={() => { setReturning(false); setError(""); }} disabled={saving} className="min-h-11 px-3 font-bold">Cancel</button>
       </div>
       {error && <p className="mt-2 text-xs font-bold text-[#b4233a]">{error}</p>}
+      {confirmingReturn && <div role="alertdialog" aria-labelledby={`return-title-${item.id}`} aria-describedby={`return-description-${item.id}`} className="fixed inset-x-4 bottom-4 z-[100] mx-auto flex max-w-3xl flex-wrap items-center gap-3 rounded-2xl border border-white/20 bg-[#0f172a] p-4 text-white shadow-2xl sm:bottom-6">
+        <div className="min-w-0 flex-1">
+          <p id={`return-title-${item.id}`} className="font-bold">Confirm sale correction</p>
+          <p id={`return-description-${item.id}`} className="mt-1 text-sm text-white/85">Remove {returnQty} pack{returnQty === 1 ? "" : "s"} of {item.name} and return {returnQty * Math.max(1, Number(item.base_units_per_sale) || 1)} units to inventory. {wasCharged ? "Handle the customer refund separately." : "No refund is due because this line was not charged."}</p>
+        </div>
+        <button type="button" onClick={() => setConfirmingReturn(false)} className="min-h-11 rounded-lg border border-white/40 px-4 font-bold text-white">Cancel</button>
+        <button type="button" onClick={returnItem} className="min-h-11 rounded-lg bg-[#e45b2a] px-4 font-bold text-white">Confirm return</button>
+      </div>}
     </div>;
   }
 
@@ -783,6 +817,7 @@ function CompactOrderItem({ item, order, onSaved }: { item: OrderItemRow; order:
 function DeleteSaleButton({ orderId, orderNumber, onDeleted }: { orderId: string; orderNumber: string; onDeleted: () => void }) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleDelete() {
     setDeleting(true);
@@ -794,13 +829,13 @@ function DeleteSaleButton({ orderId, orderNumber, onDeleted }: { orderId: string
       });
       if (!res.ok) {
         const json = await res.json();
-        alert(json.error || "Could not delete the sale.");
+        setError(json.error || "Could not delete the sale.");
         setDeleting(false);
         return;
       }
       onDeleted();
     } catch {
-      alert("Could not delete the sale.");
+      setError("Could not delete the sale.");
       setDeleting(false);
     }
   }
@@ -815,8 +850,9 @@ function DeleteSaleButton({ orderId, orderNumber, onDeleted }: { orderId: string
   }
 
   return (
-    <div className="flex items-center justify-end gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-2">
       <span className="text-sm text-rose-700">Delete {orderNumber}? Inventory will be restored.</span>
+      {error && <span role="alert" className="text-sm font-semibold text-rose-700">{error}</span>}
       <button onClick={handleDelete} disabled={deleting}
         className="rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50">
         {deleting ? "Deleting…" : "Yes, delete"}

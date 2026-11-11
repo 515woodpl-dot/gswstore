@@ -696,6 +696,7 @@ function CompactOrderItem({ item, order, onSaved }: { item: OrderItemRow; order:
   const [returning, setReturning] = useState(false);
   const [returnReason, setReturnReason] = useState("");
   const [returnQty, setReturnQty] = useState(1);
+  const [wasCharged, setWasCharged] = useState(false);
 
   const list = item.list_price ?? item.unit_price;
   const newPrice = Number(price);
@@ -729,13 +730,13 @@ function CompactOrderItem({ item, order, onSaved }: { item: OrderItemRow; order:
       setError("Choose a valid quantity and enter a reason.");
       return;
     }
-    if (!window.confirm(`Return ${returnQty} pack${returnQty === 1 ? "" : "s"} of ${item.name} to inventory? This corrects the sale but does not refund the customer payment.`)) return;
+    if (!window.confirm(`Remove ${returnQty} pack${returnQty === 1 ? "" : "s"} of ${item.name} from this sale and return ${returnQty * Math.max(1, Number(item.base_units_per_sale) || 1)} units to inventory? ${wasCharged ? "The customer refund must be handled separately." : "This line was never charged, so no refund is due."}`)) return;
     setSaving(true);
     try {
       const res = await fetch("/api/admin/return-sale-item", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: order.id, itemId: item.id, quantity: returnQty, reason: returnReason }),
+        body: JSON.stringify({ orderId: order.id, itemId: item.id, quantity: returnQty, reason: returnReason, wasCharged }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Could not return item.");
@@ -757,7 +758,11 @@ function CompactOrderItem({ item, order, onSaved }: { item: OrderItemRow; order:
   if (returning) {
     return <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
       <p className="font-bold text-[#0f172a]">Return {item.name} to inventory</p>
-      <p className="mt-1 text-amber-900">Each pack returns {Math.max(1, Number(item.base_units_per_sale) || 1)} base units. This corrects the sale; refund the customer separately.</p>
+      <p className="mt-1 text-amber-900">Each pack returns {Math.max(1, Number(item.base_units_per_sale) || 1)} base units. Choose how the customer was charged.</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button type="button" onClick={() => setWasCharged(false)} className={`min-h-11 rounded-lg px-3 font-bold ${!wasCharged ? "bg-[#0f172a] text-white" : "border border-amber-300 bg-white"}`}>Not charged · entry error</button>
+        <button type="button" onClick={() => setWasCharged(true)} className={`min-h-11 rounded-lg px-3 font-bold ${wasCharged ? "bg-[#0f172a] text-white" : "border border-amber-300 bg-white"}`}>Charged · refund separately</button>
+      </div>
       <div className="mt-2 flex flex-wrap gap-2">
         <input type="number" min="1" max={item.quantity} step="1" aria-label="Packs to return" value={returnQty} onChange={(event) => setReturnQty(Number(event.target.value))} className="h-11 w-20 rounded-lg border border-amber-300 px-2" />
         <input type="text" aria-label="Return reason" placeholder="Reason for return" value={returnReason} onChange={(event) => setReturnReason(event.target.value)} className="h-11 min-w-48 flex-1 rounded-lg border border-amber-300 px-3" />

@@ -6,10 +6,10 @@ export async function POST(request: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { orderId, itemId, quantity, reason } = await request.json();
+  const { orderId, itemId, quantity, reason, wasCharged } = await request.json();
   const count = Number(quantity);
   if (typeof orderId !== "string" || typeof itemId !== "string" || !Number.isInteger(count) || count <= 0 ||
-      typeof reason !== "string" || reason.trim().length < 3) {
+      typeof reason !== "string" || reason.trim().length < 3 || typeof wasCharged !== "boolean") {
     return NextResponse.json({ error: "Choose a valid quantity and enter a reason." }, { status: 400 });
   }
 
@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
     p_quantity: count,
     p_reason: reason.trim(),
     p_actor_id: auth.userId,
+    p_was_charged: wasCharged,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 409 });
   return NextResponse.json({ ok: true, ...data });

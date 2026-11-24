@@ -128,7 +128,7 @@ async function handlePaymentEvent(admin: ReturnType<typeof adminClient>, event: 
 
   const { data: confirmed, error: confirmError } = await admin.from("orders").update({
     payment_status: "paid",
-    status: order.status === "awaiting_payment" ? "processing" : order.status,
+    status: order.status === "awaiting_payment" ? (order.source === "walk_in" ? "completed" : "processing") : order.status,
     square_payment_id: payment.id,
     square_receipt_url: payment.receipt_url ?? null,
     amount_paid: amountPaid,

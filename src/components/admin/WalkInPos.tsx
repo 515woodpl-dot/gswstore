@@ -31,6 +31,8 @@ export default function WalkInPos() {
     custEmail: string; total: number; discountTotal: number;
     discountReason: string; soldBy: string; date: string;
     taxRate: number; taxAmount: number;
+    squarePaymentUrl?: string;
+    awaitingPayment: boolean;
   } | null>(null);
   const [taxRate, setTaxRate] = useState(0);
   const [compliance, setCompliance] = useState<SaleComplianceValue>(emptySaleCompliance);
@@ -111,6 +113,7 @@ export default function WalkInPos() {
     if (!compliance.buyerType || !compliance.paymentMethod || !compliance.taxCity.trim() || !/^\d{5}$/.test(compliance.taxZip)) { setError("Complete the required buyer, payment, and tax jurisdiction fields."); return; }
     if (compliance.buyerType === "company" && (!compliance.resellerPermitPath || !compliance.resellerDecision)) { setError("Upload and review the reseller permit before continuing."); return; }
 
+    const squareCheckoutWindow = compliance.paymentMethod === "square" ? window.open("", "_blank") : null;
     setSaving(true);
     try {
       const response = await fetch("/api/admin/walk-in-sale", {
@@ -132,6 +135,13 @@ export default function WalkInPos() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Failed to complete sale");
 
+      if (result.squarePaymentUrl) {
+        if (squareCheckoutWindow && !squareCheckoutWindow.closed) squareCheckoutWindow.location.replace(result.squarePaymentUrl);
+        else window.open(result.squarePaymentUrl, "_blank", "noopener,noreferrer");
+      } else if (squareCheckoutWindow && !squareCheckoutWindow.closed) {
+        squareCheckoutWindow.close();
+      }
+
       setDoneOrder(result.orderNumber);
       setDoneData({
         orderNumber: result.orderNumber,
@@ -145,14 +155,18 @@ export default function WalkInPos() {
         date: new Date().toLocaleString(),
         taxRate: Number(result.taxRate),
         taxAmount: Number(result.taxAmount),
+        squarePaymentUrl: typeof result.squarePaymentUrl === "string" ? result.squarePaymentUrl : undefined,
+        awaitingPayment: Boolean(result.awaitingPayment),
       });
 
-      // Auto-send receipt email (to shop + customer if email provided)
-      fetch("/api/receipt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: result.orderId }),
-      }).catch(() => {});
+      // Square sends the receipt after its payment webhook confirms payment.
+      if (!result.awaitingPayment) {
+        fetch("/api/receipt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: result.orderId }),
+        }).catch(() => {});
+      }
 
       setLines([]);
       setCustName("");
@@ -160,6 +174,7 @@ export default function WalkInPos() {
       setDiscountReason("");
       setCompliance((current) => ({ ...emptySaleCompliance, taxZip: current.taxZip, taxCity: current.taxCity }));
     } catch (e) {
+      if (squareCheckoutWindow && !squareCheckoutWindow.closed) squareCheckoutWindow.close();
       setError(e instanceof Error ? e.message : "Sale failed");
     } finally {
       setSaving(false);
@@ -219,12 +234,12 @@ export default function WalkInPos() {
         <div className="print:hidden">
           <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 text-center">
             <p className="text-4xl">✅</p>
-            <h1 className="mt-3 text-2xl font-black text-slate-950">Sale completed</h1>
+            <h1 className="mt-3 text-2xl font-black text-slate-950">{doneData.awaitingPayment ? "Square payment ready" : "Sale completed"}</h1>
             <p className="mt-1 text-sm text-slate-600">
               <span className="font-mono font-bold">{doneData.orderNumber}</span> · {doneData.date}
             </p>
             {doneData.custEmail && (
-              <p className="mt-2 text-xs text-emerald-700">📧 Receipt emailed to {doneData.custEmail}</p>
+              <p className="mt-2 text-xs text-emerald-700">{doneData.awaitingPayment ? "Square checkout opened in a new tab. A receipt is sent after payment is confirmed." : `📧 Receipt emailed to ${doneData.custEmail}`}</p>
             )}
           </div>
 
@@ -253,6 +268,7 @@ export default function WalkInPos() {
 
           {/* Actions */}
           <div className="mt-4 flex gap-3">
+            {doneData.squarePaymentUrl && <a href={doneData.squarePaymentUrl} target="_blank" rel="noreferrer" className="flex-1 rounded-xl border border-brand-navy bg-white px-4 py-3 text-center text-sm font-bold text-brand-navy hover:bg-slate-50">Open Square checkout</a>}
             <button
               onClick={() => window.print()}
               className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
@@ -275,7 +291,7 @@ export default function WalkInPos() {
     <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5 lg:px-6">
       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b4532f]">Sales</p>
       <h1 className="text-2xl font-black tracking-tight text-[#0f172a]">Walk-in Checkout</h1>
-      <p className="mt-1 text-xs text-[#5b6678]">Ring up an in-store sale. Prices are editable. Order is recorded as completed and stock is decremented.</p>
+      <p className="mt-1 text-xs text-[#5b6678]">Ring up an in-store sale. Cash and Zelle orders complete immediately. Square Up opens secure checkout in a new tab and reserves stock until paid or cancelled.</p>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
         {/* Left: search + lines */}

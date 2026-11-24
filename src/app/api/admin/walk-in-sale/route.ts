@@ -1,9 +1,12 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
-import { createSale, SaleCreationError } from "@/lib/create-sale";
+import { createSale, rollbackCreatedSale, SaleCreationError } from "@/lib/create-sale";
 import { orderNumber } from "@/lib/order-money";
 import { complianceOrderValues, resolveSaleCompliance } from "@/lib/sale-compliance";
+import { cancelPaymentLink, createPaymentLink } from "@/lib/square-checkout";
+import { logOrderEvent } from "@/lib/order-events";
+import { isSquareWalkIn, walkInOrderState } from "@/lib/walk-in-payment";
 
 interface SaleLineInput {
   itemId: string;
@@ -64,6 +67,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Enter a valid customer email." }, { status: 400 });
     }
     const compliance = await resolveSaleCompliance(admin, body);
+    const squareWalkIn = isSquareWalkIn(compliance.paymentMethod);
 
     const { data: customer, error: customerError } = await admin
       .from("walk_in_customers")
@@ -93,7 +97,7 @@ export async function POST(request: NextRequest) {
       })),
       orderValues: ({ taxAmount }) => ({
         user_id: null,
-        status: "completed",
+        ...walkInOrderState(compliance.paymentMethod),
         notes: compliance.taxRate > 0 ? `Tax (${(compliance.taxRate * 100).toFixed(2)}%): $${taxAmount.toFixed(2)}` : "Tax exempt — approved reseller permit",
         walk_in_customer_id: customer.id,
         fulfillment: "pickup",
@@ -103,7 +107,43 @@ export async function POST(request: NextRequest) {
       }),
     });
 
-    console.log(`[Walk-in] ${sale.order.order_number} completed by ${auth.userId}`);
+    let squarePaymentUrl: string | undefined;
+    if (squareWalkIn) {
+      let paymentLinkId: string | undefined;
+      try {
+        const link = await createPaymentLink({
+          idempotencyKey: sale.order.id,
+          referenceId: sale.order.order_number,
+          lineItems: [
+            ...sale.squarePlan.lines.map((line) => ({ name: line.name, quantity: String(line.quantity), basePriceMoneyCents: line.unitPriceCents })),
+            ...(sale.squarePlan.taxCents > 0 ? [{ name: "Sales Tax", quantity: "1", basePriceMoneyCents: sale.squarePlan.taxCents }] : []),
+          ],
+          buyerEmail: customerEmail,
+          note: `Walk-in order ${sale.order.order_number} — ${customerName}`,
+        });
+        paymentLinkId = link.paymentLinkId;
+        const { error: linkSaveError } = await admin.from("orders").update({
+          square_order_id: link.squareOrderId,
+          square_payment_link_id: link.paymentLinkId,
+          square_payment_link_url: link.url,
+          square_payment_link_status: "active",
+        }).eq("id", sale.order.id);
+        if (linkSaveError) throw new Error(`The Square payment link could not be saved: ${linkSaveError.message}`);
+        squarePaymentUrl = link.url;
+        await logOrderEvent(admin, {
+          orderId: sale.order.id, eventType: "payment_link_created", actorId: auth.userId,
+          actorName: soldByName, squareRef: link.paymentLinkId, newValue: { total: sale.total, source: "walk_in" },
+        });
+      } catch (squareError) {
+        if (paymentLinkId) {
+          try { await cancelPaymentLink(paymentLinkId); } catch (cancelError) { console.error("[Walk-in] could not deactivate Square link after failure:", cancelError); }
+        }
+        await rollbackCreatedSale(admin, sale);
+        throw new SaleCreationError(`Square checkout could not be created: ${squareError instanceof Error ? squareError.message : "Unknown error"}. No sale was recorded and stock was restored.`, 502);
+      }
+    }
+
+    console.log(`[Walk-in] ${sale.order.order_number} ${squareWalkIn ? "awaiting Square payment" : "completed"} by ${auth.userId}`);
     return NextResponse.json({
       ok: true,
       orderId: sale.order.id,
@@ -113,6 +153,8 @@ export async function POST(request: NextRequest) {
       taxRate: compliance.taxRate,
       taxAmount: sale.taxAmount,
       soldByName,
+      squarePaymentUrl,
+      awaitingPayment: squareWalkIn,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not complete the sale.";

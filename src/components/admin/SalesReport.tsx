@@ -17,6 +17,8 @@ interface OrderItemRow {
   base_units_per_sale?: number;
   discount_amount: number;
   discount_reason: string;
+  status?: "active" | "cancelled";
+  cancelled_quantity?: number;
 }
 interface OrderRow {
   id: string;
@@ -31,6 +33,7 @@ interface OrderRow {
   tax_exempt: boolean;
   buyer_type: "personal" | "company";
   payment_method: "cash" | "zelle" | "square" | "legacy_unknown";
+  payment_status?: "unpaid" | "pending" | "paid" | "partially_refunded" | "refunded" | "failed";
   reseller_permit_status: "not_required" | "approved" | "rejected";
   status: string;
   source: string | null;
@@ -102,6 +105,7 @@ export default function SalesReport({
   orders: allOrders,
   inventory,
   returnAmounts = {},
+  cancelledRecoveryOrders = [],
   range,
   from,
   to,
@@ -110,6 +114,7 @@ export default function SalesReport({
   orders: OrderRow[];
   inventory: InventoryRow[];
   returnAmounts?: Record<string, number>;
+  cancelledRecoveryOrders?: OrderRow[];
   range: string;
   from: string;
   to: string;
@@ -124,6 +129,9 @@ export default function SalesReport({
   const [confirmingRepairCosts, setConfirmingRepairCosts] = useState(false);
   const [costRepairMessage, setCostRepairMessage] = useState("");
   const [showTests, setShowTests] = useState(false);
+  const [recoveries, setRecoveries] = useState(cancelledRecoveryOrders);
+  const [restoringItem, setRestoringItem] = useState<string | null>(null);
+  const [recoveryMessage, setRecoveryMessage] = useState<Record<string, string>>({});
   const [saleKind, setSaleKind] = useState<SaleKindFilter>("all");
   const testFilteredOrders = useMemo(
     () => showTests ? allOrders : allOrders.filter((order) => !order.is_test),
@@ -136,6 +144,38 @@ export default function SalesReport({
   const saleKindCounts = useMemo(() => Object.fromEntries(
     SALE_KINDS.map((kind) => [kind.key, testFilteredOrders.filter((order) => matchesSaleKind(order, kind.key)).length]),
   ) as Record<SaleKindFilter, number>, [testFilteredOrders]);
+
+  async function restoreCancelledItem(orderId: string, item: OrderItemRow) {
+    if (!window.confirm(`Restore ${item.quantity * Math.max(1, Number(item.base_units_per_sale) || 1)} unit${item.quantity * Math.max(1, Number(item.base_units_per_sale) || 1) === 1 ? "" : "s"} of ${item.name} to inventory?`)) return;
+    setRestoringItem(item.id);
+    setRecoveryMessage((current) => ({ ...current, [item.id]: "" }));
+    try {
+      const response = await fetch(`/api/admin/orders/${orderId}/restore-cancelled-item`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemId: item.id }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not restore inventory.");
+      setRecoveryMessage((current) => ({ ...current, [item.id]: `Restored ${result.baseUnitsRestocked} units to inventory.` }));
+      setRecoveries((current) => current.map((order) => order.id === orderId ? {
+        ...order,
+        order_items: order.order_items.map((candidate) => candidate.id === item.id ? { ...candidate, status: "cancelled", cancelled_quantity: candidate.quantity } : candidate),
+      } : order));
+      router.refresh();
+    } catch (error) {
+      setRecoveryMessage((current) => ({ ...current, [item.id]: error instanceof Error ? error.message : "Could not restore inventory." }));
+    } finally { setRestoringItem(null); }
+  }
+
+  function cancelledRecoveryPanel() {
+    const repairable = recoveries.flatMap((order) => order.order_items
+      .filter((item) => item.item_id && item.status === "active" && Number(item.cancelled_quantity || 0) === 0)
+      .map((item) => ({ order, item })));
+    if (repairable.length === 0) return null;
+    return <section className="mt-4 overflow-hidden rounded-2xl border border-amber-300 bg-amber-50">
+      <div className="border-b border-amber-200 px-5 py-4"><h2 className="text-lg font-black text-amber-950">Cancelled order inventory recovery</h2><p className="mt-1 text-sm text-amber-900">These unpaid cancelled items still have active inventory lines. Restore stock once if the cancellation did not return it automatically. They are excluded from sales totals.</p></div>
+      <div className="divide-y divide-amber-200">{repairable.map(({ order, item }) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"><div><p className="font-mono text-sm font-bold text-amber-950">{order.order_number}</p><p className="mt-0.5 text-sm font-semibold text-[#0f172a]">{item.name} × {item.quantity}</p><p className="text-xs text-amber-900">{item.quantity * Math.max(1, Number(item.base_units_per_sale) || 1)} base units to restore</p>{recoveryMessage[item.id] && <p className={`mt-1 text-xs font-bold ${recoveryMessage[item.id].startsWith("Restored") ? "text-emerald-700" : "text-rose-700"}`}>{recoveryMessage[item.id]}</p>}</div><button type="button" onClick={() => restoreCancelledItem(order.id, item)} disabled={restoringItem === item.id} className="min-h-11 rounded-xl bg-[#b4532f] px-4 text-sm font-bold text-white disabled:opacity-50">{restoringItem === item.id ? "Restoring..." : "Restore stock"}</button></div>)}</div>
+    </section>;
+  }
 
   // Totals. Quantities on a sale are in SELLING units; stock and cost are per BASE unit,
   // so cost = cost_per_base_unit × qty × base_units_per_sale (see costForSale).
@@ -555,6 +595,7 @@ export default function SalesReport({
 
       {loadError && <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Could not load the complete report: {loadError}</div>}
       {!loadError && orders.length === 0 && <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">No sales were found from {from} through {to}. Choose Last 90 days or All time to include older sales.</div>}
+      {cancelledRecoveryPanel()}
 
       {/* 2. Filters: period, custom dates, kind of sale */}
       <div className="mt-4 space-y-3 rounded-2xl border border-[#e6e8ec] bg-white p-3 sm:p-4">

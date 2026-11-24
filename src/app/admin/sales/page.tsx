@@ -40,7 +40,7 @@ export default async function SalesPage({ searchParams }: Props) {
   }
 
   const sb = await createClient();
-  const [ordersResult, inventoryResult] = await Promise.all([
+  const [ordersResult, inventoryResult, cancelledRecoveryResult] = await Promise.all([
     sb
     .from("orders")
     .select("id,order_number,created_at,total,discount_total,tax_total,tax_rate,tax_city,tax_zip,tax_exempt,buyer_type,payment_method,reseller_permit_status,status,source,is_test,sold_by_name,transaction_type,internal_use_reason,walk_in_customer_id,order_items(id,item_id,name,sku,quantity,unit_price,list_price,cost_price,base_units_per_sale,discount_amount,discount_reason)")
@@ -49,6 +49,14 @@ export default async function SalesPage({ searchParams }: Props) {
     .neq("status", "cancelled")
     .order("created_at", { ascending: false }),
     sb.from("inventory").select("id,name,amount,base_unit,selling_unit,units_per_sale").order("name"),
+    sb
+      .from("orders")
+      .select("id,order_number,created_at,total,discount_total,tax_total,tax_rate,tax_city,tax_zip,tax_exempt,buyer_type,payment_method,payment_status,reseller_permit_status,status,source,is_test,sold_by_name,transaction_type,internal_use_reason,walk_in_customer_id,order_items(id,item_id,name,sku,quantity,unit_price,list_price,cost_price,base_units_per_sale,discount_amount,discount_reason,status,cancelled_quantity)")
+      .eq("status", "cancelled")
+      .in("payment_status", ["unpaid", "pending", "failed"])
+      .eq("is_test", false)
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
 
   // The return may have happened outside this report's date window.
@@ -67,12 +75,14 @@ export default async function SalesPage({ searchParams }: Props) {
       orders={ordersResult.data ?? []}
       inventory={inventoryResult.data ?? []}
       returnAmounts={returnAmounts}
+      cancelledRecoveryOrders={cancelledRecoveryResult.data ?? []}
       range={range}
       from={from ?? start.toISOString().slice(0, 10)}
       to={to ?? end.toISOString().slice(0, 10)}
       loadError={[
         ordersResult.error && `Sales: ${ordersResult.error.message}`,
         inventoryResult.error && `Inventory: ${inventoryResult.error.message}`,
+        cancelledRecoveryResult.error && `Cancelled recovery: ${cancelledRecoveryResult.error.message}`,
       ].filter(Boolean).join(" | ") || undefined}
     />
   );

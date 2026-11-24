@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { createOrder, formatPrice, validateCartForCheckout } from "@/lib/utils";
 import { OrderStatusBadge } from "@/components/ui";
 import SquareCardForm from "@/components/SquareCardForm";
+import { DEFAULT_TAX_ZIP } from "@/lib/tax-default";
 
 export default function CheckoutPage() {
   const { cart, total, refresh } = useCart();
@@ -19,9 +20,11 @@ export default function CheckoutPage() {
   const [selectedCard, setSelectedCard] = useState<string>("");
   const [cardPayError, setCardPayError] = useState("");
   const [address, setAddress] = useState("");
-  const [customerZip, setCustomerZip] = useState("");
+  const [customerZip, setCustomerZip] = useState(DEFAULT_TAX_ZIP);
   const [taxRate, setTaxRate] = useState<number | null>(null);
   const [taxLoading, setTaxLoading] = useState(false);
+  const taxLookupSequence = useRef(0);
+  const defaultZipStillActive = useRef(true);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
   const [promoInput, setPromoInput] = useState("");
@@ -48,16 +51,32 @@ export default function CheckoutPage() {
   }
 
   async function lookupTax(zip: string) {
+    const requestId = ++taxLookupSequence.current;
     const clean = zip.trim();
-    if (clean.length !== 5 || !/^\d{5}$/.test(clean)) { setTaxRate(null); return; }
+    if (clean.length !== 5 || !/^\d{5}$/.test(clean)) { setTaxRate(null); setTaxLoading(false); return; }
     setTaxLoading(true);
     try {
       const res = await fetch(`/api/admin/tax-rates?zip=${clean}`);
+      if (requestId !== taxLookupSequence.current) return;
       if (res.ok) { const d = await res.json(); setTaxRate(d.combined_rate ?? null); }
       else setTaxRate(null);
-    } catch { setTaxRate(null); }
-    setTaxLoading(false);
+    } catch {
+      if (requestId === taxLookupSequence.current) setTaxRate(null);
+    } finally {
+      if (requestId === taxLookupSequence.current) setTaxLoading(false);
+    }
   }
+
+  useEffect(() => {
+    let active = true;
+    void fetch(`/api/admin/tax-rates?zip=${DEFAULT_TAX_ZIP}`)
+      .then(async (response) => ({ response, data: await response.json() }))
+      .then(({ response, data }) => {
+        if (active && defaultZipStillActive.current && response.ok) setTaxRate(data.combined_rate ?? null);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   // Load saved cards when user is available
   useEffect(() => {
@@ -202,12 +221,13 @@ export default function CheckoutPage() {
               <h2 className="text-lg font-bold text-slate-950">Your ZIP code</h2>
               <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-700">Required</span>
             </div>
-            <p className="mt-1 text-sm text-slate-500">Used to calculate Washington sales tax. Must match your card's billing ZIP.</p>
+            <p className="mt-1 text-sm text-slate-500">Used to calculate Washington sales tax. Must match your card&apos;s billing ZIP.</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <input
                 value={customerZip}
                 onChange={(e) => {
                   const v = e.target.value.replace(/\D/g, "").slice(0, 5);
+                  defaultZipStillActive.current = false;
                   setCustomerZip(v);
                   if (v.length === 5) lookupTax(v);
                   else setTaxRate(null);

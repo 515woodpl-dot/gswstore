@@ -260,6 +260,7 @@ export default function ManualSale() {
       <div className="mt-6 flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5">
         <div>
           {discountTotal > 0 && <p className="text-sm text-slate-500 line-through">{formatPrice(listTotal)}</p>}
+          <p className="text-sm text-slate-600">Subtotal: {formatPrice(total)}</p>
           {taxAmount > 0 && <p className="text-sm text-slate-600">Tax: {formatPrice(taxAmount)}</p>}
           <p className="text-2xl font-black text-slate-950">{formatPrice(grandTotal)}</p>
         </div>

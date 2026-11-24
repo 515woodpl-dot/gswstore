@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPrice } from "@/lib/utils";
 import type { InventoryItem } from "@/types";
 import SaleComplianceFields, { emptySaleCompliance, type SaleComplianceValue } from "@/components/admin/SaleComplianceFields";
-import { applyDefaultZip } from "@/lib/sale-zip";
 
 interface PosLine {
   key: string;
@@ -35,31 +34,6 @@ export default function WalkInPos() {
   } | null>(null);
   const [taxRate, setTaxRate] = useState(0);
   const [compliance, setCompliance] = useState<SaleComplianceValue>(emptySaleCompliance);
-  const zipEdited = useRef(false);
-
-  // Fetch store ZIP and its tax rate on mount
-  useEffect(() => {
-    (async () => {
-      try {
-        // Get store ZIP from settings then look up rate
-        const sbClient = createClient();
-        const { data: settings } = await sbClient
-          .from("store_settings")
-          .select("value")
-          .eq("key", "store_zip")
-          .single();
-        if (settings?.value && !zipEdited.current) {
-          const rateRes = await fetch(`/api/admin/tax-rates?zip=${settings.value}`);
-          if (rateRes.ok) {
-            const rateData = await rateRes.json();
-            if (zipEdited.current) return;
-            setCompliance((current) => applyDefaultZip(current, settings.value, String(rateData.city || ""), zipEdited.current));
-            setTaxRate(Number(rateData.combined_rate) || 0);
-          }
-        }
-      } catch { /* no tax rate available, default 0 */ }
-    })();
-  }, []);
 
   useEffect(() => {
     (async () => {
@@ -392,7 +366,7 @@ export default function WalkInPos() {
             </label>
           </div>
 
-          <SaleComplianceFields value={compliance} onChange={setCompliance} onTaxRate={setTaxRate} onZipEdit={() => { zipEdited.current = true; }} />
+          <SaleComplianceFields value={compliance} onChange={setCompliance} onTaxRate={setTaxRate} />
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <div className="flex items-center justify-between text-sm text-slate-600">
@@ -417,6 +391,10 @@ export default function WalkInPos() {
                 </label>
               </>
             )}
+            <div className="mt-1 flex items-center justify-between text-sm text-slate-600">
+              <span>Subtotal</span>
+              <span className="font-semibold">{formatPrice(total)}</span>
+            </div>
             <div className="flex items-center justify-between text-sm text-slate-600">
               <span>{taxAmount > 0 ? `Tax (${(taxRate * 100).toFixed(2)}%)` : "Tax exempt"}</span>
               <span className="font-semibold">{formatPrice(taxAmount)}</span>

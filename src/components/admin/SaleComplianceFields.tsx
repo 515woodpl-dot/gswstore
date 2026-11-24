@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { applyZipLookup } from "@/lib/sale-zip";
+import { DEFAULT_TAX_CITY, DEFAULT_TAX_ZIP } from "@/lib/tax-default";
 
 export type BuyerType = "personal" | "company";
 export type PaymentMethod = "cash" | "zelle" | "square";
@@ -18,7 +19,7 @@ export interface SaleComplianceValue {
 }
 
 export const emptySaleCompliance: SaleComplianceValue = {
-  buyerType: "", paymentMethod: "", taxZip: "", taxCity: "",
+  buyerType: "", paymentMethod: "", taxZip: DEFAULT_TAX_ZIP, taxCity: DEFAULT_TAX_CITY,
   resellerDecision: "", resellerPermitPath: "", resellerPermitFilename: "",
 };
 
@@ -35,6 +36,22 @@ export default function SaleComplianceFields({
   const [uploadError, setUploadError] = useState("");
   const [taxStatus, setTaxStatus] = useState("");
   const zipLookupSequence = useRef(0);
+
+  useEffect(() => {
+    if (value.taxZip !== DEFAULT_TAX_ZIP) return;
+    let active = true;
+    void fetch(`/api/admin/tax-rates?zip=${DEFAULT_TAX_ZIP}`)
+      .then(async (response) => ({ response, data: await response.json() }))
+      .then(({ response, data }) => {
+        if (!active || !response.ok) return;
+        onChange((current) => current.taxZip === DEFAULT_TAX_ZIP
+          ? { ...current, taxCity: String(data.city || DEFAULT_TAX_CITY) }
+          : current);
+        onTaxRate?.(Number(data.combined_rate) || 0);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [value.taxZip, onChange, onTaxRate]);
 
   function patch(next: Partial<SaleComplianceValue>) {
     onChange((current) => ({ ...current, ...next }));
@@ -81,6 +98,7 @@ export default function SaleComplianceFields({
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4">
       <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">Sale compliance (required)</h2>
+      <p className="mt-1 text-xs text-slate-500">Default tax jurisdiction: Auburn, WA 98002. Change the ZIP only when this sale uses a different tax jurisdiction.</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label><span className="mb-1 block text-xs font-semibold text-slate-700">Purchase for</span>
           <select value={value.buyerType} onChange={(e) => patch({ buyerType: e.target.value as BuyerType, resellerDecision: "", resellerPermitPath: "", resellerPermitFilename: "" })} className={selectCls}>

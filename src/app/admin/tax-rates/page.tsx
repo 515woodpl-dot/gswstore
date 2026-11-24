@@ -19,7 +19,7 @@ export default async function TaxRatesPage() {
   const { data: settings } = await sb
     .from("store_settings")
     .select("key,value")
-    .in("key", ["store_zip", "tax_rates_uploaded_at", "tax_rates_row_count"]);
+    .in("key", ["tax_rates_uploaded_at", "tax_rates_row_count"]);
 
   const settingsMap = Object.fromEntries(
     (settings ?? []).map((s) => [s.key, s.value])
@@ -27,7 +27,6 @@ export default async function TaxRatesPage() {
 
   return (
     <TaxRatesManager
-      storeZip={settingsMap.store_zip ?? ""}
       uploadedAt={settingsMap.tax_rates_uploaded_at ?? null}
       rowCount={settingsMap.tax_rates_row_count ? Number(settingsMap.tax_rates_row_count) : null}
     />

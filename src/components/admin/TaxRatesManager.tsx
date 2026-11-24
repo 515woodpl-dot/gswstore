@@ -4,19 +4,16 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface Props {
-  storeZip: string;
   uploadedAt: string | null;
   rowCount: number | null;
 }
 
-export default function TaxRatesManager({ storeZip, uploadedAt, rowCount }: Props) {
+export default function TaxRatesManager({ uploadedAt, rowCount }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [zip, setZip] = useState(storeZip);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState("");
   const [result, setResult] = useState<{ inserted?: number; skipped?: number; error?: string } | null>(null);
-  const [savingZip, setSavingZip] = useState(false);
   const [lookupZip, setLookupZip] = useState("");
   const [lookupResult, setLookupResult] = useState<Record<string, unknown> | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
@@ -71,17 +68,6 @@ export default function TaxRatesManager({ storeZip, uploadedAt, rowCount }: Prop
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
     }
-  }
-
-  async function saveZip() {
-    setSavingZip(true);
-    await fetch("/api/admin/tax-rates/zip", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ zip: zip.trim() }),
-    });
-    setSavingZip(false);
-    router.refresh();
   }
 
   async function lookup() {
@@ -144,27 +130,8 @@ export default function TaxRatesManager({ storeZip, uploadedAt, rowCount }: Prop
         Upload the WA Department of Revenue ZIP+4 tax rate file each quarter. Rates are used automatically for walk-in and delivery orders.
       </p>
 
-      {/* Store ZIP */}
-      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
-        <h2 className="text-base font-bold text-slate-950">Store ZIP code</h2>
-        <p className="mt-1 text-sm text-slate-500">Your store&apos;s ZIP — used as the default tax rate for walk-in sales.</p>
-        <div className="mt-3 flex gap-2">
-          <input
-            value={zip}
-            onChange={(e) => setZip(e.target.value)}
-            maxLength={5}
-            className="w-32 rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-mono outline-none focus:border-brand-navy"
-            placeholder="98198"
-          />
-          <button onClick={saveZip} disabled={savingZip || zip.length !== 5}
-            className="rounded-xl bg-brand-navy px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-60">
-            {savingZip ? "Saving…" : "Save"}
-          </button>
-        </div>
-      </section>
-
       {/* Upload section */}
-      <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">
+      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-950">Upload rate file</h2>
           {uploadedAt && (

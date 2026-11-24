@@ -21,6 +21,8 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
   const [filter, setFilter]   = useState<OrderStatus | "all">("all");
   const [sendingReceipt, setSendingReceipt] = useState<string | null>(null);
   const [receiptMsg, setReceiptMsg] = useState<Record<string, string>>({});
+  const [restoringItem, setRestoringItem] = useState<string | null>(null);
+  const [restoreMsg, setRestoreMsg] = useState<Record<string, string>>({});
   const sb = createClient();
 
   async function sendReceipt(orderId: string) {
@@ -91,6 +93,25 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
     }
   }
 
+  async function restoreCancelledItem(orderId: string, itemId: string, itemName: string) {
+    if (!window.confirm(`Restore ${itemName} to inventory? This is only for a cancelled unpaid order whose stock was not returned.`)) return;
+    setRestoringItem(itemId);
+    setRestoreMsg((previous) => ({ ...previous, [itemId]: "" }));
+    try {
+      const response = await fetch(`/api/admin/orders/${orderId}/restore-cancelled-item`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not restore inventory.");
+      setRestoreMsg((previous) => ({ ...previous, [itemId]: `Restored ${result.baseUnitsRestocked} unit${result.baseUnitsRestocked === 1 ? "" : "s"} to inventory.` }));
+      await refreshOrder(orderId);
+    } catch (error) {
+      setRestoreMsg((previous) => ({ ...previous, [itemId]: error instanceof Error ? error.message : "Could not restore inventory." }));
+    } finally {
+      setRestoringItem(null);
+    }
+  }
+
   const visible = filter === "all" ? orders : orders.filter(o => o.status === filter);
 
   if (orders.length === 0) {
@@ -144,12 +165,13 @@ export default function AdminOrdersList({ initialOrders }: { initialOrders: Orde
                 <div className="border-t border-slate-100 px-4 pb-4 pt-3">
                   {/* Items */}
                   <div className="mb-4 space-y-2">
-                    {order.items.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between gap-4 text-sm">
-                        <span className="font-medium text-slate-900">{item.name} × {item.quantity}</span>
+                    {order.items.map((item) => {
+                      const canRestore = order.status === "cancelled" && ["unpaid", "pending", "failed"].includes(order.payment_status ?? "unpaid") && !order.is_test && item.item_id && item.status === "active" && Number(item.cancelled_quantity || 0) === 0;
+                      return <div key={item.id} className="flex items-center justify-between gap-4 text-sm">
+                        <div className="min-w-0"><span className="font-medium text-slate-900">{item.name} × {item.quantity}</span>{canRestore && <><button type="button" onClick={() => restoreCancelledItem(order.id, item.id, item.name)} disabled={restoringItem === item.id} className="ml-2 text-xs font-bold text-rose-700 underline disabled:opacity-50">{restoringItem === item.id ? "Restoring…" : "Restore stock"}</button>{restoreMsg[item.id] && <p className={`mt-1 text-xs font-semibold ${restoreMsg[item.id].startsWith("Restored") ? "text-emerald-700" : "text-rose-700"}`}>{restoreMsg[item.id]}</p>}</>}</div>
                         <span className="text-slate-600">{formatPrice(item.unit_price * item.quantity)}</span>
-                      </div>
-                    ))}
+                      </div>;
+                    })}
                   </div>
 
                   {order.notes && (

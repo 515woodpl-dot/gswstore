@@ -6,6 +6,6 @@ export function isSquareWalkIn(paymentMethod: PaymentMethod): boolean {
 
 export function walkInOrderState(paymentMethod: PaymentMethod) {
   return isSquareWalkIn(paymentMethod)
-    ? { status: "awaiting_payment", paymentStatus: "unpaid" }
-    : { status: "completed", paymentStatus: "paid" };
+    ? { status: "awaiting_payment", payment_status: "unpaid" }
+    : { status: "completed", payment_status: "paid" };
 }

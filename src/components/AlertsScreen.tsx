@@ -14,6 +14,16 @@ const STATUS_ACTIONS: { status: OrderStatus; label: string; color: string; hover
   { status: "cancelled",        label: "Cancel Order",     color: "bg-brand-primary text-white",        hoverColor: "hover:bg-red-700" },
 ];
 
+function formatSalesDate(createdAt: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(createdAt));
+}
+
 export default function AlertsScreen({ initialOrders }: { initialOrders: Order[] }) {
   const [orders, setOrders]       = useState<Order[]>(initialOrders);
   const [active, setActive]       = useState<Order | null>(null);
@@ -335,7 +345,7 @@ export default function AlertsScreen({ initialOrders }: { initialOrders: Order[]
                     {orderStatusLabel(o.status)}
                   </span>
                 </div>
-                <div className="mb-2 text-xs text-slate-500">{new Date(o.created_at).toLocaleTimeString()}</div>
+                <div className="mb-2 text-xs text-slate-500">{formatSalesDate(o.created_at)}</div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-brand-gold">{formatPrice(o.total)}</span>
                   <span className="text-xs text-slate-400">{o.items?.length ?? 0} line{o.items?.length !== 1 ? "s" : ""}</span>

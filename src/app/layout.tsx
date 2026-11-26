@@ -40,7 +40,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const [{ data: cats }, { data: promotion }, { data: products }] = await Promise.all([
     sb.from("categories").select("id,name").order("sort_order"),
     sb.from("discount_codes").select("name,code,percent_off").eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    sb.from("inventory").select("id,name,sku,brand,category_name").eq("store_visible", true).is("parent_id", null).order("name"),
+    sb.from("inventory").select("id,name,sku,brand,category_name,dimensions").eq("store_visible", true).is("parent_id", null).order("name"),
   ]);
 
   return (

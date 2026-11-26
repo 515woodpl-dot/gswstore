@@ -139,6 +139,9 @@ export default function SaleComplianceFields({
                 <label className={`cursor-pointer rounded-lg border p-2 text-xs ${value.resellerDecision === "approved" ? "border-emerald-400 bg-emerald-50" : "border-slate-300 bg-white"}`}><input type="radio" name={`permit-${value.resellerPermitPath}`} checked={value.resellerDecision === "approved"} onChange={() => patch({ resellerDecision: "approved" })} /> <strong>Approve permit</strong><span className="block pl-5 text-slate-600">Tax exempt</span></label>
                 <label className={`cursor-pointer rounded-lg border p-2 text-xs ${value.resellerDecision === "charge_tax" ? "border-orange-400 bg-orange-50" : "border-slate-300 bg-white"}`}><input type="radio" name={`permit-${value.resellerPermitPath}`} checked={value.resellerDecision === "charge_tax"} onChange={() => patch({ resellerDecision: "charge_tax" })} /> <strong>Do not approve</strong><span className="block pl-5 text-slate-600">Charge normal tax</span></label>
               </div>
+              {value.resellerDecision === "approved" && (
+                <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">Approved reseller permit: sales tax is removed from this sale.</p>
+              )}
             </div>
           )}
         </div>

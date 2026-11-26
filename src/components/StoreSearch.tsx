@@ -8,6 +8,7 @@ export interface StoreSearchProduct {
   sku: string | null;
   brand: string | null;
   category_name: string | null;
+  dimensions: string | null;
 }
 
 export default function StoreSearch({ products }: { products: StoreSearchProduct[] }) {
@@ -21,7 +22,7 @@ export default function StoreSearch({ products }: { products: StoreSearchProduct
 
     return products
       .map((product) => {
-        const searchable = [product.name, product.sku, product.brand, product.category_name]
+        const searchable = [product.name, product.sku, product.brand, product.category_name, product.dimensions]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -92,7 +93,10 @@ export default function StoreSearch({ products }: { products: StoreSearchProduct
               className="flex w-full items-center justify-between gap-4 px-3 py-2 text-left text-sm text-brand-navy outline-none transition hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
             >
               <span className="font-semibold">{product.name}</span>
-              <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400">{product.sku || product.category_name || "Product"}</span>
+              <span className="shrink-0 text-right text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                <span className="block">{product.sku || product.category_name || "Product"}</span>
+                {product.dimensions && <span className="mt-0.5 block text-brand-gold">{product.dimensions}</span>}
+              </span>
             </button>
           ))}
         </div>

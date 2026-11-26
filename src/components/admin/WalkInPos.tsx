@@ -6,6 +6,8 @@ import { formatPrice } from "@/lib/utils";
 import type { InventoryItem } from "@/types";
 import SaleComplianceFields, { emptySaleCompliance, type SaleComplianceValue } from "@/components/admin/SaleComplianceFields";
 
+const WALK_IN_DRAFT_KEY = "sps-walk-in-sale-draft-v1";
+
 interface PosLine {
   key: string;
   item: InventoryItem;
@@ -13,6 +15,14 @@ interface PosLine {
   qty: number;
   listPrice: number;   // original catalog price (per unit)
   soldPrice: number;   // actual price charged (per unit, editable)
+}
+
+interface WalkInSaleDraft {
+  lines: PosLine[];
+  custName: string;
+  custEmail: string;
+  discountReason: string;
+  compliance: SaleComplianceValue;
 }
 
 export default function WalkInPos() {
@@ -36,17 +46,46 @@ export default function WalkInPos() {
   } | null>(null);
   const [taxRate, setTaxRate] = useState(0);
   const [compliance, setCompliance] = useState<SaleComplianceValue>(emptySaleCompliance);
+  const [draftReady, setDraftReady] = useState(false);
 
   useEffect(() => {
     (async () => {
       const { data } = await sb
         .from("inventory")
-        .select("id,name,sku,brand,category_name,amount,store_price,sale_price,cost_price,image_url,base_unit,selling_unit,units_per_sale,box_enabled,box_price")
+        .select("id,name,sku,brand,category_name,amount,store_price,sale_price,cost_price,image_url,base_unit,selling_unit,units_per_sale,box_enabled,box_price,dimensions")
         .gt("amount", 0)
         .order("name");
-      if (data) setItems(data as unknown as InventoryItem[]);
+      if (data) {
+        const inventory = data as unknown as InventoryItem[];
+        setItems(inventory);
+        // Keep a returned draft current with the latest stock and product details.
+        setLines((previous) => previous.map((line) => {
+          const current = inventory.find((item) => item.id === line.item.id);
+          return current ? { ...line, item: { ...line.item, ...current } } : line;
+        }));
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const restore = window.setTimeout(() => {
+      try {
+        const raw = window.sessionStorage.getItem(WALK_IN_DRAFT_KEY);
+        if (!raw) return;
+        const draft = JSON.parse(raw) as Partial<WalkInSaleDraft>;
+        if (Array.isArray(draft.lines)) setLines(draft.lines);
+        if (typeof draft.custName === "string") setCustName(draft.custName);
+        if (typeof draft.custEmail === "string") setCustEmail(draft.custEmail);
+        if (typeof draft.discountReason === "string") setDiscountReason(draft.discountReason);
+        if (draft.compliance && typeof draft.compliance === "object") setCompliance({ ...emptySaleCompliance, ...draft.compliance });
+      } catch {
+        window.sessionStorage.removeItem(WALK_IN_DRAFT_KEY);
+      } finally {
+        setDraftReady(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(restore);
   }, []);
 
   const results = useMemo(() => {
@@ -57,7 +96,8 @@ export default function WalkInPos() {
         (i) =>
           i.name.toLowerCase().includes(q) ||
           (i.sku ?? "").toLowerCase().includes(q) ||
-          (i.brand ?? "").toLowerCase().includes(q)
+          (i.brand ?? "").toLowerCase().includes(q) ||
+          (i.dimensions ?? "").toLowerCase().includes(q)
       )
       .slice(0, 8);
   }, [query, items]);
@@ -67,6 +107,27 @@ export default function WalkInPos() {
   const discountTotal = Math.max(0, listTotal - total);
   const taxAmount = compliance.buyerType === "company" && compliance.resellerDecision === "approved" ? 0 : Math.round(total * taxRate * 100) / 100;
   const grandTotal = total + taxAmount;
+  const hasDraft = lines.length > 0 || Boolean(custName || custEmail || discountReason || compliance.buyerType || compliance.paymentMethod);
+
+  useEffect(() => {
+    if (!draftReady || doneOrder) return;
+    if (!hasDraft) {
+      window.sessionStorage.removeItem(WALK_IN_DRAFT_KEY);
+      return;
+    }
+    window.sessionStorage.setItem(WALK_IN_DRAFT_KEY, JSON.stringify({ lines, custName, custEmail, discountReason, compliance } satisfies WalkInSaleDraft));
+  }, [compliance, custEmail, custName, discountReason, doneOrder, draftReady, hasDraft, lines]);
+
+  function clearDraft() {
+    window.sessionStorage.removeItem(WALK_IN_DRAFT_KEY);
+    setLines([]);
+    setCustName("");
+    setCustEmail("");
+    setDiscountReason("");
+    setCompliance({ ...emptySaleCompliance });
+    setTaxRate(0);
+    setError("");
+  }
 
   function addLine(item: InventoryItem, packSize = item.units_per_sale ?? 1) {
     const base = packSize === 24 && item.units_per_sale === 1 ? item.box_price! : item.sale_price ?? item.store_price;
@@ -173,6 +234,7 @@ export default function WalkInPos() {
       setCustEmail("");
       setDiscountReason("");
       setCompliance((current) => ({ ...emptySaleCompliance, taxZip: current.taxZip, taxCity: current.taxCity }));
+      window.sessionStorage.removeItem(WALK_IN_DRAFT_KEY);
     } catch (e) {
       if (squareCheckoutWindow && !squareCheckoutWindow.closed) squareCheckoutWindow.close();
       setError(e instanceof Error ? e.message : "Sale failed");
@@ -291,7 +353,11 @@ export default function WalkInPos() {
     <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5 lg:px-6">
       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b4532f]">Sales</p>
       <h1 className="text-2xl font-black tracking-tight text-[#0f172a]">Walk-in Checkout</h1>
-      <p className="mt-1 text-xs text-[#5b6678]">Ring up an in-store sale. Cash and Zelle orders complete immediately. Square Up opens secure checkout in a new tab and reserves stock until paid or cancelled.</p>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-[#5b6678]">
+        <p>Ring up an in-store sale. Cash and Zelle orders complete immediately. Square Up opens secure checkout in a new tab and reserves stock until paid or cancelled.</p>
+        {draftReady && hasDraft && <button type="button" onClick={clearDraft} className="font-semibold text-brand-navy underline hover:text-brand-gold">Clear saved draft</button>}
+      </div>
+      {draftReady && hasDraft && <p className="mt-2 text-xs font-semibold text-emerald-700">Draft saved in this browser. You can check Inventory and return without losing this sale.</p>}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
         {/* Left: search + lines */}
@@ -309,7 +375,7 @@ export default function WalkInPos() {
                   <div key={r.id} className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 last:border-0">
                     <span>
                       <span className="block text-sm font-semibold text-slate-900">{r.name}</span>
-                      <span className="block text-xs text-slate-500">{r.sku} · {r.amount} in stock</span>
+                      <span className="block text-xs text-slate-500">{r.sku} · {r.amount} in stock{r.dimensions ? ` · ${r.dimensions}` : ""}</span>
                     </span>
                     <div className="flex shrink-0 gap-2">
                       <button type="button" onClick={() => addLine(r)} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold hover:bg-slate-50">{r.units_per_sale === 1 ? "Single" : r.selling_unit || "Unit"} · {formatPrice(r.sale_price ?? r.store_price)}</button>

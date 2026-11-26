@@ -102,7 +102,7 @@ export default function ShopGrid({ items, cat, q, basePath = "/" }: { items: Inv
   if (q) {
     const ql = q.toLowerCase();
     filtered = filtered.filter((i) =>
-      [i.name, i.sku, i.category_name, i.description, i.brand, i.model_number].join(" ").toLowerCase().includes(ql)
+      [i.name, i.sku, i.category_name, i.description, i.brand, i.model_number, i.dimensions].join(" ").toLowerCase().includes(ql)
     );
   }
 
